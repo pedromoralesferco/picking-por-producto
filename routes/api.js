@@ -469,13 +469,15 @@ router.get('/priorizacion/rutas', async (req, res) => {
                    ISNULL(rpm.ProductosFinalizados, 0) AS ProductosFinalizados
             FROM RoutePlan rp
             LEFT JOIN (
-                SELECT RouteNumber,
-                       SUM(ISNULL(PesoTotal, 0)) AS PesoTotal,
-                       SUM(CASE WHEN Estado <> 'Finalizado' THEN ISNULL(PesoTotal, 0) ELSE 0 END) AS PesoPendiente,
-                       COUNT(DISTINCT Product) AS TotalProductos,
-                       SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS ProductosFinalizados
-                FROM RoutePickingManagement
-                GROUP BY RouteNumber
+                SELECT rpm2.RouteNumber,
+                       SUM(ISNULL(rpm2.PesoTotal, 0)) AS PesoTotal,
+                       SUM(CASE WHEN rpm2.Estado <> 'Finalizado' THEN ISNULL(rpm2.PesoTotal, 0) ELSE 0 END) AS PesoPendiente,
+                       COUNT(DISTINCT rpm2.Product) AS TotalProductos,
+                       SUM(CASE WHEN rpm2.Estado = 'Finalizado' THEN 1 ELSE 0 END) AS ProductosFinalizados
+                FROM RoutePickingManagement rpm2
+                INNER JOIN RoutePlan rp2 ON rp2.RouteNumber = rpm2.RouteNumber
+                WHERE rp2.Estado IN ('Iniciado', 'Pendiente')
+                GROUP BY rpm2.RouteNumber
             ) rpm ON rpm.RouteNumber = rp.RouteNumber
             WHERE rp.Estado IN ('Iniciado', 'Pendiente')
             ORDER BY
