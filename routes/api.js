@@ -249,6 +249,41 @@ router.post('/rutas/:routeNumber/finalizar', async (req, res) => {
     }
 });
 
+// ── Limpiar tareas huérfanas de rutas finalizadas ──
+
+router.post('/admin/limpiar-rutas-finalizadas', async (req, res) => {
+    try {
+        const pool = getPool();
+
+        // Cerrar tareas de rutas ya finalizadas
+        const taskResult = await pool.request().query(`
+            UPDATE rt
+            SET rt.CantidadPendiente = 0, rt.UltimaActualizacion = GETDATE()
+            FROM RoutePickingTask rt
+            INNER JOIN RoutePlan rp ON rp.RouteNumber = rt.Route_Number
+            WHERE rp.Estado = 'Finalizado' AND rt.Estado <> 'Finalizado'
+        `);
+
+        // Cerrar productos de rutas ya finalizadas
+        const mgmtResult = await pool.request().query(`
+            UPDATE rpm
+            SET rpm.Estado = 'Finalizado', rpm.FechaFin = GETDATE()
+            FROM RoutePickingManagement rpm
+            INNER JOIN RoutePlan rp ON rp.RouteNumber = rpm.RouteNumber
+            WHERE rp.Estado = 'Finalizado' AND rpm.Estado <> 'Finalizado'
+        `);
+
+        res.json({
+            ok: true,
+            tareasActualizadas: taskResult.rowsAffected[0],
+            productosActualizados: mgmtResult.rowsAffected[0]
+        });
+    } catch (err) {
+        console.error('POST /api/admin/limpiar-rutas-finalizadas error:', err);
+        res.status(500).json({ error: 'Error al limpiar' });
+    }
+});
+
 // ── Pickers (para modal de asignación) ──
 
 router.get('/pickers', async (req, res) => {
