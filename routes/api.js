@@ -315,19 +315,34 @@ router.get('/pickers/:id/productos', async (req, res) => {
         const result = await pool.request()
             .input('pickerId', sql.Int, req.params.id)
             .query(`
-                SELECT rpm.RouteNumber,
-                       MAX(rpm.RouteName) AS RouteName,
-                       rpm.Product,
-                       MAX(rpm.ProductName) AS ProductName,
-                       MAX(rpm.TotalArticulo) AS TotalArticulo,
-                       MAX(rpm.PesoTotal) AS PesoTotal,
-                       MAX(rpm.Estado) AS Estado,
+                ;WITH UniqueTasks AS (
+                    SELECT Route_Number, OV_Number, DocType, InternIdProduct,
+                           MAX(Descripcion) AS Descripcion,
+                           MAX(Cantidad) AS Cantidad,
+                           MAX(CantidadPendiente) AS CantidadPendiente,
+                           MAX(UnitWeight) AS UnitWeight
+                    FROM RoutePickingTask
+                    WHERE Picker_ID = @pickerId
+                    GROUP BY Route_Number, OV_Number, DocType, InternIdProduct
+                )
+                SELECT t.Route_Number AS RouteNumber,
+                       MAX(rp.RouteName) AS RouteName,
+                       t.InternIdProduct AS Product,
+                       MAX(t.Descripcion) AS ProductName,
+                       COUNT(*) AS TotalArticulo,
+                       SUM(t.Cantidad * ISNULL(t.UnitWeight, 0)) AS PesoTotal,
+                       CASE WHEN SUM(t.CantidadPendiente) = 0 THEN 'Finalizado' ELSE 'En Proceso' END AS Estado,
                        MAX(rpm.FechaAsignacion) AS FechaAsignacion
-                FROM RoutePickingManagement rpm
-                WHERE rpm.PickerID = @pickerId
-                  AND rpm.Estado IN ('Asignado', 'En Proceso')
-                GROUP BY rpm.RouteNumber, rpm.Product
-                ORDER BY rpm.RouteNumber, rpm.Product
+                FROM UniqueTasks t
+                LEFT JOIN RoutePlan rp ON rp.RouteNumber = t.Route_Number
+                LEFT JOIN (
+                    SELECT RouteNumber, Product, MAX(FechaAsignacion) AS FechaAsignacion
+                    FROM RoutePickingManagement
+                    GROUP BY RouteNumber, Product
+                ) rpm ON rpm.RouteNumber = t.Route_Number AND rpm.Product = t.InternIdProduct
+                GROUP BY t.Route_Number, t.InternIdProduct
+                HAVING SUM(t.CantidadPendiente) > 0
+                ORDER BY t.Route_Number, t.InternIdProduct
             `);
         res.json(result.recordset);
     } catch (err) {
