@@ -27,6 +27,10 @@ app.get('/picker', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'picker.html'));
 });
 
+app.get('/priorizacion', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'priorizacion.html'));
+});
+
 async function start() {
     await db.connect();
     app.listen(PORT, () => {

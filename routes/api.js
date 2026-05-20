@@ -38,6 +38,7 @@ router.get('/rutas', async (req, res) => {
                     WHEN 'Pendiente' THEN 1
                     WHEN 'Finalizado' THEN 2
                 END,
+                ISNULL(rp.Prioridad, 999999),
                 rp.FechaPlanificacion DESC
         `);
         res.json(result.recordset);
@@ -451,6 +452,65 @@ router.get('/pickers/:id/producto-tareas', async (req, res) => {
     } catch (err) {
         console.error('GET /api/pickers/:id/producto-tareas error:', err);
         res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// ── Priorización de Rutas ──
+
+router.get('/priorizacion/rutas', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request().query(`
+            SELECT rp.RouteNumber, rp.RouteName, rp.FechaPlanificacion, rp.AlmacenOrigen,
+                   rp.Estado, rp.Prioridad, rp.FechaInicio,
+                   ISNULL(rpm.PesoTotal, 0) AS PesoTotal,
+                   ISNULL(rpm.PesoPendiente, 0) AS PesoPendiente,
+                   ISNULL(rpm.TotalProductos, 0) AS TotalProductos,
+                   ISNULL(rpm.ProductosFinalizados, 0) AS ProductosFinalizados
+            FROM RoutePlan rp
+            LEFT JOIN (
+                SELECT RouteNumber,
+                       SUM(ISNULL(PesoTotal, 0)) AS PesoTotal,
+                       SUM(CASE WHEN Estado <> 'Finalizado' THEN ISNULL(PesoTotal, 0) ELSE 0 END) AS PesoPendiente,
+                       COUNT(DISTINCT Product) AS TotalProductos,
+                       SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS ProductosFinalizados
+                FROM RoutePickingManagement
+                GROUP BY RouteNumber
+            ) rpm ON rpm.RouteNumber = rp.RouteNumber
+            WHERE rp.Estado IN ('Iniciado', 'Pendiente')
+            ORDER BY
+                CASE rp.Estado WHEN 'Iniciado' THEN 0 ELSE 1 END,
+                ISNULL(rp.Prioridad, 999999),
+                rp.FechaPlanificacion DESC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/priorizacion/rutas error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+router.post('/priorizacion/guardar', async (req, res) => {
+    try {
+        const { orden } = req.body;
+        if (!Array.isArray(orden)) {
+            return res.status(400).json({ error: 'Se requiere un array de rutas' });
+        }
+        const pool = getPool();
+        for (let i = 0; i < orden.length; i++) {
+            await pool.request()
+                .input('routeNumber', sql.Int, orden[i])
+                .input('prioridad', sql.Int, i + 1)
+                .query(`
+                    UPDATE RoutePlan
+                    SET Prioridad = @prioridad
+                    WHERE RouteNumber = @routeNumber AND Estado = 'Pendiente'
+                `);
+        }
+        res.json({ ok: true, actualizadas: orden.length });
+    } catch (err) {
+        console.error('POST /api/priorizacion/guardar error:', err);
+        res.status(500).json({ error: 'Error al guardar prioridades' });
     }
 });
 
