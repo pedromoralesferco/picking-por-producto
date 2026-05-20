@@ -8,10 +8,12 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <style>
         :root {
-            --primary: #e65100;
-            --primary-dark: #bf360c;
+            --primary: #d4a826;
+            --primary-dark: #b8941f;
+            --dark: #222222;
+            --dark-light: #2d2d2d;
             --success: #2e7d32;
-            --bg: #f0f2f5;
+            --bg: #f5f5f5;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,37 +26,38 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #bf360c, #e65100);
+            background: var(--dark);
             color: white;
             padding: 0.8rem 1.5rem;
             position: sticky;
             top: 0;
             z-index: 50;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 3px solid var(--primary);
         }
 
-        .header h1 { font-size: 1.1rem; font-weight: 700; }
-        .header .subtitle { font-size: 0.78rem; opacity: 0.8; }
+        .header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px; }
+        .header h1 i { color: var(--primary); }
+        .header .subtitle { font-size: 0.78rem; color: #999; }
 
         .header-right { display: flex; align-items: center; gap: 0.8rem; }
 
         .capacity-badge {
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
+            background: var(--primary);
+            color: var(--dark);
             padding: 0.3rem 0.7rem;
             border-radius: 6px;
             font-size: 0.78rem;
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .btn-link {
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
+            background: transparent;
+            border: 1px solid #555;
+            color: #ccc;
             padding: 0.3rem 0.8rem;
             border-radius: 6px;
             font-size: 0.8rem;
@@ -62,15 +65,15 @@
             text-decoration: none;
         }
 
-        .btn-link:hover { background: rgba(255,255,255,0.25); }
+        .btn-link:hover { background: #333; color: white; }
 
         .content { max-width: 1100px; margin: 1rem auto; padding: 0 1rem; }
 
         /* Availability bar */
         .availability-bar {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-left: 4px solid var(--success);
+            background: var(--dark);
+            border: 1px solid #444;
+            border-left: 4px solid var(--primary);
             border-radius: 8px;
             padding: 0.7rem 1.2rem;
             margin-bottom: 1rem;
@@ -78,11 +81,11 @@
             align-items: center;
             gap: 0.8rem;
             font-size: 0.85rem;
-            color: #333;
+            color: #ccc;
         }
 
-        .availability-bar i { color: var(--success); font-size: 1.1rem; }
-        .availability-bar strong { color: var(--success); }
+        .availability-bar i { color: var(--primary); font-size: 1.1rem; }
+        .availability-bar strong { color: var(--primary); }
 
         /* Grid table */
         .grid-table {
@@ -97,8 +100,8 @@
         }
 
         .grid-table thead th {
-            background: #37474f;
-            color: white;
+            background: var(--dark);
+            color: var(--primary);
             font-size: 0.72rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -147,15 +150,15 @@
             background: white;
         }
 
-        .grid-table tbody tr.row-pendiente:hover { background: #fff8f0; }
+        .grid-table tbody tr.row-pendiente:hover { background: #fdf6e3; }
 
         .grid-table tbody tr.sortable-ghost {
             opacity: 0.3;
-            background: #fff3e0;
+            background: #fdf6e3;
         }
 
         .grid-table tbody tr.sortable-chosen {
-            background: #fff3e0;
+            background: #fdf6e3;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
@@ -177,8 +180,8 @@
         }
 
         .row-pendiente .prio-num {
-            background: var(--primary);
-            color: white;
+            background: var(--dark);
+            color: var(--primary);
         }
 
         /* Drag handle */
@@ -214,7 +217,7 @@
         .tiempo-val { font-weight: 600; color: #555; }
 
         /* ETA */
-        .eta-val { font-weight: 700; color: var(--primary); }
+        .eta-val { font-weight: 700; color: #b8941f; }
         .row-iniciado .eta-val { color: #78909c; }
 
         /* Progress bar for iniciado */
@@ -248,7 +251,7 @@
         }
 
         .btn-save {
-            background: linear-gradient(135deg, #bf360c, #e65100);
+            background: linear-gradient(135deg, #b8941f, #d4a826);
             color: white;
             border: none;
             padding: 0.65rem 2.5rem;
@@ -262,7 +265,8 @@
             transition: all 0.2s;
         }
 
-        .btn-save:hover { box-shadow: 0 4px 15px rgba(230,81,0,0.3); }
+        .btn-save { color: var(--dark); font-weight: 800; }
+        .btn-save:hover { box-shadow: 0 4px 15px rgba(212,168,38,0.4); }
         .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-save.success { background: linear-gradient(135deg, #1b5e20, #388e3c); }
 
