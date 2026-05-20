@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mi Picking - Productos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #e65100;
+            --primary-dark: #bf360c;
+            --success: #2e7d32;
+            --warning: #f9a825;
+            --bg: #f0f2f5;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #bf360c, #e65100);
+            color: white;
+            padding: 1rem 1.2rem;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.15rem; font-weight: 700; }
+        .header .subtitle { font-size: 0.8rem; opacity: 0.8; }
+
+        .btn-back {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .btn-back:hover { background: rgba(255,255,255,0.25); }
+
+        .screen { display: none; padding: 1rem; }
+        .screen.active { display: block; }
+
+        .selection-title {
+            font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: #333;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+
+        .select-item {
+            background: white; border: 1px solid #e0e0e0; border-left: 4px solid var(--primary);
+            border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 0.6rem;
+            cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+        }
+
+        .select-item:hover, .select-item:active { background: #fff3e0; border-color: var(--primary); transform: scale(0.99); }
+        .select-item .item-name { font-weight: 700; font-size: 1rem; }
+        .select-item .item-sub { color: #888; font-size: 0.85rem; margin-top: 0.15rem; }
+
+        .kpi-strip { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; }
+
+        .kpi-mini {
+            background: white; border-radius: 10px; padding: 0.8rem;
+            text-align: center; border: 1px solid #e0e0e0;
+        }
+
+        .kpi-mini .kpi-val { font-size: 1.3rem; font-weight: 800; color: var(--primary); }
+        .kpi-mini .kpi-lbl { font-size: 0.62rem; text-transform: uppercase; color: #888; font-weight: 600; line-height: 1.2; }
+        .kpi-mini.accent .kpi-val { color: var(--success); }
+
+        .producto-mobile {
+            background: white; border-radius: 12px; margin-bottom: 0.8rem; overflow: hidden;
+            border: 1px solid #e0e0e0; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .producto-mobile-header {
+            padding: 1rem 1.2rem; display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+
+        .producto-mobile-header .pm-route { font-size: 0.75rem; color: #888; margin-bottom: 0.15rem; }
+        .producto-mobile-header .pm-doc { font-weight: 700; font-size: 1rem; color: #333; }
+        .producto-mobile-header .pm-meta { font-size: 0.82rem; color: #666; margin-top: 0.2rem; }
+        .producto-mobile-header .pm-arrow { font-size: 1.2rem; color: #ccc; transition: transform 0.2s; }
+        .producto-mobile-header .pm-arrow.open { transform: rotate(90deg); }
+
+        .pm-progress { height: 4px; background: #e8e8e8; }
+        .pm-progress .fill { height: 100%; background: var(--success); transition: width 0.3s; }
+
+        .tareas-mobile { display: none; padding: 0 1rem 1rem; }
+        .tareas-mobile.open { display: block; }
+
+        .tarea-mobile {
+            display: flex; align-items: center; padding: 0.7rem 0;
+            border-bottom: 1px solid #f0f0f0; gap: 0.8rem;
+        }
+
+        .tarea-mobile:last-child { border-bottom: none; }
+        .tarea-mobile .tm-icon { font-size: 1.3rem; flex-shrink: 0; }
+        .tarea-mobile .tm-icon.done { color: var(--success); }
+        .tarea-mobile .tm-icon.pending { color: #ccc; }
+        .tarea-mobile .tm-info { flex: 1; min-width: 0; }
+
+        .tarea-mobile .tm-product {
+            font-weight: 600; font-size: 0.88rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .tarea-mobile .tm-desc {
+            font-size: 0.78rem; color: #888;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .tarea-mobile .tm-qty { text-align: right; flex-shrink: 0; }
+        .tarea-mobile .tm-qty .qty-pending { font-weight: 700; font-size: 0.95rem; }
+        .tarea-mobile .tm-qty .qty-total { font-size: 0.75rem; color: #888; }
+        .tarea-mobile.is-done { opacity: 0.5; }
+        .tarea-mobile.is-done .tm-product { text-decoration: line-through; }
+
+        .estado-pill {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px;
+            font-size: 0.7rem; font-weight: 700;
+        }
+
+        .estado-pill.asignado, .estado-pill.en-proceso { background: rgba(249,168,37,0.15); color: #e65100; }
+        .estado-pill.finalizado { background: rgba(46,125,50,0.12); color: var(--success); }
+
+        .empty-mobile { text-align: center; padding: 3rem 1rem; color: #aaa; }
+        .empty-mobile i { font-size: 3rem; opacity: 0.3; display: block; margin-bottom: 0.8rem; }
+
+        .refresh-bar { text-align: center; padding: 0.8rem; }
+
+        .btn-refresh {
+            background: var(--primary); color: white; border: none;
+            padding: 0.6rem 1.5rem; border-radius: 10px; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; width: 100%;
+        }
+
+        .btn-refresh:active { background: var(--primary-dark); }
+
+        .picker-bar {
+            background: white; padding: 0.6rem 1.2rem;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .picker-bar .pb-name { font-weight: 700; font-size: 0.95rem; }
+        .picker-bar .pb-centro { font-size: 0.8rem; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            <div>
+                <h1><i class="bi bi-boxes"></i> Mi Picking — Productos</h1>
+                <div class="subtitle" id="headerSubtitle">Selecciona tu almacén</div>
+            </div>
+            <button class="btn-back" id="btnBack" style="display:none" onclick="goBack()">
+                <i class="bi bi-arrow-left"></i> Atrás
+            </button>
+        </div>
+    </div>
+
+    <div id="screenCentro" class="screen active">
+        <div class="selection-title"><i class="bi bi-building"></i> Selecciona tu almacén</div>
+        <div id="centrosList"></div>
+    </div>
+
+    <div id="screenPicker" class="screen">
+        <div class="selection-title"><i class="bi bi-person-circle"></i> ¿Quién eres?</div>
+        <div id="pickersList"></div>
+    </div>
+
+    <div id="screenProductos" class="screen">
+        <div class="picker-bar">
+            <div>
+                <div class="pb-name" id="pickerName"></div>
+                <div class="pb-centro" id="pickerCentro"></div>
+            </div>
+            <button class="btn-back" onclick="goBack()"><i class="bi bi-person-gear"></i> Cambiar</button>
+        </div>
+
+        <div style="padding:1rem">
+            <div class="kpi-strip" id="kpiStrip"></div>
+            <div class="selection-title"><i class="bi bi-clipboard-check"></i> Mis Productos</div>
+            <div id="productosMobileList"></div>
+            <div class="refresh-bar">
+                <button class="btn-refresh" onclick="loadPickerData()">
+                    <i class="bi bi-arrow-clockwise"></i> Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedCentro = null;
+        let selectedPicker = null;
+        let currentScreen = 'centro';
+        let autoRefresh = null;
+
+        async function init() {
+            try {
+                const res = await fetch('/api/centros');
+                const centros = await res.json();
+                document.getElementById('centrosList').innerHTML = centros.map(c => `
+                    <div class="select-item" onclick="chooseCentro(${c.ID_Centro}, '${esc(c.Nombre)}', '${c.Pais}')">
+                        <div class="item-name"><i class="bi bi-building"></i> ${c.Nombre}</div>
+                        <div class="item-sub">${c.Pais}</div>
+                    </div>
+                `).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function chooseCentro(id, nombre, pais) {
+            selectedCentro = { id, nombre, pais };
+            showScreen('picker');
+            document.getElementById('headerSubtitle').textContent = nombre;
+
+            try {
+                const res = await fetch(`/api/centros/${id}/pickers`);
+                const pickers = await res.json();
+                document.getElementById('pickersList').innerHTML = pickers.map(p => `
+                    <div class="select-item" onclick="choosePicker(${p.ID_Picker}, '${esc(p.Nombre)}')">
+                        <div class="item-name"><i class="bi bi-person-circle"></i> ${p.Nombre}</div>
+                        <div class="item-sub">${p.ProductosPendientes} productos · ${p.TareasPendientes} tareas pendientes</div>
+                    </div>
+                `).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function choosePicker(id, nombre) {
+            selectedPicker = { id, nombre };
+            document.getElementById('pickerName').textContent = nombre;
+            document.getElementById('pickerCentro').textContent = selectedCentro.nombre;
+            document.getElementById('headerSubtitle').textContent = `${nombre} - ${selectedCentro.nombre}`;
+            showScreen('productos');
+            await loadPickerData();
+            autoRefresh = setInterval(loadPickerData, 30000);
+        }
+
+        async function loadPickerData() {
+            try {
+                const [productosRes, resumenRes] = await Promise.all([
+                    fetch(`/api/pickers/${selectedPicker.id}/productos`),
+                    fetch(`/api/pickers/${selectedPicker.id}/resumen`)
+                ]);
+
+                const productos = await productosRes.json();
+                const resumen = await resumenRes.json();
+
+                document.getElementById('kpiStrip').innerHTML = `
+                    <div class="kpi-mini">
+                        <div class="kpi-val">${resumen.TareasPendientes}</div>
+                        <div class="kpi-lbl">Tareas Pendientes</div>
+                    </div>
+                    <div class="kpi-mini">
+                        <div class="kpi-val">${formatNum(resumen.KgPendientes)}</div>
+                        <div class="kpi-lbl">Kg Pendientes</div>
+                    </div>
+                    <div class="kpi-mini accent">
+                        <div class="kpi-val">${resumen.TareasCompletadasHoy}</div>
+                        <div class="kpi-lbl">Completadas Hoy</div>
+                    </div>
+                    <div class="kpi-mini accent">
+                        <div class="kpi-val">${formatNum(resumen.KgCompletadosHoy)}</div>
+                        <div class="kpi-lbl">Kg Completados Hoy</div>
+                    </div>
+                `;
+
+                if (productos.length === 0) {
+                    document.getElementById('productosMobileList').innerHTML = `
+                        <div class="empty-mobile">
+                            <i class="bi bi-check-circle"></i>
+                            No tienes productos pendientes
+                        </div>`;
+                    return;
+                }
+
+                const tareasPromises = productos.map(p =>
+                    fetch(`/api/pickers/${selectedPicker.id}/producto-tareas?routeNumber=${p.RouteNumber}&product=${encodeURIComponent(p.Product)}`)
+                        .then(r => r.json())
+                );
+                const allTareas = await Promise.all(tareasPromises);
+
+                document.getElementById('productosMobileList').innerHTML = productos.map((p, idx) => {
+                    const tareas = allTareas[idx];
+                    const done = tareas.filter(t => t.Estado === 'Finalizado').length;
+                    const total = tareas.length;
+                    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    const estadoClass = p.Estado === 'Finalizado' ? 'finalizado'
+                        : (p.Estado === 'En Proceso' ? 'en-proceso' : 'asignado');
+
+                    return `
+                        <div class="producto-mobile">
+                            <div class="producto-mobile-header" style="cursor:default">
+                                <div style="flex:1">
+                                    <div class="pm-route">${p.RouteName || ''} — Ruta #${p.RouteNumber}</div>
+                                    <div class="pm-doc">${p.Product}
+                                        <span class="estado-pill ${estadoClass}">${p.Estado}</span>
+                                    </div>
+                                    <div class="pm-meta">${p.ProductName || ''}</div>
+                                    <div class="pm-meta">${done}/${total} tareas · ${formatNum(p.PesoTotal || 0)} kg</div>
+                                </div>
+                            </div>
+                            <div class="pm-progress"><div class="fill" style="width:${pct}%"></div></div>
+                            <div class="tareas-mobile" style="display:block">
+                                ${tareas.map(t => {
+                                    const isDone = t.Estado === 'Finalizado';
+                                    return `
+                                        <div class="tarea-mobile ${isDone ? 'is-done' : ''}">
+                                            <div class="tm-icon ${isDone ? 'done' : 'pending'}">
+                                                <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
+                                            </div>
+                                            <div class="tm-info">
+                                                <div class="tm-product">${t.OV_Number} (${t.DocType})</div>
+                                                <div class="tm-desc">${t.Descripcion || ''}</div>
+                                            </div>
+                                            <div class="tm-qty">
+                                                <div class="qty-pending">${t.CantidadPendiente ?? 0}</div>
+                                                <div class="qty-total">de ${t.Cantidad}</div>
+                                            </div>
+                                        </div>`;
+                                }).join('')}
+                            </div>
+                        </div>`;
+                }).join('');
+
+            } catch (err) { console.error('Error loading picker data:', err); }
+        }
+
+        function showScreen(name) {
+            currentScreen = name;
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(`screen${capitalize(name)}`).classList.add('active');
+            document.getElementById('btnBack').style.display = name === 'centro' ? 'none' : '';
+        }
+
+        function goBack() {
+            if (autoRefresh) { clearInterval(autoRefresh); autoRefresh = null; }
+            if (currentScreen === 'productos') {
+                showScreen('picker');
+                document.getElementById('headerSubtitle').textContent = selectedCentro.nombre;
+            } else if (currentScreen === 'picker') {
+                showScreen('centro');
+                document.getElementById('headerSubtitle').textContent = 'Selecciona tu almacén';
+            }
+        }
+
+        function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+        function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+        function formatNum(n) {
+            return parseFloat(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
