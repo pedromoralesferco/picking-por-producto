@@ -477,9 +477,11 @@ router.get('/priorizacion/rutas', async (req, res) => {
                 FROM RoutePickingManagement rpm2
                 INNER JOIN RoutePlan rp2 ON rp2.RouteNumber = rpm2.RouteNumber
                 WHERE rp2.Estado IN ('Iniciado', 'Pendiente')
+                  AND (rp2.Estado = 'Iniciado' OR rp2.FechaPlanificacion >= DATEADD(DAY, -3, CAST(GETDATE() AS DATE)))
                 GROUP BY rpm2.RouteNumber
             ) rpm ON rpm.RouteNumber = rp.RouteNumber
             WHERE rp.Estado IN ('Iniciado', 'Pendiente')
+              AND (rp.Estado = 'Iniciado' OR rp.FechaPlanificacion >= DATEADD(DAY, -3, CAST(GETDATE() AS DATE)))
             ORDER BY
                 CASE rp.Estado WHEN 'Iniciado' THEN 0 ELSE 1 END,
                 ISNULL(rp.Prioridad, 999999),
