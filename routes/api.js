@@ -366,18 +366,32 @@ router.get('/pickers/:id/productos', async (req, res) => {
                        MAX(t.Descripcion) AS ProductName,
                        COUNT(*) AS TotalArticulo,
                        SUM(t.Cantidad * ISNULL(t.UnitWeight, 0)) AS PesoTotal,
-                       CASE WHEN SUM(t.CantidadPendiente) = 0 THEN 'Finalizado' ELSE 'En Proceso' END AS Estado,
+                       CASE
+                           WHEN SUM(t.CantidadPendiente) = 0 THEN 'Finalizado'
+                           WHEN MAX(rpm.Estado) = 'En Proceso' THEN 'En Proceso'
+                           ELSE 'Asignado'
+                       END AS Estado,
                        MAX(rpm.FechaAsignacion) AS FechaAsignacion
                 FROM UniqueTasks t
                 LEFT JOIN RoutePlan rp ON rp.RouteNumber = t.Route_Number
                 LEFT JOIN (
-                    SELECT RouteNumber, Product, MAX(FechaAsignacion) AS FechaAsignacion
+                    SELECT RouteNumber, Product,
+                           MAX(FechaAsignacion) AS FechaAsignacion,
+                           MAX(Estado) AS Estado
                     FROM RoutePickingManagement
                     GROUP BY RouteNumber, Product
                 ) rpm ON rpm.RouteNumber = t.Route_Number AND rpm.Product = t.InternIdProduct
                 GROUP BY t.Route_Number, t.InternIdProduct
                 HAVING SUM(t.CantidadPendiente) > 0
-                ORDER BY t.Route_Number, t.InternIdProduct
+                   OR (SUM(t.CantidadPendiente) = 0 AND CAST(MAX(t.UltimaActualizacion) AS DATE) = CAST(GETDATE() AS DATE))
+                ORDER BY
+                    CASE
+                        WHEN SUM(t.CantidadPendiente) > 0 AND MAX(rpm.Estado) = 'En Proceso' THEN 0
+                        WHEN SUM(t.CantidadPendiente) > 0 THEN 1
+                        ELSE 2
+                    END,
+                    MAX(rpm.FechaAsignacion),
+                    t.Route_Number, t.InternIdProduct
             `);
         res.json(result.recordset);
     } catch (err) {
