@@ -1,14 +1,58 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 const { getPool, sql } = require('../db');
 const router = express.Router();
 
+// Rate limiting: max 5 intentos por IP cada 15 minutos
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { error: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.ip
+});
+
+// Bloqueo por usuario: rastrear intentos fallidos en memoria
+const failedAttempts = new Map();
+const MAX_FAILED = 5;
+const LOCK_TIME = 15 * 60 * 1000; // 15 minutos
+
+function checkUserLock(usuario) {
+    const record = failedAttempts.get(usuario);
+    if (!record) return false;
+    if (Date.now() - record.lastAttempt > LOCK_TIME) {
+        failedAttempts.delete(usuario);
+        return false;
+    }
+    return record.count >= MAX_FAILED;
+}
+
+function registerFail(usuario) {
+    const record = failedAttempts.get(usuario) || { count: 0, lastAttempt: 0 };
+    record.count++;
+    record.lastAttempt = Date.now();
+    failedAttempts.set(usuario, record);
+}
+
+function clearFails(usuario) {
+    failedAttempts.delete(usuario);
+}
+
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
     try {
         const { usuario, password } = req.body;
         if (!usuario || !password) {
             return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+        }
+
+        const usuarioNorm = usuario.trim().toLowerCase();
+
+        // Verificar bloqueo por usuario
+        if (checkUserLock(usuarioNorm)) {
+            return res.status(429).json({ error: 'Usuario bloqueado por demasiados intentos. Espera 15 minutos.' });
         }
 
         const pool = getPool();
@@ -21,6 +65,7 @@ router.post('/login', async (req, res) => {
             `);
 
         if (result.recordset.length === 0) {
+            registerFail(usuarioNorm);
             return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
         }
 
@@ -32,8 +77,12 @@ router.post('/login', async (req, res) => {
 
         const valid = await bcrypt.compare(password, user.PasswordHash);
         if (!valid) {
+            registerFail(usuarioNorm);
             return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
         }
+
+        // Login exitoso: limpiar intentos fallidos
+        clearFails(usuarioNorm);
 
         // Get permisos
         let permisos = [];

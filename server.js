@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const helmet = require('helmet');
 require('dotenv').config();
 
 const db = require('./db');
@@ -11,6 +12,14 @@ const { requireAuthPage, requireAdminPage, requirePermisoPage } = require('./mid
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Security headers
+app.use(helmet({
+    contentSecurityPolicy: false  // Desactivar CSP para no romper CDN de Bootstrap Icons
+}));
+
+// Trust proxy (para que rate-limit funcione con IIS reverse proxy)
+app.set('trust proxy', 1);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
