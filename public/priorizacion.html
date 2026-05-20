@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Priorización de Rutas</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
@@ -11,7 +11,6 @@
             --primary: #e65100;
             --primary-dark: #bf360c;
             --success: #2e7d32;
-            --warning: #f9a825;
             --bg: #f0f2f5;
         }
 
@@ -21,222 +20,219 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
             min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
             padding-bottom: 5rem;
         }
 
         .header {
             background: linear-gradient(135deg, #bf360c, #e65100);
             color: white;
-            padding: 1rem 1.2rem;
+            padding: 0.8rem 1.5rem;
             position: sticky;
             top: 0;
             z-index: 50;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .header-top { display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { font-size: 1.15rem; font-weight: 700; }
-        .header .subtitle { font-size: 0.8rem; opacity: 0.8; margin-top: 0.15rem; }
+        .header h1 { font-size: 1.1rem; font-weight: 700; }
+        .header .subtitle { font-size: 0.78rem; opacity: 0.8; }
 
-        .btn-back {
+        .header-right { display: flex; align-items: center; gap: 0.8rem; }
+
+        .capacity-badge {
             background: rgba(255,255,255,0.15);
-            border: none;
+            border: 1px solid rgba(255,255,255,0.3);
             color: white;
-            padding: 0.4rem 0.8rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .btn-link {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
             cursor: pointer;
             text-decoration: none;
         }
 
-        .btn-back:hover { background: rgba(255,255,255,0.25); }
+        .btn-link:hover { background: rgba(255,255,255,0.25); }
 
-        .content { padding: 1rem; max-width: 600px; margin: 0 auto; }
+        .content { max-width: 1100px; margin: 1rem auto; padding: 0 1rem; }
 
-        .capacity-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 0.5rem 0.9rem;
-            font-size: 0.82rem;
-            color: #555;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        .capacity-badge i { color: var(--primary); font-size: 1rem; }
-
-        .section-title {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 0.6rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .section-title i { font-size: 1.1rem; }
-
-        .section { margin-bottom: 1.5rem; }
-
+        /* Availability bar */
         .availability-bar {
-            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-            border: 1px solid #a5d6a7;
-            border-radius: 10px;
-            padding: 0.7rem 1rem;
-            margin-top: 0.6rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #2e7d32;
-        }
-
-        .availability-bar i { font-size: 1rem; }
-
-        /* Route cards */
-        .route-card {
             background: white;
             border: 1px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 0.9rem 1rem;
-            margin-bottom: 0.5rem;
-            transition: box-shadow 0.15s, transform 0.15s;
+            border-left: 4px solid var(--success);
+            border-radius: 8px;
+            padding: 0.7rem 1.2rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.85rem;
+            color: #333;
         }
 
-        .route-card.iniciado {
-            background: #fafafa;
-            border-left: 4px solid #78909c;
+        .availability-bar i { color: var(--success); font-size: 1.1rem; }
+        .availability-bar strong { color: var(--success); }
+
+        /* Grid table */
+        .grid-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            border: 1px solid #e0e0e0;
         }
 
-        .route-card.pendiente {
-            border-left: 4px solid var(--primary);
+        .grid-table thead th {
+            background: #37474f;
+            color: white;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.7rem 0.8rem;
+            text-align: left;
+            white-space: nowrap;
+            position: sticky;
+            top: 52px;
+            z-index: 10;
+        }
+
+        .grid-table thead th:first-child { width: 50px; text-align: center; }
+
+        .grid-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.1s;
+        }
+
+        .grid-table tbody tr:last-child { border-bottom: none; }
+
+        .grid-table tbody td {
+            padding: 0.65rem 0.8rem;
+            font-size: 0.85rem;
+            color: #333;
+            vertical-align: middle;
+        }
+
+        .grid-table tbody td:first-child { text-align: center; }
+
+        /* Iniciado rows */
+        .grid-table tbody tr.row-iniciado {
+            background: #f5f5f5;
+            color: #888;
+        }
+
+        .grid-table tbody tr.row-iniciado td { color: #777; }
+
+        .grid-table tbody tr.row-iniciado .estado-tag {
+            background: #78909c;
+        }
+
+        /* Pendiente rows */
+        .grid-table tbody tr.row-pendiente {
             cursor: grab;
+            background: white;
         }
 
-        .route-card.pendiente:active { cursor: grabbing; }
+        .grid-table tbody tr.row-pendiente:hover { background: #fff8f0; }
 
-        .route-card.sortable-ghost {
-            opacity: 0.4;
+        .grid-table tbody tr.sortable-ghost {
+            opacity: 0.3;
             background: #fff3e0;
         }
 
-        .route-card.sortable-chosen {
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-            transform: scale(1.02);
+        .grid-table tbody tr.sortable-chosen {
+            background: #fff3e0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .route-card-header {
-            display: flex;
+        /* Priority column */
+        .prio-num {
+            display: inline-flex;
             align-items: center;
-            gap: 0.6rem;
-            margin-bottom: 0.5rem;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            font-weight: 800;
         }
 
+        .row-iniciado .prio-num {
+            background: #cfd8dc;
+            color: #607d8b;
+        }
+
+        .row-pendiente .prio-num {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Drag handle */
         .drag-handle {
-            color: #bbb;
-            font-size: 1.2rem;
+            color: #ccc;
             cursor: grab;
-            flex-shrink: 0;
-            user-select: none;
-            -webkit-user-select: none;
+            font-size: 1rem;
+            margin-right: 0.3rem;
         }
 
         .drag-handle:active { cursor: grabbing; }
 
-        .lock-icon {
-            color: #9e9e9e;
-            font-size: 1rem;
-            flex-shrink: 0;
-        }
+        .row-iniciado .drag-handle { visibility: hidden; }
 
-        .route-number {
-            font-weight: 800;
-            font-size: 0.95rem;
-            color: #333;
-        }
-
-        .route-name {
-            font-size: 0.8rem;
-            color: #888;
-            margin-left: auto;
-            text-align: right;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 140px;
-        }
-
-        .route-card-body {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.4rem 1rem;
-            font-size: 0.78rem;
-            color: #666;
-        }
-
-        .route-stat {
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .route-stat i { font-size: 0.85rem; color: #999; }
-        .route-stat strong { color: #333; font-weight: 700; }
-
-        .route-eta {
-            margin-left: auto;
-            background: #fff3e0;
-            color: var(--primary);
-            font-weight: 700;
+        /* Estado tag */
+        .estado-tag {
+            display: inline-block;
             padding: 0.15rem 0.5rem;
-            border-radius: 6px;
-            font-size: 0.8rem;
-        }
-
-        .route-eta.iniciado-eta {
-            background: #eceff1;
-            color: #546e7a;
-        }
-
-        /* Progress bar for initiated routes */
-        .progress-bar-container {
-            width: 100%;
-            height: 6px;
-            background: #e0e0e0;
-            border-radius: 3px;
-            margin-top: 0.5rem;
-            overflow: hidden;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #66bb6a, #43a047);
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-
-        .priority-number {
-            background: var(--primary);
-            color: white;
+            border-radius: 4px;
             font-size: 0.7rem;
-            font-weight: 800;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
+            font-weight: 700;
+            color: white;
+            background: var(--primary);
         }
 
-        /* Save button */
+        /* Route number */
+        .route-num { font-weight: 700; }
+
+        /* Weight */
+        .peso-val { font-weight: 700; }
+
+        /* Time estimation */
+        .tiempo-val { font-weight: 600; color: #555; }
+
+        /* ETA */
+        .eta-val { font-weight: 700; color: var(--primary); }
+        .row-iniciado .eta-val { color: #78909c; }
+
+        /* Progress bar for iniciado */
+        .progress-mini {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-top: 0.3rem;
+        }
+
+        .progress-mini .fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 2px;
+        }
+
+        /* Save bar */
         .save-bar {
             position: fixed;
             bottom: 0;
@@ -244,59 +240,44 @@
             right: 0;
             background: white;
             border-top: 1px solid #e0e0e0;
-            padding: 0.8rem 1rem;
+            padding: 0.7rem 1rem;
             z-index: 50;
             display: flex;
             justify-content: center;
+            gap: 1rem;
         }
 
         .btn-save {
             background: linear-gradient(135deg, #bf360c, #e65100);
             color: white;
             border: none;
-            padding: 0.75rem 2rem;
-            border-radius: 12px;
-            font-size: 0.95rem;
+            padding: 0.65rem 2.5rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
             font-weight: 700;
             cursor: pointer;
-            width: 100%;
-            max-width: 400px;
-            transition: all 0.2s;
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 0.5rem;
+            transition: all 0.2s;
         }
 
-        .btn-save:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(230,81,0,0.3); }
-        .btn-save:active { transform: scale(0.98); }
-        .btn-save:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-
+        .btn-save:hover { box-shadow: 0 4px 15px rgba(230,81,0,0.3); }
+        .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-save.success { background: linear-gradient(135deg, #1b5e20, #388e3c); }
 
-        /* Loading / empty states */
-        .loading {
-            text-align: center;
-            padding: 3rem 1rem;
-            color: #999;
-        }
-
+        /* Loading */
+        .loading { text-align: center; padding: 3rem; color: #999; }
         .loading i { font-size: 2rem; animation: spin 1s linear infinite; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .empty-state {
-            text-align: center;
-            padding: 2rem 1rem;
-            color: #aaa;
-            font-size: 0.85rem;
-        }
+        .empty-state { text-align: center; padding: 3rem; color: #aaa; }
+        .empty-state i { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; opacity: 0.4; }
 
-        .empty-state i { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
-
+        /* Toast */
         .toast {
             position: fixed;
-            top: 4.5rem;
+            top: 4rem;
             left: 50%;
             transform: translateX(-50%) translateY(-10px);
             background: #333;
@@ -314,56 +295,56 @@
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast.error { background: #c62828; }
         .toast.success { background: #2e7d32; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .grid-table { font-size: 0.78rem; }
+            .grid-table thead th, .grid-table tbody td { padding: 0.5rem 0.4rem; }
+            .header h1 { font-size: 0.95rem; }
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="header-top">
-            <div>
-                <h1><i class="bi bi-sort-numeric-down"></i> Priorización de Rutas</h1>
-                <div class="subtitle">Ordena las rutas pendientes por prioridad</div>
-            </div>
-            <a class="btn-back" href="/"><i class="bi bi-house-door"></i> Menú</a>
+        <div>
+            <h1><i class="bi bi-sort-numeric-down"></i> Priorización de Rutas</h1>
+            <div class="subtitle">Arrastra las rutas pendientes para ordenar por prioridad</div>
+        </div>
+        <div class="header-right">
+            <span class="capacity-badge"><i class="bi bi-speedometer2"></i> 10 ton/hora</span>
+            <a class="btn-link" href="/"><i class="bi bi-house-door"></i> Menú</a>
         </div>
     </div>
 
     <div class="content">
-        <div class="capacity-badge">
-            <i class="bi bi-speedometer2"></i>
-            Capacidad: 10 ton/hora
-        </div>
-
         <div id="loadingState" class="loading">
             <i class="bi bi-arrow-repeat"></i>
             <p>Cargando rutas...</p>
         </div>
 
         <div id="mainContent" style="display:none;">
-            <!-- Initiated routes section -->
-            <div class="section" id="iniciadoSection" style="display:none;">
-                <div class="section-title">
-                    <i class="bi bi-play-circle-fill" style="color:#546e7a;"></i>
-                    Rutas en Curso
-                </div>
-                <div id="iniciadoList"></div>
-                <div class="availability-bar" id="availabilityBar">
-                    <i class="bi bi-clock-history"></i>
-                    <span>Disponibilidad estimada: <strong id="availabilityTime">--:--</strong></span>
-                </div>
+            <div class="availability-bar" id="availabilityBar" style="display:none;">
+                <i class="bi bi-clock-history"></i>
+                <span>Rutas en curso finalizan aprox. a las <strong id="availabilityTime">--:--</strong> — las pendientes inician después de esa hora.</span>
             </div>
 
-            <!-- Pending routes section -->
-            <div class="section" id="pendienteSection" style="display:none;">
-                <div class="section-title">
-                    <i class="bi bi-hourglass-split" style="color:var(--primary);"></i>
-                    Rutas Pendientes
-                </div>
-                <div id="pendienteList"></div>
-            </div>
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Ruta</th>
+                        <th>Nombre</th>
+                        <th>Peso</th>
+                        <th>Tiempo Est.</th>
+                        <th>ETA Finalización</th>
+                    </tr>
+                </thead>
+                <tbody id="gridBody"></tbody>
+            </table>
 
             <div id="emptyState" class="empty-state" style="display:none;">
                 <i class="bi bi-check-circle"></i>
-                No hay rutas iniciadas ni pendientes.
+                No hay rutas pendientes ni en curso.
             </div>
         </div>
     </div>
@@ -377,7 +358,7 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        const CAPACITY_KG_PER_HOUR = 10000; // 10 ton/hora
+        const CAPACITY_KG_PER_HOUR = 10000;
         let rutasData = [];
         let sortableInstance = null;
 
@@ -386,14 +367,14 @@
                 const res = await fetch('/api/priorizacion/rutas');
                 if (!res.ok) throw new Error('Error al cargar');
                 rutasData = await res.json();
-                renderRutas();
+                renderGrid();
             } catch (err) {
                 console.error(err);
-                showToast('Error al cargar rutas', 'error');
+                document.getElementById('loadingState').innerHTML = '<p style="color:#c62828">Error al cargar rutas</p>';
             }
         }
 
-        function renderRutas() {
+        function renderGrid() {
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
 
@@ -402,156 +383,107 @@
 
             if (iniciadas.length === 0 && pendientes.length === 0) {
                 document.getElementById('emptyState').style.display = 'block';
-                document.getElementById('iniciadoSection').style.display = 'none';
-                document.getElementById('pendienteSection').style.display = 'none';
-                document.getElementById('saveBar').style.display = 'none';
                 return;
             }
 
-            // Render initiated routes
-            if (iniciadas.length > 0) {
-                document.getElementById('iniciadoSection').style.display = 'block';
-                const container = document.getElementById('iniciadoList');
-                container.innerHTML = '';
+            const body = document.getElementById('gridBody');
+            body.innerHTML = '';
+            const now = Date.now();
+            let maxIniciadaEta = now;
 
-                let maxEtaMs = 0;
-                const now = Date.now();
+            // Render iniciadas
+            iniciadas.forEach((r, idx) => {
+                const etaMin = (r.PesoPendiente / CAPACITY_KG_PER_HOUR) * 60;
+                const etaMs = now + etaMin * 60000;
+                if (etaMs > maxIniciadaEta) maxIniciadaEta = etaMs;
 
-                iniciadas.forEach(r => {
-                    const etaMinutes = (r.PesoPendiente / CAPACITY_KG_PER_HOUR) * 60;
-                    const etaMs = now + etaMinutes * 60000;
-                    if (etaMs > maxEtaMs) maxEtaMs = etaMs;
+                const progress = r.PesoTotal > 0 ? ((r.PesoTotal - r.PesoPendiente) / r.PesoTotal * 100) : 100;
 
-                    const progress = r.PesoTotal > 0
-                        ? ((r.PesoTotal - r.PesoPendiente) / r.PesoTotal * 100)
-                        : 100;
-
-                    const etaTime = formatTime(new Date(etaMs));
-
-                    container.innerHTML += `
-                        <div class="route-card iniciado">
-                            <div class="route-card-header">
-                                <i class="bi bi-lock-fill lock-icon"></i>
-                                <span class="route-number">Ruta ${r.RouteNumber}</span>
-                                <span class="route-name">${r.RouteName || ''}</span>
-                            </div>
-                            <div class="route-card-body">
-                                <div class="route-stat">
-                                    <i class="bi bi-box-seam"></i>
-                                    <span><strong>${formatTon(r.PesoPendiente)}</strong> / ${formatTon(r.PesoTotal)}</span>
-                                </div>
-                                <div class="route-stat">
-                                    <i class="bi bi-list-check"></i>
-                                    <span>${r.ProductosFinalizados}/${r.TotalProductos} prod.</span>
-                                </div>
-                                <div class="route-eta iniciado-eta">
-                                    <i class="bi bi-clock"></i> ${etaTime}
-                                </div>
-                            </div>
-                            <div class="progress-bar-container">
-                                <div class="progress-bar-fill" style="width:${progress.toFixed(1)}%"></div>
-                            </div>
-                        </div>`;
-                });
-
-                // Availability time
-                const availTime = maxEtaMs > 0 ? formatTime(new Date(maxEtaMs)) : formatTime(new Date());
-                document.getElementById('availabilityTime').textContent = availTime;
-
-                // Store for pending ETA calculation
-                window._availabilityMs = maxEtaMs > now ? maxEtaMs : now;
-            } else {
-                document.getElementById('iniciadoSection').style.display = 'none';
-                window._availabilityMs = Date.now();
-            }
-
-            // Render pending routes
-            if (pendientes.length > 0) {
-                document.getElementById('pendienteSection').style.display = 'block';
-                document.getElementById('saveBar').style.display = 'flex';
-                renderPendientes(pendientes);
-            } else {
-                document.getElementById('pendienteSection').style.display = 'none';
-                document.getElementById('saveBar').style.display = 'none';
-            }
-        }
-
-        function renderPendientes(pendientes) {
-            const container = document.getElementById('pendienteList');
-            container.innerHTML = '';
-
-            let cumulativeStartMs = window._availabilityMs || Date.now();
-
-            pendientes.forEach((r, idx) => {
-                const durationMinutes = (r.PesoTotal / CAPACITY_KG_PER_HOUR) * 60;
-                const etaMs = cumulativeStartMs + durationMinutes * 60000;
-                const etaTime = formatTime(new Date(etaMs));
-
-                container.innerHTML += `
-                    <div class="route-card pendiente" data-route="${r.RouteNumber}">
-                        <div class="route-card-header">
-                            <span class="drag-handle">&#9776;</span>
-                            <span class="priority-number">${idx + 1}</span>
-                            <span class="route-number">Ruta ${r.RouteNumber}</span>
-                            <span class="route-name">${r.RouteName || ''}</span>
-                        </div>
-                        <div class="route-card-body">
-                            <div class="route-stat">
-                                <i class="bi bi-box-seam"></i>
-                                <span><strong>${formatTon(r.PesoTotal)}</strong></span>
-                            </div>
-                            <div class="route-stat">
-                                <i class="bi bi-list-check"></i>
-                                <span>${r.TotalProductos} prod.</span>
-                            </div>
-                            <div class="route-eta">
-                                <i class="bi bi-clock"></i> ${etaTime}
-                            </div>
-                        </div>
-                    </div>`;
-
-                cumulativeStartMs = etaMs;
+                const tr = document.createElement('tr');
+                tr.className = 'row-iniciado';
+                tr.innerHTML = `
+                    <td><span class="prio-num"><i class="bi bi-play-fill"></i></span></td>
+                    <td class="route-num">${r.RouteNumber}</td>
+                    <td>${r.RouteName || '-'}
+                        <div class="progress-mini"><div class="fill" style="width:${progress.toFixed(1)}%"></div></div>
+                    </td>
+                    <td class="peso-val">${formatTon(r.PesoPendiente)} / ${formatTon(r.PesoTotal)}</td>
+                    <td class="tiempo-val">${formatDuration(etaMin)}</td>
+                    <td class="eta-val">${formatDateTime(new Date(etaMs))}</td>
+                `;
+                body.appendChild(tr);
             });
 
-            initSortable();
+            // Availability bar
+            if (iniciadas.length > 0) {
+                document.getElementById('availabilityBar').style.display = 'flex';
+                document.getElementById('availabilityTime').textContent = formatTime(new Date(maxIniciadaEta));
+            }
+
+            window._availabilityMs = maxIniciadaEta;
+
+            // Render pendientes
+            let cumStart = maxIniciadaEta;
+            pendientes.forEach((r, idx) => {
+                const durMin = (r.PesoTotal / CAPACITY_KG_PER_HOUR) * 60;
+                const etaMs = cumStart + durMin * 60000;
+
+                const tr = document.createElement('tr');
+                tr.className = 'row-pendiente';
+                tr.dataset.route = r.RouteNumber;
+                tr.innerHTML = `
+                    <td><span class="drag-handle">&#9776;</span> <span class="prio-num">${idx + 1}</span></td>
+                    <td class="route-num">${r.RouteNumber}</td>
+                    <td>${r.RouteName || '-'}</td>
+                    <td class="peso-val">${formatTon(r.PesoTotal)}</td>
+                    <td class="tiempo-val">${formatDuration(durMin)}</td>
+                    <td class="eta-val">${formatDateTime(new Date(etaMs))}</td>
+                `;
+                body.appendChild(tr);
+                cumStart = etaMs;
+            });
+
+            if (pendientes.length > 0) {
+                document.getElementById('saveBar').style.display = 'flex';
+                initSortable();
+            }
         }
 
         function recalcETAs() {
-            const cards = document.querySelectorAll('#pendienteList .route-card.pendiente');
-            let cumulativeStartMs = window._availabilityMs || Date.now();
+            const rows = document.querySelectorAll('#gridBody .row-pendiente');
+            let cumStart = window._availabilityMs || Date.now();
 
-            cards.forEach((card, idx) => {
-                const routeNum = parseInt(card.dataset.route);
+            rows.forEach((tr, idx) => {
+                const routeNum = parseInt(tr.dataset.route);
                 const ruta = rutasData.find(r => r.RouteNumber === routeNum);
                 if (!ruta) return;
 
-                const durationMinutes = (ruta.PesoTotal / CAPACITY_KG_PER_HOUR) * 60;
-                const etaMs = cumulativeStartMs + durationMinutes * 60000;
-                const etaTime = formatTime(new Date(etaMs));
+                const durMin = (ruta.PesoTotal / CAPACITY_KG_PER_HOUR) * 60;
+                const etaMs = cumStart + durMin * 60000;
 
                 // Update priority number
-                const prioEl = card.querySelector('.priority-number');
-                if (prioEl) prioEl.textContent = idx + 1;
+                const prio = tr.querySelector('.prio-num');
+                if (prio) prio.textContent = idx + 1;
 
                 // Update ETA
-                const etaEl = card.querySelector('.route-eta');
-                if (etaEl) etaEl.innerHTML = `<i class="bi bi-clock"></i> ${etaTime}`;
+                const etaTd = tr.querySelector('.eta-val');
+                if (etaTd) etaTd.textContent = formatDateTime(new Date(etaMs));
 
-                cumulativeStartMs = etaMs;
+                cumStart = etaMs;
             });
         }
 
         function initSortable() {
             if (sortableInstance) sortableInstance.destroy();
 
-            sortableInstance = new Sortable(document.getElementById('pendienteList'), {
+            const tbody = document.getElementById('gridBody');
+            sortableInstance = new Sortable(tbody, {
                 animation: 200,
                 handle: '.drag-handle',
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
-                onEnd: function () {
-                    recalcETAs();
-                }
+                filter: '.row-iniciado',
+                onEnd: function() { recalcETAs(); }
             });
         }
 
@@ -560,8 +492,8 @@
             btn.disabled = true;
             btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin 1s linear infinite"></i> Guardando...';
 
-            const cards = document.querySelectorAll('#pendienteList .route-card.pendiente');
-            const orden = Array.from(cards).map(c => parseInt(c.dataset.route));
+            const rows = document.querySelectorAll('#gridBody .row-pendiente');
+            const orden = Array.from(rows).map(r => parseInt(r.dataset.route));
 
             try {
                 const res = await fetch('/api/priorizacion/guardar', {
@@ -569,12 +501,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ orden })
                 });
-
-                if (!res.ok) throw new Error('Error al guardar');
+                if (!res.ok) throw new Error('Error');
 
                 btn.classList.add('success');
                 btn.innerHTML = '<i class="bi bi-check2-circle"></i> Guardado';
-                showToast('Prioridades guardadas correctamente', 'success');
+                showToast('Prioridades guardadas', 'success');
 
                 setTimeout(() => {
                     btn.classList.remove('success');
@@ -582,8 +513,7 @@
                     btn.innerHTML = '<i class="bi bi-check2-circle"></i> Guardar Orden';
                 }, 2000);
             } catch (err) {
-                console.error(err);
-                showToast('Error al guardar prioridades', 'error');
+                showToast('Error al guardar', 'error');
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-check2-circle"></i> Guardar Orden';
             }
@@ -593,13 +523,38 @@
             return (kg / 1000).toFixed(2) + ' ton';
         }
 
+        function formatDuration(minutes) {
+            if (minutes < 1) return '< 1 min';
+            const h = Math.floor(minutes / 60);
+            const m = Math.round(minutes % 60);
+            if (h === 0) return m + ' min';
+            return h + 'h ' + (m > 0 ? m + 'm' : '');
+        }
+
         function formatTime(date) {
             return date.toLocaleTimeString('es-GT', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
+                hour: '2-digit', minute: '2-digit', hour12: false,
                 timeZone: 'America/Guatemala'
             });
+        }
+
+        function formatDateTime(date) {
+            const today = new Date();
+            const isToday = date.toLocaleDateString('es-GT', { timeZone: 'America/Guatemala' }) ===
+                            today.toLocaleDateString('es-GT', { timeZone: 'America/Guatemala' });
+
+            const time = date.toLocaleTimeString('es-GT', {
+                hour: '2-digit', minute: '2-digit', hour12: false,
+                timeZone: 'America/Guatemala'
+            });
+
+            if (isToday) return 'Hoy ' + time;
+
+            const day = date.toLocaleDateString('es-GT', {
+                day: '2-digit', month: '2-digit',
+                timeZone: 'America/Guatemala'
+            });
+            return day + ' ' + time;
         }
 
         function showToast(msg, type) {
@@ -610,7 +565,6 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        // Init
         cargarRutas();
     </script>
 </body>
