@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administracion - Picking por Producto</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d4a826;
+            --primary-dark: #b8941f;
+            --dark: #222222;
+            --dark-light: #2d2d2d;
+            --success: #2e7d32;
+            --danger: #c62828;
+            --bg: #f5f5f5;
+            --light-gold: #fdf6e3;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--dark);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        .header .brand {
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--primary);
+        }
+
+        .header h1 { font-size: 1.1rem; font-weight: 700; }
+        .header h1 i { color: var(--primary); }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .btn-link {
+            background: transparent;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 0.35rem 0.7rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-link:hover { background: #444; color: white; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 0 1.5rem;
+        }
+
+        .tab {
+            padding: 0.8rem 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #999;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { color: var(--dark); }
+
+        .tab.active {
+            color: var(--dark);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab i { margin-right: 0.3rem; }
+
+        /* Content */
+        .content {
+            max-width: 1000px;
+            margin: 1.5rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .toolbar h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn-primary:hover { opacity: 0.9; }
+
+        /* Table */
+        .table-wrap {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: var(--dark);
+            color: white;
+            padding: 0.7rem 0.8rem;
+            text-align: left;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        td {
+            padding: 0.6rem 0.8rem;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tr:hover { background: var(--light-gold); }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 5px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .badge-admin { background: #fef2f2; color: var(--danger); }
+        .badge-supervisor { background: #e8f5e9; color: var(--success); }
+        .badge-active { background: #e8f5e9; color: var(--success); }
+        .badge-inactive { background: #f5f5f5; color: #999; }
+        .badge-permiso { background: var(--light-gold); color: var(--primary-dark); margin-right: 0.2rem; }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        .btn-sm:hover { opacity: 0.8; }
+        .btn-edit { background: var(--light-gold); color: var(--primary-dark); }
+        .btn-delete { background: #fef2f2; color: var(--danger); }
+        .btn-activate { background: #e8f5e9; color: var(--success); }
+
+        .actions { display: flex; gap: 0.3rem; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-box {
+            background: white;
+            border-radius: 14px;
+            width: 90%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.3rem;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 0.3rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.55rem 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--primary);
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.3rem;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            accent-color: var(--primary);
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.3rem;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle input { opacity: 0; width: 0; height: 0; }
+
+        .toggle .slider {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #ccc;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle .slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle input:checked + .slider { background: var(--success); }
+        .toggle input:checked + .slider::before { transform: translateX(20px); }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        .btn-cancel {
+            background: #f5f5f5;
+            color: #666;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-save:hover { opacity: 0.9; }
+
+        .hint { font-size: 0.75rem; color: #999; margin-top: 0.2rem; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        @media (max-width: 600px) {
+            th, td { padding: 0.5rem 0.4rem; font-size: 0.78rem; }
+            .tabs { padding: 0 0.5rem; }
+            .tab { padding: 0.7rem 0.8rem; font-size: 0.82rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="brand">FERCO CERAMICA</div>
+            <h1><i class="bi bi-gear"></i> Administracion</h1>
+        </div>
+        <div class="header-right">
+            <a href="/dashboard" class="btn-link"><i class="bi bi-arrow-left"></i> Dashboard</a>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="usuarios" onclick="switchTab('usuarios')">
+            <i class="bi bi-people"></i> Usuarios
+        </div>
+        <div class="tab" data-tab="pickers" onclick="switchTab('pickers')">
+            <i class="bi bi-person-walking"></i> Operarios
+        </div>
+    </div>
+
+    <!-- Usuarios Tab -->
+    <div class="tab-content active" id="tab-usuarios">
+        <div class="content">
+            <div class="toolbar">
+                <h3><i class="bi bi-people" style="color:var(--primary)"></i> Usuarios del Sistema</h3>
+                <button class="btn-primary" onclick="openUserModal()"><i class="bi bi-plus-lg"></i> Nuevo Usuario</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Rol</th>
+                            <th>Permisos</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pickers Tab -->
+    <div class="tab-content" id="tab-pickers">
+        <div class="content">
+            <div class="toolbar">
+                <h3><i class="bi bi-person-walking" style="color:var(--primary)"></i> Operarios (Pickers)</h3>
+                <button class="btn-primary" onclick="openPickerModal()"><i class="bi bi-plus-lg"></i> Nuevo Operario</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Centro</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pickersTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Modal -->
+    <div class="modal-overlay" id="userModal" style="display:none" onclick="if(event.target===this)closeUserModal()">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h4 id="userModalTitle">Nuevo Usuario</h4>
+                <button class="modal-close" onclick="closeUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label>Nombre de Usuario</label>
+                    <input type="text" id="userUsuario" placeholder="ej. jperez">
+                </div>
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="userNombre" placeholder="ej. Juan Perez">
+                </div>
+                <div class="form-group">
+                    <label>Contrasena</label>
+                    <input type="password" id="userPassword" placeholder="Minimo 4 caracteres">
+                    <p class="hint" id="passwordHint" style="display:none">Dejar vacio para mantener la actual</p>
+                </div>
+                <div class="form-group">
+                    <label>Rol</label>
+                    <select id="userRol" onchange="togglePermisos()">
+                        <option value="Supervisor">Supervisor</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group" id="permisosGroup">
+                    <label>Permisos (modulos)</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="permGestion" value="gestion"> Gestion</label>
+                        <label><input type="checkbox" id="permPriorizacion" value="priorizacion"> Priorizacion</label>
+                    </div>
+                    <p class="hint">Los Admin tienen acceso a todo automaticamente</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeUserModal()">Cancelar</button>
+                <button class="btn-save" onclick="saveUser()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Picker Modal -->
+    <div class="modal-overlay" id="pickerModal" style="display:none" onclick="if(event.target===this)closePickerModal()">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h4 id="pickerModalTitle">Nuevo Operario</h4>
+                <button class="modal-close" onclick="closePickerModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="pickerId">
+                <div class="form-group">
+                    <label>Nombre</label>
+                    <input type="text" id="pickerNombre" placeholder="ej. Carlos Lopez">
+                </div>
+                <div class="form-group">
+                    <label>Centro de Distribucion</label>
+                    <select id="pickerCentro"></select>
+                </div>
+                <div class="form-group" id="pickerActivoGroup" style="display:none">
+                    <label>Estado</label>
+                    <div class="toggle-group">
+                        <label class="toggle">
+                            <input type="checkbox" id="pickerActivo" checked>
+                            <span class="slider"></span>
+                        </label>
+                        <span id="pickerActivoLabel" style="font-size:0.85rem;color:#333">Activo</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closePickerModal()">Cancelar</button>
+                <button class="btn-save" onclick="savePicker()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let users = [];
+        let pickers = [];
+        let centros = [];
+
+        // ── Tab switching ──
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+
+        // ── Auth check ──
+        async function checkAuth() {
+            const res = await fetch('/api/auth/me');
+            if (!res.ok) { window.location.href = '/login'; return; }
+            const user = await res.json();
+            if (user.rol !== 'Admin') { window.location.href = '/dashboard'; return; }
+        }
+
+        // ── Load data ──
+        async function loadUsers() {
+            const res = await fetch('/api/admin/usuarios');
+            users = await res.json();
+            renderUsers();
+        }
+
+        async function loadPickers() {
+            const res = await fetch('/api/admin/pickers');
+            pickers = await res.json();
+            renderPickers();
+        }
+
+        async function loadCentros() {
+            const res = await fetch('/api/admin/centros');
+            centros = await res.json();
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById('usersTable');
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td><strong>${esc(u.NombreUsuario)}</strong></td>
+                    <td>${esc(u.Nombre)}</td>
+                    <td><span class="badge ${u.Rol === 'Admin' ? 'badge-admin' : 'badge-supervisor'}">${u.Rol}</span></td>
+                    <td>${u.Rol === 'Admin' ? '<span style="color:#999;font-size:0.78rem">Todos</span>' :
+                        (u.permisos.length ? u.permisos.map(p => `<span class="badge badge-permiso">${p}</span>`).join(' ') :
+                        '<span style="color:#999;font-size:0.78rem">Ninguno</span>')}</td>
+                    <td><span class="badge ${u.Activo ? 'badge-active' : 'badge-inactive'}">${u.Activo ? 'Activo' : 'Inactivo'}</span></td>
+                    <td class="actions">
+                        <button class="btn-sm btn-edit" onclick="editUser(${u.ID_Usuario})"><i class="bi bi-pencil"></i></button>
+                        ${u.Activo ?
+                            `<button class="btn-sm btn-delete" onclick="deactivateUser(${u.ID_Usuario})"><i class="bi bi-x-circle"></i></button>` :
+                            `<button class="btn-sm btn-activate" onclick="activateUser(${u.ID_Usuario})"><i class="bi bi-check-circle"></i></button>`
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderPickers() {
+            const tbody = document.getElementById('pickersTable');
+            tbody.innerHTML = pickers.map(p => `
+                <tr>
+                    <td>${p.ID_Picker}</td>
+                    <td><strong>${esc(p.Nombre)}</strong></td>
+                    <td>${esc(p.CentroNombre || '-')}</td>
+                    <td><span class="badge ${p.Activo ? 'badge-active' : 'badge-inactive'}">${p.Activo ? 'Activo' : 'Inactivo'}</span></td>
+                    <td class="actions">
+                        <button class="btn-sm btn-edit" onclick="editPicker(${p.ID_Picker})"><i class="bi bi-pencil"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ── User Modal ──
+        function openUserModal(user) {
+            document.getElementById('userModalTitle').textContent = user ? 'Editar Usuario' : 'Nuevo Usuario';
+            document.getElementById('userId').value = user ? user.ID_Usuario : '';
+            document.getElementById('userUsuario').value = user ? user.NombreUsuario : '';
+            document.getElementById('userUsuario').disabled = !!user;
+            document.getElementById('userNombre').value = user ? user.Nombre : '';
+            document.getElementById('userPassword').value = '';
+            document.getElementById('passwordHint').style.display = user ? 'block' : 'none';
+            document.getElementById('userRol').value = user ? user.Rol : 'Supervisor';
+            document.getElementById('permGestion').checked = user ? user.permisos.includes('gestion') : false;
+            document.getElementById('permPriorizacion').checked = user ? user.permisos.includes('priorizacion') : false;
+            togglePermisos();
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        function togglePermisos() {
+            const rol = document.getElementById('userRol').value;
+            const group = document.getElementById('permisosGroup');
+            group.style.opacity = rol === 'Admin' ? '0.5' : '1';
+        }
+
+        async function saveUser() {
+            const id = document.getElementById('userId').value;
+            const data = {
+                nombreUsuario: document.getElementById('userUsuario').value.trim(),
+                nombre: document.getElementById('userNombre').value.trim(),
+                password: document.getElementById('userPassword').value,
+                rol: document.getElementById('userRol').value,
+                permisos: []
+            };
+
+            if (document.getElementById('permGestion').checked) data.permisos.push('gestion');
+            if (document.getElementById('permPriorizacion').checked) data.permisos.push('priorizacion');
+
+            if (!data.nombre) { alert('Nombre requerido'); return; }
+            if (!id && !data.nombreUsuario) { alert('Nombre de usuario requerido'); return; }
+            if (!id && !data.password) { alert('Contrasena requerida'); return; }
+
+            try {
+                const url = id ? `/api/admin/usuarios/${id}` : '/api/admin/usuarios';
+                const method = id ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (!res.ok) { alert(result.error || 'Error'); return; }
+                closeUserModal();
+                loadUsers();
+            } catch (err) {
+                alert('Error de conexion');
+            }
+        }
+
+        function editUser(id) {
+            const user = users.find(u => u.ID_Usuario === id);
+            if (user) openUserModal(user);
+        }
+
+        async function deactivateUser(id) {
+            if (!confirm('Desactivar este usuario?')) return;
+            await fetch(`/api/admin/usuarios/${id}`, { method: 'DELETE' });
+            loadUsers();
+        }
+
+        async function activateUser(id) {
+            const user = users.find(u => u.ID_Usuario === id);
+            if (!user) return;
+            if (!confirm('Reactivar este usuario?')) return;
+            await fetch(`/api/admin/usuarios/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre: user.Nombre, rol: user.Rol, permisos: user.permisos, activo: true })
+            });
+            loadUsers();
+        }
+
+        // ── Picker Modal ──
+        function openPickerModal(picker) {
+            document.getElementById('pickerModalTitle').textContent = picker ? 'Editar Operario' : 'Nuevo Operario';
+            document.getElementById('pickerId').value = picker ? picker.ID_Picker : '';
+            document.getElementById('pickerNombre').value = picker ? picker.Nombre : '';
+
+            const select = document.getElementById('pickerCentro');
+            select.innerHTML = centros.map(c =>
+                `<option value="${c.ID_Centro}" ${picker && picker.ID_Centro === c.ID_Centro ? 'selected' : ''}>${c.Nombre} (${c.Pais})</option>`
+            ).join('');
+
+            const activoGroup = document.getElementById('pickerActivoGroup');
+            if (picker) {
+                activoGroup.style.display = 'block';
+                document.getElementById('pickerActivo').checked = picker.Activo;
+                updateActivoLabel();
+            } else {
+                activoGroup.style.display = 'none';
+            }
+
+            document.getElementById('pickerModal').style.display = 'flex';
+        }
+
+        function closePickerModal() {
+            document.getElementById('pickerModal').style.display = 'none';
+        }
+
+        function updateActivoLabel() {
+            const checked = document.getElementById('pickerActivo').checked;
+            document.getElementById('pickerActivoLabel').textContent = checked ? 'Activo' : 'Inactivo';
+        }
+
+        document.getElementById('pickerActivo').addEventListener('change', updateActivoLabel);
+
+        async function savePicker() {
+            const id = document.getElementById('pickerId').value;
+            const data = {
+                nombre: document.getElementById('pickerNombre').value.trim(),
+                idCentro: parseInt(document.getElementById('pickerCentro').value),
+                activo: document.getElementById('pickerActivo').checked
+            };
+
+            if (!data.nombre) { alert('Nombre requerido'); return; }
+
+            try {
+                const url = id ? `/api/admin/pickers/${id}` : '/api/admin/pickers';
+                const method = id ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (!res.ok) { alert(result.error || 'Error'); return; }
+                closePickerModal();
+                loadPickers();
+            } catch (err) {
+                alert('Error de conexion');
+            }
+        }
+
+        function editPicker(id) {
+            const picker = pickers.find(p => p.ID_Picker === id);
+            if (picker) openPickerModal(picker);
+        }
+
+        // ── Util ──
+        function esc(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        // ── Init ──
+        async function init() {
+            await checkAuth();
+            await loadCentros();
+            loadUsers();
+            loadPickers();
+        }
+
+        init();
+    </script>
+</body>
+</html>

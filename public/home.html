@@ -29,6 +29,14 @@
             margin-bottom: 2.5rem;
         }
 
+        .home-header .brand {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            color: #d4a826;
+            margin-bottom: 0.3rem;
+        }
+
         .home-header .logo { font-size: 3.5rem; margin-bottom: 0.5rem; }
 
         .home-header h1 {
@@ -77,13 +85,8 @@
             flex-shrink: 0;
         }
 
-        .home-card .card-icon.supervisor {
+        .home-card .card-icon.login {
             background: linear-gradient(135deg, #b8941f, #d4a826);
-            color: white;
-        }
-
-        .home-card .card-icon.priorizacion {
-            background: linear-gradient(135deg, #283593, #5c6bc0);
             color: white;
         }
 
@@ -121,25 +124,17 @@
 <body>
     <div class="home-container">
         <div class="home-header">
+            <div class="brand">FERCO CERAMICA</div>
             <div class="logo"><i class="bi bi-boxes"></i></div>
             <h1>Picking por Producto</h1>
-            <p>Gestión de Rutas por Producto</p>
+            <p>Picking Management</p>
         </div>
 
-        <a class="home-card" href="/gestion">
-            <div class="card-icon supervisor"><i class="bi bi-kanban"></i></div>
+        <a class="home-card" href="/login">
+            <div class="card-icon login"><i class="bi bi-key"></i></div>
             <div class="card-text">
-                <h3>Gestión de Rutas</h3>
-                <p>Supervisores. Asignar operarios por producto, monitorear avance y cerrar rutas.</p>
-            </div>
-            <div class="card-arrow"><i class="bi bi-chevron-right"></i></div>
-        </a>
-
-        <a class="home-card" href="/priorizacion">
-            <div class="card-icon priorizacion"><i class="bi bi-sort-numeric-down"></i></div>
-            <div class="card-text">
-                <h3>Priorización de Rutas</h3>
-                <p>Ordenar rutas pendientes por prioridad y estimar tiempos de finalización.</p>
+                <h3>Iniciar Sesion</h3>
+                <p>Supervisores y administradores</p>
             </div>
             <div class="card-arrow"><i class="bi bi-chevron-right"></i></div>
         </a>
@@ -148,13 +143,13 @@
             <div class="card-icon picker"><i class="bi bi-person-walking"></i></div>
             <div class="card-text">
                 <h3>Mi Picking</h3>
-                <p>Operarios. Consulta tus productos asignados con detalle de OVs por línea.</p>
+                <p>Operarios - consulta tus productos asignados</p>
             </div>
             <div class="card-arrow"><i class="bi bi-chevron-right"></i></div>
         </a>
 
         <div class="home-footer">
-            Picking por Producto v1.0
+            Picking por Producto v2.0
         </div>
     </div>
 </body>
