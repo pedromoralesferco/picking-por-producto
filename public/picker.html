@@ -7,8 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary: #e65100;
-            --primary-dark: #bf360c;
+            --primary: #d4a826;
+            --primary-dark: #b8941f;
             --success: #2e7d32;
             --warning: #f9a825;
             --bg: #f0f2f5;
@@ -24,7 +24,8 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #bf360c, #e65100);
+            background: #222222;
+            border-bottom: 3px solid #d4a826;
             color: white;
             padding: 1rem 1.2rem;
             position: sticky;
@@ -38,8 +39,8 @@
         .header .subtitle { font-size: 0.8rem; opacity: 0.8; }
 
         .btn-back {
-            background: rgba(255,255,255,0.15);
-            border: none;
+            background: rgba(212,168,38,0.2);
+            border: 1px solid rgba(212,168,38,0.4);
             color: white;
             padding: 0.4rem 0.8rem;
             border-radius: 8px;
@@ -47,7 +48,7 @@
             cursor: pointer;
         }
 
-        .btn-back:hover { background: rgba(255,255,255,0.25); }
+        .btn-back:hover { background: rgba(212,168,38,0.35); }
 
         .screen { display: none; padding: 1rem; }
         .screen.active { display: block; }
@@ -63,7 +64,7 @@
             cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent;
         }
 
-        .select-item:hover, .select-item:active { background: #fff3e0; border-color: var(--primary); transform: scale(0.99); }
+        .select-item:hover, .select-item:active { background: #fdf6e3; border-color: var(--primary); transform: scale(0.99); }
         .select-item .item-name { font-weight: 700; font-size: 1rem; }
         .select-item .item-sub { color: #888; font-size: 0.85rem; margin-top: 0.15rem; }
 
@@ -132,7 +133,7 @@
             font-size: 0.7rem; font-weight: 700;
         }
 
-        .estado-pill.asignado, .estado-pill.en-proceso { background: rgba(249,168,37,0.15); color: #e65100; }
+        .estado-pill.asignado, .estado-pill.en-proceso { background: rgba(212,168,38,0.15); color: #b8941f; }
         .estado-pill.finalizado { background: rgba(46,125,50,0.12); color: var(--success); }
 
         .empty-mobile { text-align: center; padding: 3rem 1rem; color: #aaa; }
@@ -141,12 +142,12 @@
         .refresh-bar { text-align: center; padding: 0.8rem; }
 
         .btn-refresh {
-            background: var(--primary); color: white; border: none;
+            background: #d4a826; color: #222; border: none;
             padding: 0.6rem 1.5rem; border-radius: 10px; font-size: 0.9rem;
             font-weight: 600; cursor: pointer; width: 100%;
         }
 
-        .btn-refresh:active { background: var(--primary-dark); }
+        .btn-refresh:active { background: #b8941f; }
 
         .picker-bar {
             background: white; padding: 0.6rem 1.2rem;
@@ -174,7 +175,7 @@
     <div id="screenCentro" class="screen active">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
             <div class="selection-title" style="margin-bottom:0"><i class="bi bi-building"></i> Selecciona tu almacén</div>
-            <a href="/" style="background:var(--primary);color:white;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:0.4rem">
+            <a href="/" style="background:#d4a826;color:#222;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:0.4rem">
                 <i class="bi bi-house-door"></i> Menú
             </a>
         </div>
@@ -199,7 +200,7 @@
             <div class="kpi-strip" id="kpiStrip"></div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
                 <div class="selection-title" style="margin-bottom:0"><i class="bi bi-clipboard-check"></i> Mis Productos</div>
-                <button onclick="loadPickerData()" style="background:var(--primary);color:white;border:none;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem">
+                <button onclick="loadPickerData()" style="background:#d4a826;color:#222;border:none;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem">
                     <i class="bi bi-arrow-clockwise"></i> Actualizar
                 </button>
             </div>

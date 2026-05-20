@@ -1,6 +1,6 @@
 :root {
-    --primary: #e65100;
-    --primary-dark: #bf360c;
+    --primary: #d4a826;
+    --primary-dark: #b8941f;
     --success: #2e7d32;
     --warning: #f9a825;
     --danger: #c62828;
@@ -19,7 +19,8 @@ body {
 
 /* Navbar */
 .navbar-app {
-    background: linear-gradient(135deg, #bf360c, #e65100);
+    background: #222222;
+    border-bottom: 3px solid #d4a826;
     color: white;
     padding: 0.6rem 1.5rem;
     display: flex;
@@ -47,14 +48,14 @@ body {
 }
 
 .navbar-app .nav-info .badge {
-    background: rgba(255,255,255,0.2);
+    background: rgba(212,168,38,0.3);
     padding: 0.3rem 0.7rem;
     border-radius: 20px;
 }
 
 .navbar-app button, .navbar-app a {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(212,168,38,0.2);
+    border: 1px solid rgba(212,168,38,0.4);
     color: white;
     padding: 0.3rem 0.8rem;
     border-radius: 6px;
@@ -63,7 +64,7 @@ body {
     text-decoration: none;
 }
 
-.navbar-app button:hover, .navbar-app a:hover { background: rgba(255,255,255,0.25); }
+.navbar-app button:hover, .navbar-app a:hover { background: rgba(212,168,38,0.35); }
 
 /* Layout */
 .app-layout {
@@ -115,8 +116,8 @@ body {
 .search-rutas:focus { outline: none; border-color: var(--primary); }
 
 .badge-count {
-    background: var(--primary);
-    color: white;
+    background: #d4a826;
+    color: #222;
     padding: 0.15rem 0.6rem;
     border-radius: 20px;
     font-size: 0.75rem;
@@ -149,20 +150,20 @@ body {
 }
 
 .ruta-card.active {
-    border-color: var(--primary);
-    border-left-color: var(--primary);
-    background: #fff3e0;
+    border-color: #d4a826;
+    border-left-color: #d4a826;
+    background: #fdf6e3;
     color: #333;
 }
 
 .ruta-card.estado-EnProceso, .ruta-card.estado-En\ Proceso {
-    border-left-color: #f9a825;
-    background: rgba(249, 168, 37, 0.08);
+    border-left-color: #d4a826;
+    background: rgba(212, 168, 38, 0.08);
     color: #333;
 }
 
 .ruta-card.estado-EnProceso:hover, .ruta-card.estado-En\ Proceso:hover {
-    background: rgba(249, 168, 37, 0.15);
+    background: rgba(212, 168, 38, 0.15);
 }
 
 .ruta-card.estado-Finalizado {
@@ -182,9 +183,9 @@ body {
 /* Estado badges */
 .estado { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
 .estado-Pendiente { background: #e0e0e0; color: #666; }
-.estado-Iniciado { background: rgba(249, 168, 37, 0.85); color: #333; }
-.estado-Asignado { background: rgba(249, 168, 37, 0.85); color: #333; }
-.estado-EnProceso { background: rgba(249, 168, 37, 0.85); color: #333; }
+.estado-Iniciado { background: rgba(212,168,38,0.85); color: #222; }
+.estado-Asignado { background: rgba(212,168,38,0.85); color: #222; }
+.estado-EnProceso { background: rgba(212,168,38,0.85); color: #222; }
 .estado-Finalizado { background: rgba(46, 125, 50, 0.85); color: white; }
 
 /* Panel derecho */
@@ -252,7 +253,7 @@ body {
 .kpi-card .kpi-value {
     font-size: 1.8rem;
     font-weight: 800;
-    color: var(--primary);
+    color: #d4a826;
 }
 
 .kpi-card .kpi-label {
@@ -285,8 +286,8 @@ body {
 }
 
 .pedido-card.estado-Pendiente { background: #fafafa; border-left-color: #ccc; color: #666; }
-.pedido-card.estado-Asignado { background: rgba(249, 168, 37, 0.08); border-left-color: #f9a825; color: #333; }
-.pedido-card.estado-EnProceso { background: rgba(249, 168, 37, 0.08); border-left-color: #f9a825; color: #333; }
+.pedido-card.estado-Asignado { background: rgba(212, 168, 38, 0.08); border-left-color: #d4a826; color: #333; }
+.pedido-card.estado-EnProceso { background: rgba(212, 168, 38, 0.08); border-left-color: #d4a826; color: #333; }
 .pedido-card.estado-Finalizado { background: rgba(46, 125, 50, 0.06); border-left-color: var(--success); color: #555; }
 
 .pedido-header {
@@ -326,14 +327,14 @@ body {
 
 .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.btn-asignar { background: var(--primary); color: white; }
-.btn-asignar:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-asignar { background: #d4a826; color: #222; }
+.btn-asignar:hover:not(:disabled) { background: #b8941f; }
 
-.btn-detalle { background: #fff3e0; color: var(--primary); }
-.btn-detalle:hover { background: #ffe0b2; }
+.btn-detalle { background: #fdf6e3; color: #b8941f; }
+.btn-detalle:hover { background: #f5ecc8; }
 
-.btn-reasignar { background: #fff3e0; color: #e65100; }
-.btn-reasignar:hover { background: #ffe0b2; }
+.btn-reasignar { background: #fdf6e3; color: #b8941f; }
+.btn-reasignar:hover { background: #f5ecc8; }
 
 .btn-cerrar-pedido { background: #ffebee; color: var(--danger); }
 .btn-cerrar-pedido:hover { background: #ffcdd2; }
@@ -389,7 +390,8 @@ body {
 }
 
 .modal-header {
-    background: linear-gradient(135deg, #bf360c, #e65100);
+    background: #222222;
+    border-bottom: 3px solid #d4a826;
     color: white;
     padding: 1.2rem 1.5rem;
     border-radius: 16px 16px 0 0;
@@ -413,7 +415,7 @@ body {
 
 .picker-item {
     border: 1px solid var(--card-border);
-    border-left: 4px solid var(--primary);
+    border-left: 4px solid #d4a826;
     border-radius: 8px;
     padding: 0.8rem 1rem;
     margin-bottom: 0.5rem;
@@ -422,8 +424,8 @@ body {
 }
 
 .picker-item:hover {
-    background: #fff3e0;
-    border-color: var(--primary);
+    background: #fdf6e3;
+    border-color: #d4a826;
 }
 
 .picker-item .picker-name { font-weight: 700; }
@@ -433,7 +435,7 @@ body {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    background: rgba(255,255,255,0.2);
+    background: rgba(212,168,38,0.3);
     border: none;
     color: white;
     font-size: 1.2rem;
