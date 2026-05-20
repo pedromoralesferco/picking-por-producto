@@ -355,7 +355,9 @@ router.get('/pickers/:id/productos', async (req, res) => {
                            MAX(Descripcion) AS Descripcion,
                            MAX(Cantidad) AS Cantidad,
                            MAX(CantidadPendiente) AS CantidadPendiente,
-                           MAX(UnitWeight) AS UnitWeight
+                           MAX(UnitWeight) AS UnitWeight,
+                           MAX(Estado) AS Estado,
+                           MAX(UltimaActualizacion) AS UltimaActualizacion
                     FROM RoutePickingTask
                     WHERE Picker_ID = @pickerId
                     GROUP BY Route_Number, OV_Number, DocType, InternIdProduct
@@ -368,29 +370,22 @@ router.get('/pickers/:id/productos', async (req, res) => {
                        SUM(t.Cantidad * ISNULL(t.UnitWeight, 0)) AS PesoTotal,
                        CASE
                            WHEN SUM(t.CantidadPendiente) = 0 THEN 'Finalizado'
-                           WHEN MAX(rpm.Estado) = 'En Proceso' THEN 'En Proceso'
+                           WHEN MAX(t.Estado) = 'En Proceso' THEN 'En Proceso'
                            ELSE 'Asignado'
                        END AS Estado,
-                       MAX(rpm.FechaAsignacion) AS FechaAsignacion
+                       MIN(t.UltimaActualizacion) AS FechaAsignacion
                 FROM UniqueTasks t
                 LEFT JOIN RoutePlan rp ON rp.RouteNumber = t.Route_Number
-                LEFT JOIN (
-                    SELECT RouteNumber, Product,
-                           MAX(FechaAsignacion) AS FechaAsignacion,
-                           MAX(Estado) AS Estado
-                    FROM RoutePickingManagement
-                    GROUP BY RouteNumber, Product
-                ) rpm ON rpm.RouteNumber = t.Route_Number AND rpm.Product = t.InternIdProduct
                 GROUP BY t.Route_Number, t.InternIdProduct
                 HAVING SUM(t.CantidadPendiente) > 0
                    OR (SUM(t.CantidadPendiente) = 0 AND CAST(MAX(t.UltimaActualizacion) AS DATE) = CAST(GETDATE() AS DATE))
                 ORDER BY
                     CASE
-                        WHEN SUM(t.CantidadPendiente) > 0 AND MAX(rpm.Estado) = 'En Proceso' THEN 0
+                        WHEN SUM(t.CantidadPendiente) > 0 AND MAX(t.Estado) = 'En Proceso' THEN 0
                         WHEN SUM(t.CantidadPendiente) > 0 THEN 1
                         ELSE 2
                     END,
-                    MAX(rpm.FechaAsignacion),
+                    MIN(t.UltimaActualizacion),
                     t.Route_Number, t.InternIdProduct
             `);
         res.json(result.recordset);
