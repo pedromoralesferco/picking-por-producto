@@ -1,8 +1,8 @@
 const sql = require('mssql');
 
 const config = {
-    server: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT),
+    server: process.env.DB_SERVER || process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '1433'),
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
