@@ -172,7 +172,12 @@
     </div>
 
     <div id="screenCentro" class="screen active">
-        <div class="selection-title"><i class="bi bi-building"></i> Selecciona tu almacén</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <div class="selection-title" style="margin-bottom:0"><i class="bi bi-building"></i> Selecciona tu almacén</div>
+            <a href="/" style="background:var(--primary);color:white;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:0.4rem">
+                <i class="bi bi-house-door"></i> Menú
+            </a>
+        </div>
         <div id="centrosList"></div>
     </div>
 
@@ -192,13 +197,13 @@
 
         <div style="padding:1rem">
             <div class="kpi-strip" id="kpiStrip"></div>
-            <div class="selection-title"><i class="bi bi-clipboard-check"></i> Mis Productos</div>
-            <div id="productosMobileList"></div>
-            <div class="refresh-bar">
-                <button class="btn-refresh" onclick="loadPickerData()">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
+                <div class="selection-title" style="margin-bottom:0"><i class="bi bi-clipboard-check"></i> Mis Productos</div>
+                <button onclick="loadPickerData()" style="background:var(--primary);color:white;border:none;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem">
                     <i class="bi bi-arrow-clockwise"></i> Actualizar
                 </button>
             </div>
+            <div id="productosMobileList"></div>
         </div>
     </div>
 

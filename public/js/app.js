@@ -265,7 +265,7 @@ function renderPickers(pickers) {
             <div class="picker-stats">
                 ${p.CentroNombre || ''} |
                 Asignados: <strong>${p.Asignados}</strong> |
-                Completados: <strong>${p.Completados}</strong>
+                Completados hoy: <strong>${p.CompletadosHoy}</strong>
             </div>
         </div>
     `).join('');

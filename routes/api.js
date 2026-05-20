@@ -294,7 +294,8 @@ router.get('/pickers', async (req, res) => {
                 (SELECT COUNT(*) FROM RoutePickingManagement
                  WHERE PickerID = p.ID_Picker AND Estado IN ('Asignado','En Proceso')) AS Asignados,
                 (SELECT COUNT(*) FROM RoutePickingManagement
-                 WHERE PickerID = p.ID_Picker AND Estado = 'Finalizado') AS Completados
+                 WHERE PickerID = p.ID_Picker AND Estado = 'Finalizado'
+                   AND CAST(FechaFin AS DATE) = CAST(GETDATE() AS DATE)) AS CompletadosHoy
             FROM Picker p
             LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = p.ID_Centro
             WHERE p.Activo = 1
