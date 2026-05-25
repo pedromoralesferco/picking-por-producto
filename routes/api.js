@@ -147,7 +147,7 @@ router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
         const pool = getPool();
         const { idCarril } = req.body || {};
         const request = pool.request()
-            .input('routeNumber', sql.Int, req.params.routeNumber);
+            .input('routeNumber', sql.Int, parseInt(req.params.routeNumber));
 
         let setClause = `Estado = 'Iniciado', FechaInicio = GETDATE()`;
         if (idCarril) {
