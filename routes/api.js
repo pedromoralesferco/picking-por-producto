@@ -146,6 +146,7 @@ router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
     try {
         const pool = getPool();
         const { idCarril } = req.body || {};
+        console.log('INICIAR RUTA - routeNumber:', req.params.routeNumber, 'idCarril:', idCarril, 'body:', JSON.stringify(req.body));
         const request = pool.request()
             .input('routeNumber', sql.Int, parseInt(req.params.routeNumber));
 
