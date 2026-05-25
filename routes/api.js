@@ -149,7 +149,7 @@ router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
         const request = pool.request()
             .input('routeNumber', sql.Int, parseInt(req.params.routeNumber));
 
-        let setClause = `Estado = 'Iniciado', FechaInicio = GETDATE()`;
+        let setClause = `Estado = 'Iniciado'`;
         if (idCarril) {
             request.input('idCarril', sql.Int, idCarril);
             setClause += `, ID_Carril = @idCarril, EstadoDespacho = 'Pendiente'`;
