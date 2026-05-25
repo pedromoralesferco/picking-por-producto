@@ -146,7 +146,6 @@ router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
     try {
         const pool = getPool();
         const { idCarril } = req.body || {};
-        console.log('INICIAR RUTA - routeNumber:', req.params.routeNumber, 'idCarril:', idCarril, 'body:', JSON.stringify(req.body));
         const request = pool.request()
             .input('routeNumber', sql.Int, parseInt(req.params.routeNumber));
 
@@ -580,15 +579,27 @@ router.get('/despacho/rutas', async (req, res) => {
                 rp.RouteName,
                 rp.Estado,
                 rp.EstadoDespacho,
+                rp.FechaDespachoFin,
                 rp.ID_Carril,
                 c.Nombre AS CarrilNombre,
                 c.ID_Centro,
-                ISNULL(rp.PesoEstimado, 0) AS PesoEstimado
+                ISNULL(rp.PesoEstimado, 0) AS PesoEstimado,
+                ISNULL(rpm.TotalProductos, 0) AS TotalProductos,
+                ISNULL(rpm.ProductosFinalizados, 0) AS ProductosFinalizados
             FROM RoutePlan rp
             LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
-            WHERE rp.Estado IN ('Iniciado', 'Finalizado')
-              AND rp.EstadoDespacho IN ('Pendiente', 'Listo para Carga')
-              AND rp.ID_Carril IS NOT NULL
+            LEFT JOIN (
+                SELECT RouteNumber,
+                       COUNT(*) AS TotalProductos,
+                       SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS ProductosFinalizados
+                FROM RoutePickingManagement
+                GROUP BY RouteNumber
+            ) rpm ON rpm.RouteNumber = rp.RouteNumber
+            WHERE rp.ID_Carril IS NOT NULL
+              AND (
+                  (rp.Estado IN ('Iniciado', 'Finalizado') AND rp.EstadoDespacho IN ('Pendiente', 'Listo para Carga'))
+                  OR (rp.EstadoDespacho = 'Finalizado' AND rp.FechaDespachoFin > DATEADD(MINUTE, -2, GETDATE()))
+              )
             ORDER BY c.Nombre, rp.RouteNumber
         `);
         res.json(result.recordset);
