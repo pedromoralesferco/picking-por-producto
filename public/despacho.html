@@ -51,19 +51,22 @@
         }
         .btn-link:hover { background: #444; color: white; }
 
-        /* ── Layout: top carriles + bottom detail ── */
+        /* ── Master-Detail: left carriles | right detail ── */
         .app-layout {
             display: flex;
-            flex-direction: column;
             flex: 1;
             overflow: hidden;
         }
 
-        /* ── Top: Carriles horizontal strip ── */
+        /* ── Left panel: Carriles stacked vertically ── */
         .panel-carriles {
+            width: 380px;
+            min-width: 320px;
             background: white;
-            border-bottom: 1px solid #e0e0e0;
-            flex-shrink: 0;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .panel-carriles-header {
@@ -71,7 +74,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid #e8e8e8;
+            flex-shrink: 0;
         }
 
         .panel-carriles-header h3 {
@@ -88,28 +92,21 @@
             outline: none;
         }
 
-        .carriles-list {
-            display: flex;
-            overflow-x: auto;
-            gap: 0.6rem;
-            padding: 0.6rem 1rem;
-            scroll-snap-type: x mandatory;
+        .carriles-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
         }
 
-        .carriles-list::-webkit-scrollbar { height: 4px; }
-        .carriles-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
-
-        .carril-column {
-            min-width: 200px;
-            max-width: 240px;
-            flex-shrink: 0;
-            scroll-snap-align: start;
+        /* Each carril is a row stacked vertically */
+        .carril-row {
+            margin-bottom: 0.5rem;
             border: 1px solid #e8e8e8;
             border-radius: 8px;
             overflow: hidden;
         }
 
-        .carril-col-header {
+        .carril-row-header {
             background: var(--dark);
             color: white;
             padding: 0.35rem 0.7rem;
@@ -119,7 +116,7 @@
             font-size: 0.78rem;
         }
 
-        .carril-col-header h4 {
+        .carril-row-header h4 {
             font-size: 0.75rem;
             font-weight: 700;
             flex: 1;
@@ -128,53 +125,45 @@
             text-overflow: ellipsis;
         }
 
-        .carril-col-header h4 i { color: var(--primary); margin-right: 0.15rem; }
+        .carril-row-header h4 i { color: var(--primary); margin-right: 0.15rem; }
 
-        .carril-col-header .badge-count {
+        .carril-row-header .badge-count {
             background: var(--primary); color: var(--dark);
             padding: 0.05rem 0.35rem; border-radius: 8px;
             font-size: 0.65rem; font-weight: 700;
         }
 
-        .carril-col-body {
-            max-height: 160px;
-            overflow-y: auto;
-        }
-
-        /* ── Route items inside carril column ── */
-        .route-item {
-            padding: 0.4rem 0.6rem;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            transition: background 0.1s;
+        /* Routes inside carril: horizontal scroll */
+        .carril-routes {
             display: flex;
-            align-items: center;
+            overflow-x: auto;
             gap: 0.4rem;
+            padding: 0.4rem;
         }
 
-        .route-item:last-child { border-bottom: none; }
-        .route-item:hover { background: #fafafa; }
-        .route-item.active { background: rgba(212,168,38,0.12); border-left: 3px solid var(--primary); }
+        .carril-routes::-webkit-scrollbar { height: 3px; }
+        .carril-routes::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
 
-        .route-item.estado-pendiente { background: rgba(212,168,38,0.06); }
-        .route-item.estado-listo { background: rgba(46,125,50,0.06); }
-        .route-item.estado-finalizado { background: rgba(21,101,192,0.06); }
-
-        .route-item.estado-pendiente .ri-indicator { background: rgba(212,168,38,0.5); border-color: var(--primary); }
-        .route-item.estado-listo .ri-indicator { background: rgba(46,125,50,0.5); border-color: var(--success); }
-        .route-item.estado-finalizado .ri-indicator { background: rgba(21,101,192,0.5); border-color: var(--blue); }
-
-        .ri-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            border: 2px solid #ccc;
+        /* ── Route chip (compact, horizontal) ── */
+        .route-chip {
+            min-width: 140px;
+            max-width: 180px;
             flex-shrink: 0;
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #e8e8e8;
+            transition: all 0.15s;
         }
 
-        .ri-info { flex: 1; min-width: 0; }
+        .route-chip:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .route-chip.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(212,168,38,0.3); }
 
-        .ri-title {
+        .route-chip.estado-pendiente { background: rgba(212,168,38,0.08); }
+        .route-chip.estado-listo { background: rgba(46,125,50,0.08); }
+        .route-chip.estado-finalizado { background: rgba(21,101,192,0.08); }
+
+        .rc-title {
             font-weight: 700;
             font-size: 0.72rem;
             color: var(--dark);
@@ -183,35 +172,37 @@
             text-overflow: ellipsis;
         }
 
-        .ri-meta {
-            font-size: 0.65rem;
+        .rc-meta {
+            font-size: 0.62rem;
             color: #999;
+            margin-top: 1px;
         }
 
-        .ri-pct {
-            font-size: 0.68rem;
-            font-weight: 700;
-            color: #888;
-            flex-shrink: 0;
-        }
-
-        .ri-bar {
+        .rc-bar {
             width: 100%;
             height: 3px;
-            background: #e8e8e8;
+            background: #e0e0e0;
             border-radius: 2px;
-            margin-top: 2px;
+            margin-top: 4px;
             overflow: hidden;
         }
-        .ri-bar .fill {
+        .rc-bar .fill {
             height: 100%;
             border-radius: 2px;
             background: var(--primary);
             transition: width 0.3s;
         }
-        .ri-bar .fill.complete { background: var(--success); }
+        .rc-bar .fill.complete { background: var(--success); }
 
-        /* ── Bottom panel: Detail ── */
+        .rc-pct {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #999;
+            text-align: right;
+            margin-top: 1px;
+        }
+
+        /* ── Right panel: Detail ── */
         .panel-detail {
             flex: 1;
             overflow-y: auto;
@@ -462,8 +453,9 @@
         }
 
         @media (max-width: 768px) {
+            .app-layout { flex-direction: column; }
+            .panel-carriles { width: 100%; min-width: 100%; max-height: 35vh; border-right: none; border-bottom: 1px solid #e0e0e0; }
             .panel-detail { padding: 0.8rem; }
-            .carril-column { min-width: 170px; }
         }
     </style>
 </head>
@@ -477,7 +469,7 @@
     </div>
 
     <div class="app-layout">
-        <!-- Left: Carriles -->
+        <!-- Left: Carriles stacked, routes horizontal inside -->
         <div class="panel-carriles">
             <div class="panel-carriles-header">
                 <h3><i class="bi bi-signpost-2" style="color:var(--primary)"></i> Carriles</h3>
@@ -485,7 +477,7 @@
                     <option value="">Todos</option>
                 </select>
             </div>
-            <div class="carriles-list" id="carrilesList"></div>
+            <div class="carriles-scroll" id="carrilesList"></div>
         </div>
 
         <!-- Right: Detail -->
@@ -500,7 +492,6 @@
     <script>
         let despachoData = [];
         let allCarriles = [];
-        // carriles are always open in horizontal layout
         let selectedRoute = null;
         let openDocs = new Set();
         let refreshTimer = null;
@@ -535,7 +526,6 @@
             try {
                 const res = await fetch('/api/carriles');
                 allCarriles = await res.json();
-                // all carriles loaded
             } catch (err) { console.error(err); }
         }
 
@@ -576,20 +566,20 @@
                 const routeList = groups[carril.ID_Carril] || [];
 
                 return `
-                    <div class="carril-column">
-                        <div class="carril-col-header">
+                    <div class="carril-row">
+                        <div class="carril-row-header">
                             <h4><i class="bi bi-signpost-2"></i> ${esc(carril.Nombre)}</h4>
                             <span class="badge-count">${routeList.length}</span>
                         </div>
-                        <div class="carril-col-body">
-                            ${routeList.map(r => renderRouteItem(r)).join('')}
+                        <div class="carril-routes">
+                            ${routeList.map(r => renderRouteChip(r)).join('')}
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function renderRouteItem(r) {
+        function renderRouteChip(r) {
             const estadoDespacho = r.EstadoDespacho || 'Pendiente';
             const pickingPct = r.TotalProductos > 0 ? Math.round((r.ProductosFinalizados / r.TotalProductos) * 100) : 0;
             let estadoClass = 'estado-pendiente';
@@ -599,14 +589,11 @@
             const isActive = selectedRoute === r.RouteNumber;
 
             return `
-                <div class="route-item ${estadoClass} ${isActive ? 'active' : ''}" onclick="selectRoute(${r.RouteNumber})">
-                    <div class="ri-indicator"></div>
-                    <div class="ri-info">
-                        <div class="ri-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
-                        <div class="ri-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
-                        <div class="ri-bar"><div class="fill ${pickingPct === 100 ? 'complete' : ''}" style="width:${pickingPct}%"></div></div>
-                    </div>
-                    <div class="ri-pct">${pickingPct}%</div>
+                <div class="route-chip ${estadoClass} ${isActive ? 'active' : ''}" onclick="selectRoute(${r.RouteNumber})">
+                    <div class="rc-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
+                    <div class="rc-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
+                    <div class="rc-bar"><div class="fill ${pickingPct === 100 ? 'complete' : ''}" style="width:${pickingPct}%"></div></div>
+                    <div class="rc-pct">${pickingPct}%</div>
                 </div>
             `;
         }
@@ -672,7 +659,7 @@
                     <div class="route-header-top">
                         <div>
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')}</div>
-                            <div class="route-header-subtitle">${esc(ruta.CarrilNombre || '')}</div>
+                            <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
                     </div>
                     <div class="route-header-grid">
