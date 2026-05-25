@@ -51,115 +51,122 @@
         }
         .btn-link:hover { background: #444; color: white; }
 
-        /* ── Master-Detail Layout ── */
+        /* ── Layout: top carriles + bottom detail ── */
         .app-layout {
             display: flex;
+            flex-direction: column;
             flex: 1;
             overflow: hidden;
         }
 
-        /* ── Left panel: Carriles ── */
+        /* ── Top: Carriles horizontal strip ── */
         .panel-carriles {
-            width: 380px;
-            min-width: 320px;
             background: white;
-            border-right: 1px solid #e0e0e0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            border-bottom: 1px solid #e0e0e0;
+            flex-shrink: 0;
         }
 
         .panel-carriles-header {
-            padding: 0.7rem 1rem;
-            border-bottom: 1px solid #e8e8e8;
+            padding: 0.5rem 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 1px solid #f0f0f0;
         }
 
         .panel-carriles-header h3 {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 700;
             color: var(--dark);
         }
 
         .panel-carriles-header select {
-            padding: 0.3rem 0.5rem;
+            padding: 0.25rem 0.5rem;
             border: 1px solid #ddd;
             border-radius: 6px;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             outline: none;
         }
 
         .carriles-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0.5rem;
+            display: flex;
+            overflow-x: auto;
+            gap: 0.6rem;
+            padding: 0.6rem 1rem;
+            scroll-snap-type: x mandatory;
         }
 
-        .carril-row {
-            margin-bottom: 0.4rem;
+        .carriles-list::-webkit-scrollbar { height: 4px; }
+        .carriles-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+
+        .carril-column {
+            min-width: 200px;
+            max-width: 240px;
+            flex-shrink: 0;
+            scroll-snap-align: start;
+            border: 1px solid #e8e8e8;
             border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #e8e8e8;
         }
 
-        .carril-row-header {
+        .carril-col-header {
             background: var(--dark);
             color: white;
-            padding: 0.4rem 0.8rem;
+            padding: 0.35rem 0.7rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
-            font-size: 0.82rem;
+            gap: 0.4rem;
+            font-size: 0.78rem;
         }
 
-        .carril-row-header h4 {
-            font-size: 0.8rem;
+        .carril-col-header h4 {
+            font-size: 0.75rem;
             font-weight: 700;
             flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .carril-row-header h4 i { color: var(--primary); margin-right: 0.2rem; }
+        .carril-col-header h4 i { color: var(--primary); margin-right: 0.15rem; }
 
-        .carril-row-header .badge-count {
+        .carril-col-header .badge-count {
             background: var(--primary); color: var(--dark);
-            padding: 0.05rem 0.4rem; border-radius: 8px;
-            font-size: 0.68rem; font-weight: 700;
+            padding: 0.05rem 0.35rem; border-radius: 8px;
+            font-size: 0.65rem; font-weight: 700;
         }
 
-        .carril-row-header .toggle-icon {
-            color: #888; font-size: 0.8rem; transition: transform 0.2s;
+        .carril-col-body {
+            max-height: 160px;
+            overflow-y: auto;
         }
-        .carril-row-header .toggle-icon.open { transform: rotate(90deg); }
 
-        .carril-row-body { display: none; }
-        .carril-row-body.open { display: block; }
-
-        /* ── Route items ── */
+        /* ── Route items inside carril column ── */
         .route-item {
-            padding: 0.5rem 0.8rem;
+            padding: 0.4rem 0.6rem;
             cursor: pointer;
             border-bottom: 1px solid #f0f0f0;
             transition: background 0.1s;
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.4rem;
         }
 
         .route-item:last-child { border-bottom: none; }
         .route-item:hover { background: #fafafa; }
-        .route-item.active { background: rgba(212,168,38,0.1); border-left: 3px solid var(--primary); }
+        .route-item.active { background: rgba(212,168,38,0.12); border-left: 3px solid var(--primary); }
 
-        .route-item.estado-pendiente .ri-indicator { background: rgba(212,168,38,0.3); border-color: var(--primary); }
-        .route-item.estado-listo .ri-indicator { background: rgba(46,125,50,0.3); border-color: var(--success); }
-        .route-item.estado-finalizado .ri-indicator { background: rgba(21,101,192,0.3); border-color: var(--blue); }
+        .route-item.estado-pendiente { background: rgba(212,168,38,0.06); }
+        .route-item.estado-listo { background: rgba(46,125,50,0.06); }
+        .route-item.estado-finalizado { background: rgba(21,101,192,0.06); }
+
+        .route-item.estado-pendiente .ri-indicator { background: rgba(212,168,38,0.5); border-color: var(--primary); }
+        .route-item.estado-listo .ri-indicator { background: rgba(46,125,50,0.5); border-color: var(--success); }
+        .route-item.estado-finalizado .ri-indicator { background: rgba(21,101,192,0.5); border-color: var(--blue); }
 
         .ri-indicator {
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             border: 2px solid #ccc;
             flex-shrink: 0;
@@ -169,7 +176,7 @@
 
         .ri-title {
             font-weight: 700;
-            font-size: 0.78rem;
+            font-size: 0.72rem;
             color: var(--dark);
             white-space: nowrap;
             overflow: hidden;
@@ -177,18 +184,34 @@
         }
 
         .ri-meta {
-            font-size: 0.68rem;
+            font-size: 0.65rem;
             color: #999;
         }
 
         .ri-pct {
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             font-weight: 700;
             color: #888;
             flex-shrink: 0;
         }
 
-        /* ── Right panel: Detail ── */
+        .ri-bar {
+            width: 100%;
+            height: 3px;
+            background: #e8e8e8;
+            border-radius: 2px;
+            margin-top: 2px;
+            overflow: hidden;
+        }
+        .ri-bar .fill {
+            height: 100%;
+            border-radius: 2px;
+            background: var(--primary);
+            transition: width 0.3s;
+        }
+        .ri-bar .fill.complete { background: var(--success); }
+
+        /* ── Bottom panel: Detail ── */
         .panel-detail {
             flex: 1;
             overflow-y: auto;
@@ -439,9 +462,8 @@
         }
 
         @media (max-width: 768px) {
-            .app-layout { flex-direction: column; }
-            .panel-carriles { width: 100%; min-width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid #e0e0e0; }
-            .panel-detail { padding: 1rem; }
+            .panel-detail { padding: 0.8rem; }
+            .carril-column { min-width: 170px; }
         }
     </style>
 </head>
@@ -478,7 +500,7 @@
     <script>
         let despachoData = [];
         let allCarriles = [];
-        let openCarriles = new Set();
+        // carriles are always open in horizontal layout
         let selectedRoute = null;
         let openDocs = new Set();
         let refreshTimer = null;
@@ -513,7 +535,7 @@
             try {
                 const res = await fetch('/api/carriles');
                 allCarriles = await res.json();
-                allCarriles.forEach(c => openCarriles.add(c.ID_Carril));
+                // all carriles loaded
             } catch (err) { console.error(err); }
         }
 
@@ -552,16 +574,14 @@
 
             container.innerHTML = carrilesWithRoutes.map(carril => {
                 const routeList = groups[carril.ID_Carril] || [];
-                const isOpen = openCarriles.has(carril.ID_Carril);
 
                 return `
-                    <div class="carril-row">
-                        <div class="carril-row-header" onclick="toggleCarril(${carril.ID_Carril})">
+                    <div class="carril-column">
+                        <div class="carril-col-header">
                             <h4><i class="bi bi-signpost-2"></i> ${esc(carril.Nombre)}</h4>
                             <span class="badge-count">${routeList.length}</span>
-                            <i class="bi bi-chevron-right toggle-icon ${isOpen ? 'open' : ''}"></i>
                         </div>
-                        <div class="carril-row-body ${isOpen ? 'open' : ''}">
+                        <div class="carril-col-body">
                             ${routeList.map(r => renderRouteItem(r)).join('')}
                         </div>
                     </div>
@@ -584,16 +604,11 @@
                     <div class="ri-info">
                         <div class="ri-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
                         <div class="ri-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
+                        <div class="ri-bar"><div class="fill ${pickingPct === 100 ? 'complete' : ''}" style="width:${pickingPct}%"></div></div>
                     </div>
                     <div class="ri-pct">${pickingPct}%</div>
                 </div>
             `;
-        }
-
-        function toggleCarril(id) {
-            if (openCarriles.has(id)) openCarriles.delete(id);
-            else openCarriles.add(id);
-            renderCarriles();
         }
 
         async function selectRoute(routeNumber) {
@@ -609,10 +624,15 @@
 
             try {
                 const res = await fetch('/api/despacho/rutas/' + routeNumber + '/documentos');
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || 'HTTP ' + res.status);
+                }
                 const docs = await res.json();
                 renderDetail(ruta, docs);
             } catch (err) {
-                panel.innerHTML = '<div class="loading-detail" style="color:#c62828">Error al cargar documentos</div>';
+                console.error('Error cargando documentos:', err);
+                panel.innerHTML = '<div class="loading-detail" style="color:#c62828"><i class="bi bi-exclamation-triangle"></i> Error al cargar documentos: ' + esc(err.message) + '</div>';
             }
         }
 
