@@ -136,6 +136,7 @@
 
         .mod-icon.gestion { background: linear-gradient(135deg, #b8941f, #d4a826); }
         .mod-icon.priorizacion { background: linear-gradient(135deg, #283593, #5c6bc0); }
+        .mod-icon.despacho { background: linear-gradient(135deg, #1565c0, #42a5f5); }
         .mod-icon.admin { background: linear-gradient(135deg, #c62828, #e53935); }
 
         .module-card h3 {
@@ -244,6 +245,16 @@
                     iconClass: 'priorizacion',
                     title: 'Priorizacion de Rutas',
                     desc: 'Ordenar rutas pendientes por prioridad.'
+                });
+            }
+
+            if (isAdmin || permisos.includes('despacho')) {
+                modules.push({
+                    href: '/despacho',
+                    icon: 'bi-truck',
+                    iconClass: 'despacho',
+                    title: 'Despacho',
+                    desc: 'Gestionar carriles de carga y despacho de rutas.'
                 });
             }
 

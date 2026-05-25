@@ -87,7 +87,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         // Get permisos
         let permisos = [];
         if (user.Rol === 'Admin') {
-            permisos = ['priorizacion', 'gestion'];
+            permisos = ['priorizacion', 'gestion', 'despacho'];
         } else {
             const permResult = await pool.request()
                 .input('userId', sql.Int, user.ID_Usuario)

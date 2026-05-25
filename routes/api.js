@@ -2,6 +2,42 @@ const express = require('express');
 const { getPool, sql } = require('../db');
 const router = express.Router();
 
+/*
+── SQL para crear tabla Carril y modificar RoutePlan ──
+CREATE TABLE Carril (
+    ID_Carril INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(50) NOT NULL,
+    ID_Centro INT NOT NULL REFERENCES CentroDistribucion(ID_Centro),
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+ALTER TABLE RoutePlan ADD
+    ID_Carril INT NULL,
+    EstadoDespacho NVARCHAR(20) NULL DEFAULT 'Pendiente',
+    FechaDespachoFin DATETIME NULL;
+*/
+
+// ── Carriles ──
+
+router.get('/carriles', async (req, res) => {
+    try {
+        const pool = getPool();
+        const centro = req.query.centro;
+        let query = `SELECT ID_Carril, Nombre, ID_Centro FROM Carril WHERE Activo = 1`;
+        const request = pool.request();
+        if (centro) {
+            query += ` AND ID_Centro = @centro`;
+            request.input('centro', sql.Int, centro);
+        }
+        query += ` ORDER BY Nombre`;
+        const result = await request.query(query);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/carriles error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 // ── Rutas (agregadas desde RoutePickingManagement) ──
 
 router.get('/rutas', async (req, res) => {
@@ -16,11 +52,15 @@ router.get('/rutas', async (req, res) => {
                 rp.Estado,
                 rp.FechaInicio,
                 rp.FechaFin,
+                rp.ID_Carril,
+                rp.EstadoDespacho,
+                c.Nombre AS CarrilNombre,
                 ISNULL(rpm.TotalProductos, 0) AS TotalProductos,
                 ISNULL(rpm.TotalArticulos, 0) AS TotalArticulos,
                 ISNULL(rpm.PesoTotal, 0) AS PesoTotal,
                 ISNULL(rpm.ProductosFinalizados, 0) AS ProductosFinalizados
             FROM RoutePlan rp
+            LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
             LEFT JOIN (
                 SELECT RouteNumber,
                        COUNT(*) AS TotalProductos,
@@ -105,13 +145,21 @@ router.get('/rutas/:routeNumber/resumen', async (req, res) => {
 router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
     try {
         const pool = getPool();
-        await pool.request()
-            .input('routeNumber', sql.Int, req.params.routeNumber)
-            .query(`
-                UPDATE RoutePlan
-                SET Estado = 'Iniciado'
-                WHERE RouteNumber = @routeNumber AND Estado = 'Pendiente'
-            `);
+        const { idCarril } = req.body || {};
+        const request = pool.request()
+            .input('routeNumber', sql.Int, req.params.routeNumber);
+
+        let setClause = `Estado = 'Iniciado', FechaInicio = GETDATE()`;
+        if (idCarril) {
+            request.input('idCarril', sql.Int, idCarril);
+            setClause += `, ID_Carril = @idCarril, EstadoDespacho = 'Pendiente'`;
+        }
+
+        await request.query(`
+            UPDATE RoutePlan
+            SET ${setClause}
+            WHERE RouteNumber = @routeNumber AND Estado = 'Pendiente'
+        `);
         res.json({ ok: true });
     } catch (err) {
         console.error('POST /api/rutas/:routeNumber/iniciar error:', err);
@@ -375,9 +423,11 @@ router.get('/pickers/:id/productos', async (req, res) => {
                            WHEN MAX(t.Estado) = 'En Proceso' THEN 'En Proceso'
                            ELSE 'Asignado'
                        END AS Estado,
-                       MIN(t.UltimaActualizacion) AS FechaAsignacion
+                       MIN(t.UltimaActualizacion) AS FechaAsignacion,
+                       MAX(car.Nombre) AS CarrilNombre
                 FROM UniqueTasks t
                 LEFT JOIN RoutePlan rp ON rp.RouteNumber = t.Route_Number
+                LEFT JOIN Carril car ON car.ID_Carril = rp.ID_Carril
                 GROUP BY t.Route_Number, t.InternIdProduct
                 HAVING SUM(t.CantidadPendiente) > 0
                    OR (SUM(t.CantidadPendiente) = 0 AND CAST(MAX(t.UltimaActualizacion) AS DATE) = CAST(GETDATE() AS DATE))
@@ -515,6 +565,83 @@ router.post('/priorizacion/guardar', async (req, res) => {
     } catch (err) {
         console.error('POST /api/priorizacion/guardar error:', err);
         res.status(500).json({ error: 'Error al guardar prioridades' });
+    }
+});
+
+// ── Despacho endpoints ──
+
+router.get('/despacho/rutas', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request().query(`
+            SELECT
+                rp.RouteNumber,
+                rp.RouteName,
+                rp.Estado,
+                rp.EstadoDespacho,
+                rp.ID_Carril,
+                c.Nombre AS CarrilNombre,
+                c.ID_Centro,
+                ISNULL(rp.PesoEstimado, 0) AS PesoEstimado
+            FROM RoutePlan rp
+            LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
+            WHERE rp.Estado IN ('Iniciado', 'Finalizado')
+              AND rp.EstadoDespacho IN ('Pendiente', 'Listo para Carga')
+              AND rp.ID_Carril IS NOT NULL
+            ORDER BY c.Nombre, rp.RouteNumber
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/despacho/rutas error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+router.post('/despacho/estado', async (req, res) => {
+    try {
+        const { routeNumber, estado } = req.body;
+        if (!routeNumber || !estado) {
+            return res.status(400).json({ error: 'routeNumber y estado requeridos' });
+        }
+
+        const validEstados = ['Pendiente', 'Listo para Carga', 'Finalizado'];
+        if (!validEstados.includes(estado)) {
+            return res.status(400).json({ error: 'Estado no valido' });
+        }
+
+        const pool = getPool();
+
+        // Validate: can't set 'Listo para Carga' unless picking is Finalizado
+        if (estado === 'Listo para Carga') {
+            const check = await pool.request()
+                .input('routeNumber', sql.Int, routeNumber)
+                .query(`SELECT Estado FROM RoutePlan WHERE RouteNumber = @routeNumber`);
+            if (check.recordset.length === 0) {
+                return res.status(404).json({ error: 'Ruta no encontrada' });
+            }
+            if (check.recordset[0].Estado !== 'Finalizado') {
+                return res.status(400).json({ error: 'El picking debe estar Finalizado para marcar como Listo para Carga' });
+            }
+        }
+
+        let setClause = `EstadoDespacho = @estado`;
+        if (estado === 'Finalizado') {
+            setClause += `, FechaDespachoFin = GETDATE()`;
+        }
+
+        await pool.request()
+            .input('routeNumber', sql.Int, routeNumber)
+            .input('estado', sql.NVarChar, estado)
+            .query(`
+                UPDATE RoutePlan
+                SET ${setClause}
+                WHERE RouteNumber = @routeNumber
+            `);
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('POST /api/despacho/estado error:', err);
+        res.status(500).json({ error: 'Error al cambiar estado de despacho' });
     }
 });
 

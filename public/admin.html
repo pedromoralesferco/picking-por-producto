@@ -386,6 +386,9 @@
         <div class="tab" data-tab="pickers" onclick="switchTab('pickers')">
             <i class="bi bi-person-walking"></i> Operarios
         </div>
+        <div class="tab" data-tab="carriles" onclick="switchTab('carriles')">
+            <i class="bi bi-signpost-2"></i> Carriles
+        </div>
     </div>
 
     <!-- Usuarios Tab -->
@@ -437,6 +440,30 @@
         </div>
     </div>
 
+    <!-- Carriles Tab -->
+    <div class="tab-content" id="tab-carriles">
+        <div class="content">
+            <div class="toolbar">
+                <h3><i class="bi bi-signpost-2" style="color:var(--primary)"></i> Carriles de Despacho</h3>
+                <button class="btn-primary" onclick="openCarrilModal()"><i class="bi bi-plus-lg"></i> Nuevo Carril</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Centro</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="carrilesTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- User Modal -->
     <div class="modal-overlay" id="userModal" style="display:none" onclick="if(event.target===this)closeUserModal()">
         <div class="modal-box">
@@ -471,6 +498,7 @@
                     <div class="checkbox-group">
                         <label><input type="checkbox" id="permGestion" value="gestion"> Gestion</label>
                         <label><input type="checkbox" id="permPriorizacion" value="priorizacion"> Priorizacion</label>
+                        <label><input type="checkbox" id="permDespacho" value="despacho"> Despacho</label>
                     </div>
                     <p class="hint">Los Admin tienen acceso a todo automaticamente</p>
                 </div>
@@ -517,9 +545,45 @@
         </div>
     </div>
 
+    <!-- Carril Modal -->
+    <div class="modal-overlay" id="carrilModal" style="display:none" onclick="if(event.target===this)closeCarrilModal()">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h4 id="carrilModalTitle">Nuevo Carril</h4>
+                <button class="modal-close" onclick="closeCarrilModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="carrilId">
+                <div class="form-group">
+                    <label>Nombre</label>
+                    <input type="text" id="carrilNombre" placeholder="ej. Carril 1">
+                </div>
+                <div class="form-group">
+                    <label>Centro de Distribucion</label>
+                    <select id="carrilCentro"></select>
+                </div>
+                <div class="form-group" id="carrilActivoGroup" style="display:none">
+                    <label>Estado</label>
+                    <div class="toggle-group">
+                        <label class="toggle">
+                            <input type="checkbox" id="carrilActivo" checked>
+                            <span class="slider"></span>
+                        </label>
+                        <span id="carrilActivoLabel" style="font-size:0.85rem;color:#333">Activo</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeCarrilModal()">Cancelar</button>
+                <button class="btn-save" onclick="saveCarril()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let users = [];
         let pickers = [];
+        let carriles = [];
         let centros = [];
 
         // ── Tab switching ──
@@ -605,6 +669,7 @@
             document.getElementById('userRol').value = user ? user.Rol : 'Supervisor';
             document.getElementById('permGestion').checked = user ? user.permisos.includes('gestion') : false;
             document.getElementById('permPriorizacion').checked = user ? user.permisos.includes('priorizacion') : false;
+            document.getElementById('permDespacho').checked = user ? user.permisos.includes('despacho') : false;
             togglePermisos();
             document.getElementById('userModal').style.display = 'flex';
         }
@@ -631,6 +696,7 @@
 
             if (document.getElementById('permGestion').checked) data.permisos.push('gestion');
             if (document.getElementById('permPriorizacion').checked) data.permisos.push('priorizacion');
+            if (document.getElementById('permDespacho').checked) data.permisos.push('despacho');
 
             if (!data.nombre) { alert('Nombre requerido'); return; }
             if (!id && !data.nombreUsuario) { alert('Nombre de usuario requerido'); return; }
@@ -742,6 +808,93 @@
             if (picker) openPickerModal(picker);
         }
 
+        // ── Carriles ──
+        async function loadCarriles() {
+            const res = await fetch('/api/admin/carriles');
+            carriles = await res.json();
+            renderCarriles();
+        }
+
+        function renderCarriles() {
+            const tbody = document.getElementById('carrilesTable');
+            tbody.innerHTML = carriles.map(c => `
+                <tr>
+                    <td>${c.ID_Carril}</td>
+                    <td><strong>${esc(c.Nombre)}</strong></td>
+                    <td>${esc(c.CentroNombre || '-')}</td>
+                    <td><span class="badge ${c.Activo ? 'badge-active' : 'badge-inactive'}">${c.Activo ? 'Activo' : 'Inactivo'}</span></td>
+                    <td class="actions">
+                        <button class="btn-sm btn-edit" onclick="editCarril(${c.ID_Carril})"><i class="bi bi-pencil"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openCarrilModal(carril) {
+            document.getElementById('carrilModalTitle').textContent = carril ? 'Editar Carril' : 'Nuevo Carril';
+            document.getElementById('carrilId').value = carril ? carril.ID_Carril : '';
+            document.getElementById('carrilNombre').value = carril ? carril.Nombre : '';
+
+            const select = document.getElementById('carrilCentro');
+            select.innerHTML = centros.map(c =>
+                `<option value="${c.ID_Centro}" ${carril && carril.ID_Centro === c.ID_Centro ? 'selected' : ''}>${c.Nombre} (${c.Pais})</option>`
+            ).join('');
+
+            const activoGroup = document.getElementById('carrilActivoGroup');
+            if (carril) {
+                activoGroup.style.display = 'block';
+                document.getElementById('carrilActivo').checked = carril.Activo;
+                updateCarrilActivoLabel();
+            } else {
+                activoGroup.style.display = 'none';
+            }
+
+            document.getElementById('carrilModal').style.display = 'flex';
+        }
+
+        function closeCarrilModal() {
+            document.getElementById('carrilModal').style.display = 'none';
+        }
+
+        function updateCarrilActivoLabel() {
+            const checked = document.getElementById('carrilActivo').checked;
+            document.getElementById('carrilActivoLabel').textContent = checked ? 'Activo' : 'Inactivo';
+        }
+
+        document.getElementById('carrilActivo').addEventListener('change', updateCarrilActivoLabel);
+
+        async function saveCarril() {
+            const id = document.getElementById('carrilId').value;
+            const data = {
+                nombre: document.getElementById('carrilNombre').value.trim(),
+                idCentro: parseInt(document.getElementById('carrilCentro').value),
+                activo: document.getElementById('carrilActivo').checked
+            };
+
+            if (!data.nombre) { alert('Nombre requerido'); return; }
+
+            try {
+                const url = id ? `/api/admin/carriles/${id}` : '/api/admin/carriles';
+                const method = id ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (!res.ok) { alert(result.error || 'Error'); return; }
+                closeCarrilModal();
+                loadCarriles();
+            } catch (err) {
+                alert('Error de conexion');
+            }
+        }
+
+        function editCarril(id) {
+            const carril = carriles.find(c => c.ID_Carril === id);
+            if (carril) openCarrilModal(carril);
+        }
+
         // ── Util ──
         function esc(str) {
             if (!str) return '';
@@ -756,6 +909,7 @@
             await loadCentros();
             loadUsers();
             loadPickers();
+            loadCarriles();
         }
 
         init();

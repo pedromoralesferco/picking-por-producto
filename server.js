@@ -63,6 +63,10 @@ app.get('/priorizacion', requireAuthPage, requirePermisoPage('priorizacion'), (r
     res.sendFile(path.join(__dirname, 'public', 'priorizacion.html'));
 });
 
+app.get('/despacho', requireAuthPage, requirePermisoPage('despacho'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'despacho.html'));
+});
+
 app.get('/admin', requireAdminPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });

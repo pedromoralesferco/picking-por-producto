@@ -51,6 +51,24 @@
         </div>
     </div>
 
+    <div id="carrilModal" class="modal-overlay" style="display:none">
+        <div class="modal-content" style="position:relative">
+            <div class="modal-header">
+                <h5><i class="bi bi-signpost-2"></i> Seleccionar Carril</h5>
+                <p id="carrilModalSubtitle">Elige un carril para asignar la ruta antes de iniciar</p>
+                <button class="modal-close" onclick="closeCarrilModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="carrilList"></div>
+                <div style="text-align:center;margin-top:1rem">
+                    <button class="btn-action" onclick="confirmIniciarSinCarril()" style="background:#888;color:white;border:none;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;cursor:pointer">
+                        <i class="bi bi-skip-forward"></i> Iniciar sin carril
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/js/app.js"></script>
 </body>
 </html>

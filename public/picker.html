@@ -316,6 +316,7 @@
                                     </div>
                                     <div class="pm-meta">${p.ProductName || ''}</div>
                                     <div class="pm-meta">${done}/${total} tareas · ${formatNum(p.PesoTotal || 0)} kg</div>
+                                    ${p.CarrilNombre ? `<div class="pm-meta" style="color:#1565c0;font-weight:600;margin-top:0.2rem">📍 Llevar a: ${p.CarrilNombre}</div>` : ''}
                                 </div>
                             </div>
                             <div class="pm-progress"><div class="fill" style="width:${pct}%"></div></div>

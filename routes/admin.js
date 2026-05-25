@@ -234,4 +234,70 @@ router.get('/centros', async (req, res) => {
     }
 });
 
+// ── Carriles CRUD ──
+
+// GET /api/admin/carriles - List all carriles with centro name
+router.get('/carriles', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request().query(`
+            SELECT c.ID_Carril, c.Nombre, c.ID_Centro, c.Activo,
+                   cd.Nombre AS CentroNombre
+            FROM Carril c
+            LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = c.ID_Centro
+            ORDER BY c.Activo DESC, cd.Nombre, c.Nombre
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/admin/carriles error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// POST /api/admin/carriles - Create carril
+router.post('/carriles', async (req, res) => {
+    try {
+        const { nombre, idCentro } = req.body;
+        if (!nombre || !idCentro) {
+            return res.status(400).json({ error: 'Nombre y centro requeridos' });
+        }
+        const pool = getPool();
+        const result = await pool.request()
+            .input('nombre', sql.NVarChar, nombre)
+            .input('idCentro', sql.Int, idCentro)
+            .query(`
+                INSERT INTO Carril (Nombre, ID_Centro, Activo)
+                OUTPUT INSERTED.ID_Carril
+                VALUES (@nombre, @idCentro, 1)
+            `);
+        res.json({ ok: true, id: result.recordset[0].ID_Carril });
+    } catch (err) {
+        console.error('POST /api/admin/carriles error:', err);
+        res.status(500).json({ error: 'Error al crear carril' });
+    }
+});
+
+// PUT /api/admin/carriles/:id - Update carril
+router.put('/carriles/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { nombre, idCentro, activo } = req.body;
+        const pool = getPool();
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('nombre', sql.NVarChar, nombre)
+            .input('idCentro', sql.Int, idCentro)
+            .input('activo', sql.Bit, activo ? 1 : 0)
+            .query(`
+                UPDATE Carril
+                SET Nombre = @nombre, ID_Centro = @idCentro, Activo = @activo
+                WHERE ID_Carril = @id
+            `);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('PUT /api/admin/carriles/:id error:', err);
+        res.status(500).json({ error: 'Error al actualizar carril' });
+    }
+});
+
 module.exports = router;

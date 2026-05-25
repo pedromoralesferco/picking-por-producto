@@ -3,6 +3,7 @@ let rutasCache = [];
 let pickersCache = [];
 let assigningProduct = null;
 let refreshInterval = null;
+let pendingIniciarRuta = null;
 
 async function init() {
     await loadRutas();
@@ -117,6 +118,10 @@ function renderDetalle(routeNumber, ruta, productos, resumen) {
                     <label>Almacén</label>
                     <div class="value">${ruta.AlmacenOrigen || '-'}</div>
                 </div>
+                ${ruta.CarrilNombre ? `<div class="resumen-field">
+                    <label>Carril</label>
+                    <div class="value" style="color:#1565c0;font-weight:600"><i class="bi bi-signpost-2"></i> ${ruta.CarrilNombre}</div>
+                </div>` : ''}
             </div>
             ${total > 0 ? `
             <div class="progress-bar-custom" style="margin-top:1rem">
@@ -189,9 +194,61 @@ function renderProducto(routeNumber, p) {
 }
 
 async function iniciarRuta(routeNumber) {
-    if (!confirm('¿Iniciar esta ruta?')) return;
+    pendingIniciarRuta = routeNumber;
+    const ruta = rutasCache.find(r => r.RouteNumber === routeNumber);
+
+    // Try to load carriles for this route's centro
     try {
-        const res = await fetch(`/api/rutas/${routeNumber}/iniciar`, { method: 'POST' });
+        let url = '/api/carriles';
+        if (ruta && ruta.AlmacenOrigen) {
+            // Try to find centro by almacen - fetch all carriles
+            url = '/api/carriles';
+        }
+        const res = await fetch(url);
+        const carriles = await res.json();
+
+        if (carriles.length > 0) {
+            document.getElementById('carrilModal').style.display = 'flex';
+            document.getElementById('carrilList').innerHTML = carriles.map(c => `
+                <div class="picker-item" onclick="selectCarrilAndStart(${c.ID_Carril})" style="cursor:pointer;padding:0.8rem 1rem;border:1px solid #e0e0e0;border-left:4px solid #d4a826;border-radius:8px;margin-bottom:0.5rem;transition:background 0.15s">
+                    <div style="font-weight:700"><i class="bi bi-signpost-2"></i> ${c.Nombre}</div>
+                </div>
+            `).join('');
+            return;
+        }
+    } catch (err) {
+        console.error('Error loading carriles:', err);
+    }
+
+    // No carriles available, start without
+    await doIniciarRuta(routeNumber, null);
+}
+
+function closeCarrilModal() {
+    document.getElementById('carrilModal').style.display = 'none';
+    pendingIniciarRuta = null;
+}
+
+async function selectCarrilAndStart(idCarril) {
+    closeCarrilModal();
+    await doIniciarRuta(pendingIniciarRuta, idCarril);
+    pendingIniciarRuta = null;
+}
+
+async function confirmIniciarSinCarril() {
+    closeCarrilModal();
+    await doIniciarRuta(pendingIniciarRuta, null);
+    pendingIniciarRuta = null;
+}
+
+async function doIniciarRuta(routeNumber, idCarril) {
+    try {
+        const body = idCarril ? { idCarril } : {};
+        const res = await fetch(`/api/rutas/${routeNumber}/iniciar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
         if (!res.ok) { const d = await res.json(); alert(d.error); return; }
         await loadRutas();
         await selectRuta(routeNumber);
