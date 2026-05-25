@@ -657,4 +657,62 @@ router.post('/despacho/estado', async (req, res) => {
     }
 });
 
+// ── Documentos de una ruta (para despacho detail) ──
+
+router.get('/despacho/rutas/:routeNumber/documentos', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('routeNumber', sql.Int, parseInt(req.params.routeNumber))
+            .query(`
+                SELECT
+                    OV_Number,
+                    DocType,
+                    MAX(IDCustomerORder) AS IDCustomerOrder,
+                    COUNT(DISTINCT InternIdProduct) AS TotalProductos,
+                    SUM(CASE WHEN CantidadPendiente = 0 THEN 1 ELSE 0 END) AS ProductosFinalizados,
+                    SUM(ISNULL(Cantidad, 0) * ISNULL(UnitWeight, 0)) AS PesoTotal,
+                    CASE WHEN SUM(CantidadPendiente) = 0 THEN 'Finalizado' ELSE 'Pendiente' END AS Estado
+                FROM RoutePickingTask
+                WHERE Route_Number = @routeNumber
+                GROUP BY OV_Number, DocType
+                ORDER BY
+                    CASE WHEN SUM(CantidadPendiente) = 0 THEN 1 ELSE 0 END,
+                    OV_Number
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/despacho/rutas/:routeNumber/documentos error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+router.get('/despacho/rutas/:routeNumber/documentos/:ovNumber/productos', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('routeNumber', sql.Int, parseInt(req.params.routeNumber))
+            .input('ovNumber', sql.NVarChar, req.params.ovNumber)
+            .query(`
+                SELECT
+                    InternIdProduct AS Product,
+                    MAX(Descripcion) AS ProductName,
+                    MAX(Cantidad) AS Cantidad,
+                    MAX(CantidadPendiente) AS CantidadPendiente,
+                    MAX(UnitWeight) AS UnitWeight,
+                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado
+                FROM RoutePickingTask
+                WHERE Route_Number = @routeNumber AND OV_Number = @ovNumber
+                GROUP BY InternIdProduct
+                ORDER BY
+                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 1 ELSE 0 END,
+                    InternIdProduct
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET documentos productos error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 module.exports = router;

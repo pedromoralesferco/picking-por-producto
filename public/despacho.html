@@ -22,172 +22,266 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
-            min-height: 100vh;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .header {
             background: var(--dark);
             color: white;
-            padding: 0.8rem 1.5rem;
+            padding: 0.6rem 1.2rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 3px solid var(--primary);
+            flex-shrink: 0;
         }
 
-        .header .brand { font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; color: var(--primary); }
-        .header h1 { font-size: 1.1rem; font-weight: 700; }
+        .header .brand { font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; color: var(--primary); }
+        .header h1 { font-size: 1rem; font-weight: 700; }
         .header h1 i { color: var(--primary); }
 
         .btn-link {
             background: transparent; border: 1px solid #555; color: #ccc;
-            padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer;
-            font-size: 0.8rem; text-decoration: none; transition: all 0.2s;
+            padding: 0.3rem 0.6rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.78rem; text-decoration: none; transition: all 0.2s;
         }
         .btn-link:hover { background: #444; color: white; }
 
-        .toolbar {
-            max-width: 100%;
-            margin: 0.8rem 1.5rem;
+        /* ── Master-Detail Layout ── */
+        .app-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Left panel: Carriles ── */
+        .panel-carriles {
+            width: 380px;
+            min-width: 320px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-carriles-header {
+            padding: 0.7rem 1rem;
+            border-bottom: 1px solid #e8e8e8;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 1rem;
         }
 
-        .toolbar h3 { font-size: 1rem; font-weight: 700; color: var(--dark); }
-
-        .toolbar select {
-            padding: 0.4rem 0.7rem; border: 2px solid #e0e0e0;
-            border-radius: 8px; font-size: 0.85rem; outline: none;
+        .panel-carriles-header h3 {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--dark);
         }
-        .toolbar select:focus { border-color: var(--primary); }
 
-        .refresh-info { font-size: 0.75rem; color: #999; }
+        .panel-carriles-header select {
+            padding: 0.3rem 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            outline: none;
+        }
 
-        /* ── Carriles horizontales ── */
-        .carriles-container {
-            padding: 0 1.5rem 1.5rem;
+        .carriles-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
         }
 
         .carril-row {
-            background: white;
-            border-radius: 12px;
-            margin-bottom: 0.6rem;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+            margin-bottom: 0.4rem;
+            border-radius: 8px;
             overflow: hidden;
+            border: 1px solid #e8e8e8;
         }
 
         .carril-row-header {
             background: var(--dark);
             color: white;
-            padding: 0.5rem 1rem;
+            padding: 0.4rem 0.8rem;
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.5rem;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
+            font-size: 0.82rem;
         }
 
         .carril-row-header h4 {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 700;
             flex: 1;
         }
 
-        .carril-row-header h4 i { color: var(--primary); margin-right: 0.3rem; }
+        .carril-row-header h4 i { color: var(--primary); margin-right: 0.2rem; }
 
         .carril-row-header .badge-count {
             background: var(--primary); color: var(--dark);
-            padding: 0.1rem 0.45rem; border-radius: 8px;
-            font-size: 0.7rem; font-weight: 700;
+            padding: 0.05rem 0.4rem; border-radius: 8px;
+            font-size: 0.68rem; font-weight: 700;
         }
 
         .carril-row-header .toggle-icon {
-            color: #888; font-size: 0.9rem; transition: transform 0.2s;
+            color: #888; font-size: 0.8rem; transition: transform 0.2s;
         }
-
         .carril-row-header .toggle-icon.open { transform: rotate(90deg); }
 
-        .carril-row-body {
-            display: none;
-            padding: 0.5rem;
-        }
+        .carril-row-body { display: none; }
+        .carril-row-body.open { display: block; }
 
-        .carril-row-body.open { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-
-        /* ── Route items compactos con color-code ── */
+        /* ── Route items ── */
         .route-item {
-            border-radius: 8px;
-            padding: 0.5rem 0.7rem;
-            min-width: 220px;
-            flex: 0 0 auto;
-            transition: all 0.15s;
-            border: 1px solid transparent;
+            padding: 0.5rem 0.8rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.1s;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
         }
 
-        .route-item.estado-pendiente {
-            background: rgba(212,168,38,0.1);
-            border-color: rgba(212,168,38,0.25);
+        .route-item:last-child { border-bottom: none; }
+        .route-item:hover { background: #fafafa; }
+        .route-item.active { background: rgba(212,168,38,0.1); border-left: 3px solid var(--primary); }
+
+        .route-item.estado-pendiente .ri-indicator { background: rgba(212,168,38,0.3); border-color: var(--primary); }
+        .route-item.estado-listo .ri-indicator { background: rgba(46,125,50,0.3); border-color: var(--success); }
+        .route-item.estado-finalizado .ri-indicator { background: rgba(21,101,192,0.3); border-color: var(--blue); }
+
+        .ri-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid #ccc;
+            flex-shrink: 0;
         }
 
-        .route-item.estado-listo {
-            background: rgba(46,125,50,0.08);
-            border-color: rgba(46,125,50,0.25);
-        }
-
-        .route-item.estado-finalizado {
-            background: rgba(21,101,192,0.08);
-            border-color: rgba(21,101,192,0.2);
-            opacity: 0.7;
-        }
+        .ri-info { flex: 1; min-width: 0; }
 
         .ri-title {
             font-weight: 700;
-            font-size: 0.82rem;
+            font-size: 0.78rem;
             color: var(--dark);
-            margin-bottom: 0.15rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
         .ri-meta {
-            font-size: 0.72rem;
-            color: #777;
+            font-size: 0.68rem;
+            color: #999;
+        }
+
+        .ri-pct {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        /* ── Right panel: Detail ── */
+        .panel-detail {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: var(--bg);
+        }
+
+        .empty-detail {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.3rem;
-        }
-
-        .picking-bar {
-            height: 4px;
-            background: #e8e8e8;
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 0.3rem;
-        }
-
-        .picking-bar .fill {
+            justify-content: center;
             height: 100%;
-            border-radius: 2px;
-            transition: width 0.3s;
+            color: #bbb;
         }
 
-        .picking-bar .fill.complete { background: var(--success); }
-        .picking-bar .fill.in-progress { background: var(--primary); }
+        .empty-detail i { font-size: 3rem; margin-bottom: 0.8rem; opacity: 0.4; }
+        .empty-detail p { font-size: 0.9rem; }
 
-        .ri-actions {
+        /* ── Route header card ── */
+        .route-header-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .route-header-top {
             display: flex;
-            gap: 0.3rem;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.8rem;
+        }
+
+        .route-header-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--dark);
+        }
+
+        .route-header-subtitle {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.15rem;
+        }
+
+        .route-header-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .rh-field label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            color: #999;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.1rem;
+        }
+
+        .rh-field .value {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .estado-pill {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .estado-pill.pendiente { background: rgba(212,168,38,0.15); color: #b8941f; }
+        .estado-pill.listo-carga { background: rgba(46,125,50,0.12); color: var(--success); }
+        .estado-pill.finalizado-despacho { background: rgba(21,101,192,0.1); color: var(--blue); }
+        .estado-pill.picking-iniciado { background: rgba(255,152,0,0.12); color: #e65100; }
+        .estado-pill.picking-finalizado { background: rgba(46,125,50,0.12); color: var(--success); }
+
+        .route-header-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
         }
 
         .btn-estado {
-            padding: 0.2rem 0.5rem;
-            border-radius: 5px;
-            font-size: 0.68rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
             font-weight: 600;
             cursor: pointer;
             border: none;
@@ -201,94 +295,153 @@
         .btn-finalizar-despacho { background: var(--blue); color: white; }
         .btn-revertir { background: #eee; color: #666; border: 1px solid #ddd; }
 
-        /* ── Detalle expandible ── */
-        .route-item { cursor: pointer; }
-
-        .ri-detail {
-            display: none;
-            margin-top: 0.4rem;
-            padding-top: 0.4rem;
-            border-top: 1px dashed #ddd;
+        .picking-bar-lg {
+            height: 6px;
+            background: #e8e8e8;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 0.6rem;
         }
 
-        .ri-detail.open { display: block; }
-
-        .ri-detail-loading {
-            font-size: 0.72rem;
-            color: #aaa;
-            padding: 0.3rem 0;
+        .picking-bar-lg .fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
         }
 
-        .doc-row {
+        .picking-bar-lg .fill.complete { background: var(--success); }
+        .picking-bar-lg .fill.in-progress { background: var(--primary); }
+
+        /* ── Documents list ── */
+        .docs-header {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 0.6rem;
             display: flex;
             align-items: center;
-            padding: 0.25rem 0;
-            gap: 0.5rem;
-            font-size: 0.72rem;
-            border-bottom: 1px solid rgba(0,0,0,0.04);
+            gap: 0.4rem;
         }
 
-        .doc-row:last-child { border-bottom: none; }
+        .docs-header .badge-count {
+            background: var(--primary);
+            color: var(--dark);
+            padding: 0.1rem 0.45rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
 
-        .doc-row .doc-icon {
+        .doc-card {
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            overflow: hidden;
+            border: 1px solid #e8e8e8;
+        }
+
+        .doc-card-header {
+            padding: 0.6rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.1s;
+        }
+
+        .doc-card-header:hover { background: #fafafa; }
+
+        .doc-icon { font-size: 1rem; flex-shrink: 0; }
+        .doc-icon.done { color: var(--success); }
+        .doc-icon.pending { color: #ccc; }
+
+        .doc-info { flex: 1; min-width: 0; }
+
+        .doc-name {
+            font-weight: 700;
             font-size: 0.85rem;
-            flex-shrink: 0;
+            color: var(--dark);
         }
 
-        .doc-row .doc-icon.done { color: var(--success); }
-        .doc-row .doc-icon.pending { color: #ccc; }
-
-        .doc-row .doc-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .doc-row .doc-name {
-            font-weight: 600;
-            color: #333;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .doc-row .doc-desc {
+        .doc-meta {
+            font-size: 0.72rem;
             color: #999;
-            font-size: 0.68rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
 
-        .doc-row .doc-qty {
+        .doc-right {
             text-align: right;
             flex-shrink: 0;
+        }
+
+        .doc-weight {
+            font-size: 0.78rem;
             font-weight: 600;
             color: #555;
         }
 
-        .doc-row .doc-qty .done-label {
-            color: var(--success);
+        .doc-status {
             font-size: 0.65rem;
         }
 
-        .doc-summary {
-            font-size: 0.7rem;
-            color: #888;
-            padding: 0.3rem 0 0.1rem;
+        .doc-toggle {
+            color: #ccc;
+            font-size: 0.85rem;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .doc-toggle.open { transform: rotate(90deg); }
+
+        /* ── Products inside document ── */
+        .doc-products {
+            display: none;
+            border-top: 1px solid #f0f0f0;
+            padding: 0.4rem 1rem 0.6rem 2.6rem;
+        }
+
+        .doc-products.open { display: block; }
+
+        .prod-row {
+            display: flex;
+            align-items: center;
+            padding: 0.3rem 0;
+            gap: 0.5rem;
+            font-size: 0.72rem;
+            border-bottom: 1px solid #f8f8f8;
+        }
+
+        .prod-row:last-child { border-bottom: none; }
+
+        .prod-icon { font-size: 0.75rem; flex-shrink: 0; }
+        .prod-icon.done { color: var(--success); }
+        .prod-icon.pending { color: #ddd; }
+
+        .prod-name {
+            flex: 1; min-width: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            color: #555;
+        }
+
+        .prod-qty {
+            flex-shrink: 0;
             font-weight: 600;
+            color: #777;
         }
 
-        .no-data {
-            text-align: center; padding: 4rem 2rem; color: #999;
+        .prod-qty.done { color: var(--success); }
+
+        .loading-detail {
+            text-align: center;
+            padding: 2rem;
+            color: #aaa;
         }
-        .no-data i { font-size: 3rem; display: block; margin-bottom: 0.8rem; opacity: 0.4; }
 
-        .loading { text-align: center; padding: 3rem; color: #999; }
-
-        @media (max-width: 600px) {
-            .carril-row-body.open { flex-direction: column; }
-            .route-item { min-width: 100%; }
-            .toolbar { flex-wrap: wrap; }
+        @media (max-width: 768px) {
+            .app-layout { flex-direction: column; }
+            .panel-carriles { width: 100%; min-width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid #e0e0e0; }
+            .panel-detail { padding: 1rem; }
         }
     </style>
 </head>
@@ -298,33 +451,37 @@
             <div class="brand">FERCO CERAMICA</div>
             <h1><i class="bi bi-truck"></i> Gestion de Despacho</h1>
         </div>
-        <div style="display:flex;align-items:center;gap:0.6rem">
-            <a href="/dashboard" class="btn-link"><i class="bi bi-arrow-left"></i> Dashboard</a>
-        </div>
+        <a href="/dashboard" class="btn-link"><i class="bi bi-arrow-left"></i> Dashboard</a>
     </div>
 
-    <div class="toolbar">
-        <h3><i class="bi bi-funnel" style="color:var(--primary)"></i> Despacho</h3>
-        <div style="display:flex;align-items:center;gap:1rem">
-            <select id="centroFilter" onchange="renderDespacho()">
-                <option value="">Todos los centros</option>
-            </select>
-            <span class="refresh-info">Auto-refresh: 30s</span>
+    <div class="app-layout">
+        <!-- Left: Carriles -->
+        <div class="panel-carriles">
+            <div class="panel-carriles-header">
+                <h3><i class="bi bi-signpost-2" style="color:var(--primary)"></i> Carriles</h3>
+                <select id="centroFilter" onchange="renderCarriles()">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="carriles-list" id="carrilesList"></div>
+        </div>
+
+        <!-- Right: Detail -->
+        <div class="panel-detail" id="panelDetail">
+            <div class="empty-detail">
+                <i class="bi bi-cursor"></i>
+                <p>Selecciona una ruta para ver sus documentos</p>
+            </div>
         </div>
     </div>
-
-    <div class="loading" id="loading"><p>Cargando...</p></div>
-    <div class="no-data" id="noData" style="display:none">
-        <i class="bi bi-truck"></i>
-        <p>No hay rutas pendientes de despacho</p>
-    </div>
-    <div class="carriles-container" id="carrilesContainer" style="display:none"></div>
 
     <script>
         let despachoData = [];
         let allCarriles = [];
-        let refreshTimer = null;
         let openCarriles = new Set();
+        let selectedRoute = null;
+        let openDocs = new Set();
+        let refreshTimer = null;
 
         async function init() {
             try {
@@ -346,7 +503,7 @@
                 centros.forEach(c => {
                     const opt = document.createElement('option');
                     opt.value = c.ID_Centro;
-                    opt.textContent = `${c.Nombre} (${c.Pais})`;
+                    opt.textContent = c.Nombre;
                     select.appendChild(opt);
                 });
             } catch (err) { console.error(err); }
@@ -356,7 +513,6 @@
             try {
                 const res = await fetch('/api/carriles');
                 allCarriles = await res.json();
-                // Open all carriles by default
                 allCarriles.forEach(c => openCarriles.add(c.ID_Carril));
             } catch (err) { console.error(err); }
         }
@@ -365,18 +521,14 @@
             try {
                 const res = await fetch('/api/despacho/rutas');
                 despachoData = await res.json();
-                renderDespacho();
+                renderCarriles();
             } catch (err) { console.error(err); }
         }
 
-        function renderDespacho() {
-            document.getElementById('loading').style.display = 'none';
-            const container = document.getElementById('carrilesContainer');
-            const noData = document.getElementById('noData');
-
+        function renderCarriles() {
+            const container = document.getElementById('carrilesList');
             const centroFilter = document.getElementById('centroFilter').value;
 
-            // Filter carriles by centro
             let carriles = allCarriles;
             let routes = despachoData;
             if (centroFilter) {
@@ -384,19 +536,6 @@
                 routes = routes.filter(r => r.ID_Centro == centroFilter);
             }
 
-            // Only show carriles that have routes
-            const carrilesWithRoutes = new Set(routes.map(r => r.ID_Carril));
-
-            if (carrilesWithRoutes.size === 0) {
-                container.style.display = 'none';
-                noData.style.display = 'block';
-                return;
-            }
-
-            noData.style.display = 'none';
-            container.style.display = 'block';
-
-            // Group routes by carril
             const groups = {};
             routes.forEach(r => {
                 const key = r.ID_Carril || 0;
@@ -404,10 +543,14 @@
                 groups[key].push(r);
             });
 
-            // Render carriles that have routes
-            const sortedCarriles = carriles.filter(c => carrilesWithRoutes.has(c.ID_Carril));
+            const carrilesWithRoutes = carriles.filter(c => groups[c.ID_Carril] && groups[c.ID_Carril].length > 0);
 
-            container.innerHTML = sortedCarriles.map(carril => {
+            if (carrilesWithRoutes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:2rem;color:#bbb"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:0.5rem"></i>Sin rutas pendientes</div>';
+                return;
+            }
+
+            container.innerHTML = carrilesWithRoutes.map(carril => {
                 const routeList = groups[carril.ID_Carril] || [];
                 const isOpen = openCarriles.has(carril.ID_Carril);
 
@@ -428,42 +571,21 @@
 
         function renderRouteItem(r) {
             const estadoDespacho = r.EstadoDespacho || 'Pendiente';
-            const estadoPicking = r.Estado || 'Iniciado';
             const pickingPct = r.TotalProductos > 0 ? Math.round((r.ProductosFinalizados / r.TotalProductos) * 100) : 0;
-            const pickingComplete = estadoPicking === 'Finalizado';
-
             let estadoClass = 'estado-pendiente';
             if (estadoDespacho === 'Listo para Carga') estadoClass = 'estado-listo';
             if (estadoDespacho === 'Finalizado') estadoClass = 'estado-finalizado';
 
-            let actionsHtml = '';
-            if (estadoDespacho === 'Pendiente') {
-                actionsHtml = `
-                    <button class="btn-estado btn-listo" ${pickingComplete ? '' : 'disabled title="Picking no finalizado"'} onclick="event.stopPropagation();cambiarEstado(${r.RouteNumber}, 'Listo para Carga')">
-                        <i class="bi bi-check2-square"></i> Listo
-                    </button>`;
-            } else if (estadoDespacho === 'Listo para Carga') {
-                actionsHtml = `
-                    <button class="btn-estado btn-finalizar-despacho" onclick="event.stopPropagation();cambiarEstado(${r.RouteNumber}, 'Finalizado')">
-                        <i class="bi bi-truck"></i> Despachar
-                    </button>
-                    <button class="btn-estado btn-revertir" onclick="event.stopPropagation();cambiarEstado(${r.RouteNumber}, 'Pendiente')">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                    </button>`;
-            }
+            const isActive = selectedRoute === r.RouteNumber;
 
             return `
-                <div class="route-item ${estadoClass}" onclick="toggleRouteDetail(this, ${r.RouteNumber})">
-                    <div class="ri-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
-                    <div class="ri-meta">
-                        <span><i class="bi bi-box-seam"></i> ${formatNum(r.PesoEstimado || 0)} kg</span>
-                        <span>Picking: ${pickingPct}%</span>
+                <div class="route-item ${estadoClass} ${isActive ? 'active' : ''}" onclick="selectRoute(${r.RouteNumber})">
+                    <div class="ri-indicator"></div>
+                    <div class="ri-info">
+                        <div class="ri-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
+                        <div class="ri-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
                     </div>
-                    <div class="picking-bar">
-                        <div class="fill ${pickingComplete ? 'complete' : 'in-progress'}" style="width:${pickingPct}%"></div>
-                    </div>
-                    <div class="ri-actions">${actionsHtml}</div>
-                    <div class="ri-detail" id="detail-${r.RouteNumber}"></div>
+                    <div class="ri-pct">${pickingPct}%</div>
                 </div>
             `;
         }
@@ -471,55 +593,163 @@
         function toggleCarril(id) {
             if (openCarriles.has(id)) openCarriles.delete(id);
             else openCarriles.add(id);
-            renderDespacho();
+            renderCarriles();
         }
 
-        async function toggleRouteDetail(el, routeNumber) {
-            const detail = document.getElementById('detail-' + routeNumber);
-            if (!detail) return;
+        async function selectRoute(routeNumber) {
+            selectedRoute = routeNumber;
+            openDocs = new Set();
+            renderCarriles();
 
-            if (detail.classList.contains('open')) {
-                detail.classList.remove('open');
+            const panel = document.getElementById('panelDetail');
+            panel.innerHTML = '<div class="loading-detail"><i class="bi bi-hourglass-split"></i> Cargando...</div>';
+
+            const ruta = despachoData.find(r => r.RouteNumber === routeNumber);
+            if (!ruta) return;
+
+            try {
+                const res = await fetch('/api/despacho/rutas/' + routeNumber + '/documentos');
+                const docs = await res.json();
+                renderDetail(ruta, docs);
+            } catch (err) {
+                panel.innerHTML = '<div class="loading-detail" style="color:#c62828">Error al cargar documentos</div>';
+            }
+        }
+
+        function renderDetail(ruta, docs) {
+            const panel = document.getElementById('panelDetail');
+            const estadoDespacho = ruta.EstadoDespacho || 'Pendiente';
+            const estadoPicking = ruta.Estado || 'Iniciado';
+            const pickingPct = ruta.TotalProductos > 0 ? Math.round((ruta.ProductosFinalizados / ruta.TotalProductos) * 100) : 0;
+            const pickingComplete = estadoPicking === 'Finalizado';
+
+            let despachoPillClass = 'pendiente';
+            if (estadoDespacho === 'Listo para Carga') despachoPillClass = 'listo-carga';
+            if (estadoDespacho === 'Finalizado') despachoPillClass = 'finalizado-despacho';
+
+            let pickingPillClass = pickingComplete ? 'picking-finalizado' : 'picking-iniciado';
+
+            let actionsHtml = '';
+            if (estadoDespacho === 'Pendiente') {
+                actionsHtml = `
+                    <button class="btn-estado btn-listo" ${pickingComplete ? '' : 'disabled title="Picking no finalizado"'} onclick="cambiarEstado(${ruta.RouteNumber}, 'Listo para Carga')">
+                        <i class="bi bi-check2-square"></i> Marcar Listo para Carga
+                    </button>`;
+            } else if (estadoDespacho === 'Listo para Carga') {
+                actionsHtml = `
+                    <button class="btn-estado btn-finalizar-despacho" onclick="cambiarEstado(${ruta.RouteNumber}, 'Finalizado')">
+                        <i class="bi bi-truck"></i> Finalizar Despacho
+                    </button>
+                    <button class="btn-estado btn-revertir" onclick="cambiarEstado(${ruta.RouteNumber}, 'Pendiente')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Revertir
+                    </button>`;
+            }
+
+            const docsFinalizados = docs.filter(d => d.Estado === 'Finalizado').length;
+
+            panel.innerHTML = `
+                <div class="route-header-card">
+                    <div class="route-header-top">
+                        <div>
+                            <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')}</div>
+                            <div class="route-header-subtitle">${esc(ruta.CarrilNombre || '')}</div>
+                        </div>
+                    </div>
+                    <div class="route-header-grid">
+                        <div class="rh-field">
+                            <label>Despacho</label>
+                            <span class="estado-pill ${despachoPillClass}">${estadoDespacho}</span>
+                        </div>
+                        <div class="rh-field">
+                            <label>Picking</label>
+                            <span class="estado-pill ${pickingPillClass}">${estadoPicking} (${pickingPct}%)</span>
+                        </div>
+                        <div class="rh-field">
+                            <label>Peso Estimado</label>
+                            <div class="value">${formatNum(ruta.PesoEstimado || 0)} kg</div>
+                        </div>
+                        <div class="rh-field">
+                            <label>Documentos</label>
+                            <div class="value">${docsFinalizados}/${docs.length}</div>
+                        </div>
+                    </div>
+                    <div class="picking-bar-lg">
+                        <div class="fill ${pickingComplete ? 'complete' : 'in-progress'}" style="width:${pickingPct}%"></div>
+                    </div>
+                    <div class="route-header-actions">${actionsHtml}</div>
+                </div>
+
+                <div class="docs-header">
+                    <i class="bi bi-file-earmark-text" style="color:var(--primary)"></i>
+                    Documentos
+                    <span class="badge-count">${docs.length}</span>
+                </div>
+
+                <div id="docsList">
+                    ${docs.map(d => renderDocCard(ruta.RouteNumber, d)).join('')}
+                </div>
+            `;
+        }
+
+        function renderDocCard(routeNumber, d) {
+            const isDone = d.Estado === 'Finalizado';
+            const isOpen = openDocs.has(d.OV_Number);
+
+            return `
+                <div class="doc-card">
+                    <div class="doc-card-header" onclick="toggleDoc('${routeNumber}', '${esc(d.OV_Number)}')">
+                        <div class="doc-icon ${isDone ? 'done' : 'pending'}">
+                            <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
+                        </div>
+                        <div class="doc-info">
+                            <div class="doc-name">${esc(d.OV_Number)} <span style="font-size:0.72rem;color:#999;font-weight:400">(${esc(d.DocType)})</span></div>
+                            <div class="doc-meta">${d.TotalProductos} producto${d.TotalProductos !== 1 ? 's' : ''} · ${d.ProductosFinalizados}/${d.TotalProductos} completados</div>
+                        </div>
+                        <div class="doc-right">
+                            <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
+                            <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado}</span></div>
+                        </div>
+                        <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
+                    </div>
+                    <div class="doc-products ${isOpen ? 'open' : ''}" id="doc-${d.OV_Number}"></div>
+                </div>
+            `;
+        }
+
+        async function toggleDoc(routeNumber, ovNumber) {
+            const el = document.getElementById('doc-' + ovNumber);
+            if (!el) return;
+
+            if (openDocs.has(ovNumber)) {
+                openDocs.delete(ovNumber);
+                el.classList.remove('open');
+                el.innerHTML = '';
                 return;
             }
 
-            detail.classList.add('open');
-            detail.innerHTML = '<div class="ri-detail-loading"><i class="bi bi-hourglass-split"></i> Cargando documentos...</div>';
+            openDocs.add(ovNumber);
+            el.classList.add('open');
+            el.innerHTML = '<div style="padding:0.3rem 0;font-size:0.72rem;color:#aaa"><i class="bi bi-hourglass-split"></i> Cargando...</div>';
 
             try {
-                const res = await fetch('/api/rutas/' + routeNumber + '/productos');
+                const res = await fetch('/api/despacho/rutas/' + routeNumber + '/documentos/' + encodeURIComponent(ovNumber) + '/productos');
                 const productos = await res.json();
 
-                if (productos.length === 0) {
-                    detail.innerHTML = '<div class="ri-detail-loading">Sin productos</div>';
-                    return;
-                }
-
-                const finalizados = productos.filter(p => p.Estado === 'Finalizado').length;
-
-                detail.innerHTML = `
-                    <div class="doc-summary">${finalizados}/${productos.length} productos finalizados</div>
-                    ${productos.map(p => {
-                        const isDone = p.Estado === 'Finalizado';
-                        return `
-                            <div class="doc-row">
-                                <div class="doc-icon ${isDone ? 'done' : 'pending'}">
-                                    <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
-                                </div>
-                                <div class="doc-info">
-                                    <div class="doc-name">${esc(p.Product)}</div>
-                                    <div class="doc-desc">${esc(p.ProductName || '')}${p.PickerNombre ? ' · ' + esc(p.PickerNombre) : ''}</div>
-                                </div>
-                                <div class="doc-qty">
-                                    ${isDone ? '<span class="done-label">✓</span>' : (p.TotalArticulo || 0) + ' art.'}
-                                    <div style="font-size:0.65rem;color:#999">${formatNum(p.PesoTotal || 0)} kg</div>
-                                </div>
+                el.innerHTML = productos.map(p => {
+                    const pDone = p.Estado === 'Finalizado';
+                    const qty = pDone ? '✓' : p.CantidadPendiente + '/' + p.Cantidad;
+                    return `
+                        <div class="prod-row">
+                            <div class="prod-icon ${pDone ? 'done' : 'pending'}">
+                                <i class="bi bi-${pDone ? 'check-circle-fill' : 'circle'}"></i>
                             </div>
-                        `;
-                    }).join('')}
-                `;
+                            <div class="prod-name" title="${esc(p.ProductName || '')}">${esc(p.Product)} — ${esc(p.ProductName || '')}</div>
+                            <div class="prod-qty ${pDone ? 'done' : ''}">${qty}</div>
+                        </div>
+                    `;
+                }).join('');
             } catch (err) {
-                detail.innerHTML = '<div class="ri-detail-loading" style="color:#c62828">Error al cargar</div>';
+                el.innerHTML = '<div style="padding:0.3rem 0;font-size:0.72rem;color:#c62828">Error</div>';
             }
         }
 
@@ -529,7 +759,7 @@
                 'Finalizado': 'finalizar el despacho de',
                 'Pendiente': 'revertir a Pendiente'
             };
-            if (!confirm(`Confirmar: ${labels[estado]} la ruta #${routeNumber}?`)) return;
+            if (!confirm(`Confirmar: ${labels[estado]} ruta #${routeNumber}?`)) return;
 
             try {
                 const res = await fetch('/api/despacho/estado', {
@@ -540,6 +770,12 @@
                 const data = await res.json();
                 if (!res.ok) { alert(data.error || 'Error'); return; }
                 await loadDespacho();
+                if (estado !== 'Finalizado') {
+                    await selectRoute(routeNumber);
+                } else {
+                    document.getElementById('panelDetail').innerHTML = '<div class="empty-detail"><i class="bi bi-check-circle"></i><p>Despacho finalizado</p></div>';
+                    selectedRoute = null;
+                }
             } catch (err) {
                 alert('Error de conexion');
             }
