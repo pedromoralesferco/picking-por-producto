@@ -230,15 +230,17 @@ function closeCarrilModal() {
 }
 
 async function selectCarrilAndStart(idCarril) {
-    closeCarrilModal();
-    await doIniciarRuta(pendingIniciarRuta, idCarril);
+    const rn = pendingIniciarRuta;
+    document.getElementById('carrilModal').style.display = 'none';
     pendingIniciarRuta = null;
+    await doIniciarRuta(rn, idCarril);
 }
 
 async function confirmIniciarSinCarril() {
-    closeCarrilModal();
-    await doIniciarRuta(pendingIniciarRuta, null);
+    const rn = pendingIniciarRuta;
+    document.getElementById('carrilModal').style.display = 'none';
     pendingIniciarRuta = null;
+    await doIniciarRuta(rn, null);
 }
 
 async function doIniciarRuta(routeNumber, idCarril) {
