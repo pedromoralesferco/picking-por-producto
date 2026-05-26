@@ -361,6 +361,79 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
+        /* Centro groups */
+        .centro-group {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .centro-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.7rem 1rem;
+            background: var(--dark);
+            color: white;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s;
+        }
+
+        .centro-group-header:hover { background: var(--dark-light); }
+
+        .centro-group-header .centro-title {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .centro-group-header .centro-title .flag {
+            font-size: 1rem;
+        }
+
+        .centro-group-header .centro-count {
+            background: rgba(212,168,38,0.3);
+            color: var(--primary);
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .centro-group-header .chevron {
+            transition: transform 0.2s;
+            font-size: 0.9rem;
+            color: var(--primary);
+        }
+
+        .centro-group.collapsed .chevron {
+            transform: rotate(-90deg);
+        }
+
+        .centro-group.collapsed .centro-group-body {
+            display: none;
+        }
+
+        .centro-group-body table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .centro-group-body th {
+            background: #f5f5f5;
+            color: #555;
+            font-size: 0.75rem;
+            padding: 0.5rem 0.8rem;
+            text-align: left;
+            letter-spacing: 0.3px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
         @media (max-width: 600px) {
             th, td { padding: 0.5rem 0.4rem; font-size: 0.78rem; }
             .tabs { padding: 0 0.5rem; }
@@ -424,21 +497,7 @@
                 <h3><i class="bi bi-person-walking" style="color:var(--primary)"></i> Operarios (Pickers)</h3>
                 <button class="btn-primary" onclick="openPickerModal()"><i class="bi bi-plus-lg"></i> Nuevo Operario</button>
             </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nombre</th>
-                            <th>Centro</th>
-                            <th>Pais</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="pickersTable"></tbody>
-                </table>
-            </div>
+            <div id="pickersGrouped"></div>
         </div>
     </div>
 
@@ -449,20 +508,7 @@
                 <h3><i class="bi bi-signpost-2" style="color:var(--primary)"></i> Carriles de Despacho</h3>
                 <button class="btn-primary" onclick="openCarrilModal()"><i class="bi bi-plus-lg"></i> Nuevo Carril</button>
             </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nombre</th>
-                            <th>Centro</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="carrilesTable"></tbody>
-                </table>
-            </div>
+            <div id="carrilesGrouped"></div>
         </div>
     </div>
 
@@ -666,19 +712,74 @@
         }
 
         function renderPickers() {
-            const tbody = document.getElementById('pickersTable');
-            tbody.innerHTML = pickers.map(p => `
-                <tr>
-                    <td>${p.ID_Operario}</td>
-                    <td><strong>${esc(p.Nombre)}</strong></td>
-                    <td>${esc(p.CentroNombre || '-')}</td>
-                    <td>${esc(p.Pais || '-')}</td>
-                    <td><span class="badge ${p.Activo ? 'badge-active' : 'badge-inactive'}">${p.Activo ? 'Activo' : 'Inactivo'}</span></td>
-                    <td class="actions">
-                        <button class="btn-sm btn-edit" onclick="editPicker(${p.ID_Operario})"><i class="bi bi-pencil"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            const container = document.getElementById('pickersGrouped');
+            const flags = { GT: '\u{1F1EC}\u{1F1F9}', SV: '\u{1F1F8}\u{1F1FB}', HN: '\u{1F1ED}\u{1F1F3}', CR: '\u{1F1E8}\u{1F1F7}', PA: '\u{1F1F5}\u{1F1E6}' };
+
+            // Group by centro
+            const groups = {};
+            const centroOrder = [];
+            centros.forEach(c => {
+                groups[c.ID_Centro] = { centro: c, items: [] };
+                centroOrder.push(c.ID_Centro);
+            });
+            // Add "Sin centro" group
+            groups[0] = { centro: { ID_Centro: 0, Nombre: 'Sin Centro Asignado', Pais: '' }, items: [] };
+
+            pickers.forEach(p => {
+                const key = p.ID_Centro || 0;
+                if (!groups[key]) { groups[key] = { centro: { ID_Centro: key, Nombre: 'Centro ' + key, Pais: p.Pais || '' }, items: [] }; centroOrder.push(key); }
+                groups[key].items.push(p);
+            });
+            if (groups[0].items.length > 0) centroOrder.push(0);
+
+            container.innerHTML = centroOrder
+                .filter(id => groups[id].items.length > 0)
+                .map(id => {
+                    const g = groups[id];
+                    const c = g.centro;
+                    const flag = flags[c.Pais] || '';
+                    return `
+                    <div class="centro-group" id="pickers-group-${id}">
+                        <div class="centro-group-header" onclick="toggleCentroGroup('pickers-group-${id}')">
+                            <div class="centro-title">
+                                <span class="flag">${flag}</span>
+                                ${esc(c.Nombre)}
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.6rem">
+                                <span class="centro-count">${g.items.length} operario${g.items.length !== 1 ? 's' : ''}</span>
+                                <i class="bi bi-chevron-down chevron"></i>
+                            </div>
+                        </div>
+                        <div class="centro-group-body">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nombre</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${g.items.map(p => `
+                                        <tr>
+                                            <td>${p.ID_Operario}</td>
+                                            <td><strong>${esc(p.Nombre)}</strong></td>
+                                            <td><span class="badge ${p.Activo ? 'badge-active' : 'badge-inactive'}">${p.Activo ? 'Activo' : 'Inactivo'}</span></td>
+                                            <td class="actions">
+                                                <button class="btn-sm btn-edit" onclick="editPicker(${p.ID_Operario})"><i class="bi bi-pencil"></i></button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                }).join('');
+
+            if (!container.innerHTML) {
+                container.innerHTML = '<div style="text-align:center;padding:2rem;color:#999">No hay operarios registrados</div>';
+            }
         }
 
         // ── User Modal ──
@@ -791,7 +892,9 @@
                 `<option value="${c.ID_Centro}" ${picker && picker.ID_Centro === c.ID_Centro ? 'selected' : ''}>${c.Nombre} (${c.Pais})</option>`
             ).join('');
 
-            document.getElementById('pickerPais').value = picker ? (picker.Pais || 'GT') : 'GT';
+            // Auto-set pais from selected centro
+            const selectedCentro = centros.find(c => c.ID_Centro === parseInt(select.value));
+            document.getElementById('pickerPais').value = picker ? (picker.Pais || 'GT') : (selectedCentro ? selectedCentro.Pais : 'GT');
 
             const activoGroup = document.getElementById('pickerActivoGroup');
             if (picker) {
@@ -857,18 +960,73 @@
         }
 
         function renderCarriles() {
-            const tbody = document.getElementById('carrilesTable');
-            tbody.innerHTML = carriles.map(c => `
-                <tr>
-                    <td>${c.ID_Carril}</td>
-                    <td><strong>${esc(c.Nombre)}</strong></td>
-                    <td>${esc(c.CentroNombre || '-')}</td>
-                    <td><span class="badge ${c.Activo ? 'badge-active' : 'badge-inactive'}">${c.Activo ? 'Activo' : 'Inactivo'}</span></td>
-                    <td class="actions">
-                        <button class="btn-sm btn-edit" onclick="editCarril(${c.ID_Carril})"><i class="bi bi-pencil"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            const container = document.getElementById('carrilesGrouped');
+            const flags = { GT: '\u{1F1EC}\u{1F1F9}', SV: '\u{1F1F8}\u{1F1FB}', HN: '\u{1F1ED}\u{1F1F3}', CR: '\u{1F1E8}\u{1F1F7}', PA: '\u{1F1F5}\u{1F1E6}' };
+
+            // Group by centro
+            const groups = {};
+            const centroOrder = [];
+            centros.forEach(c => {
+                groups[c.ID_Centro] = { centro: c, items: [] };
+                centroOrder.push(c.ID_Centro);
+            });
+            groups[0] = { centro: { ID_Centro: 0, Nombre: 'Sin Centro Asignado', Pais: '' }, items: [] };
+
+            carriles.forEach(c => {
+                const key = c.ID_Centro || 0;
+                if (!groups[key]) { groups[key] = { centro: { ID_Centro: key, Nombre: 'Centro ' + key, Pais: '' }, items: [] }; centroOrder.push(key); }
+                groups[key].items.push(c);
+            });
+            if (groups[0].items.length > 0) centroOrder.push(0);
+
+            container.innerHTML = centroOrder
+                .filter(id => groups[id].items.length > 0)
+                .map(id => {
+                    const g = groups[id];
+                    const ct = g.centro;
+                    const flag = flags[ct.Pais] || '';
+                    return `
+                    <div class="centro-group" id="carriles-group-${id}">
+                        <div class="centro-group-header" onclick="toggleCentroGroup('carriles-group-${id}')">
+                            <div class="centro-title">
+                                <span class="flag">${flag}</span>
+                                ${esc(ct.Nombre)}
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.6rem">
+                                <span class="centro-count">${g.items.length} carril${g.items.length !== 1 ? 'es' : ''}</span>
+                                <i class="bi bi-chevron-down chevron"></i>
+                            </div>
+                        </div>
+                        <div class="centro-group-body">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nombre</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${g.items.map(c => `
+                                        <tr>
+                                            <td>${c.ID_Carril}</td>
+                                            <td><strong>${esc(c.Nombre)}</strong></td>
+                                            <td><span class="badge ${c.Activo ? 'badge-active' : 'badge-inactive'}">${c.Activo ? 'Activo' : 'Inactivo'}</span></td>
+                                            <td class="actions">
+                                                <button class="btn-sm btn-edit" onclick="editCarril(${c.ID_Carril})"><i class="bi bi-pencil"></i></button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                }).join('');
+
+            if (!container.innerHTML) {
+                container.innerHTML = '<div style="text-align:center;padding:2rem;color:#999">No hay carriles registrados</div>';
+            }
         }
 
         function openCarrilModal(carril) {
@@ -934,6 +1092,11 @@
         function editCarril(id) {
             const carril = carriles.find(c => c.ID_Carril === id);
             if (carril) openCarrilModal(carril);
+        }
+
+        // ── Centro group toggle ──
+        function toggleCentroGroup(id) {
+            document.getElementById(id).classList.toggle('collapsed');
         }
 
         // ── Util ──
