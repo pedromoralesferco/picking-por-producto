@@ -189,30 +189,33 @@ router.delete('/usuarios/:id', async (req, res) => {
     }
 });
 
-// ── Pickers CRUD ──
+// ── Operarios CRUD ──
 
-// GET /api/admin/pickers - List all pickers
-router.get('/pickers', async (req, res) => {
+// GET /api/admin/operarios (and /api/admin/pickers for backward compat)
+async function getAdminOperarios(req, res) {
     try {
         const pool = getPool();
         const result = await pool.request().query(`
-            SELECT p.ID_Picker, p.Nombre, p.ID_Centro, p.Activo,
+            SELECT o.ID_Operario, o.ID_Operario AS ID_Picker, o.Nombre, o.ID_Centro, o.Pais, o.Activo,
                    cd.Nombre AS CentroNombre
-            FROM Picker p
-            LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = p.ID_Centro
-            ORDER BY p.Activo DESC, p.Nombre
+            FROM Operario o
+            LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = o.ID_Centro
+            ORDER BY o.Activo DESC, o.Nombre
         `);
         res.json(result.recordset);
     } catch (err) {
-        console.error('GET /api/admin/pickers error:', err);
+        console.error('GET /api/admin/operarios error:', err);
         res.status(500).json({ error: 'Error interno' });
     }
-});
+}
 
-// POST /api/admin/pickers - Create picker
-router.post('/pickers', async (req, res) => {
+router.get('/operarios', getAdminOperarios);
+router.get('/pickers', getAdminOperarios); // backward compat
+
+// POST /api/admin/operarios (and /api/admin/pickers)
+async function createOperario(req, res) {
     try {
-        const { nombre, idCentro } = req.body;
+        const { nombre, idCentro, pais } = req.body;
         if (!nombre || !idCentro) {
             return res.status(400).json({ error: 'Nombre y centro requeridos' });
         }
@@ -220,40 +223,48 @@ router.post('/pickers', async (req, res) => {
         const result = await pool.request()
             .input('nombre', sql.NVarChar, nombre)
             .input('idCentro', sql.Int, idCentro)
+            .input('pais', sql.NVarChar, pais || 'GT')
             .query(`
-                INSERT INTO Picker (Nombre, ID_Centro, Activo)
-                OUTPUT INSERTED.ID_Picker
-                VALUES (@nombre, @idCentro, 1)
+                INSERT INTO Operario (Nombre, ID_Centro, Pais, Activo, FechaCreacion)
+                OUTPUT INSERTED.ID_Operario
+                VALUES (@nombre, @idCentro, @pais, 1, GETDATE())
             `);
-        res.json({ ok: true, id: result.recordset[0].ID_Picker });
+        res.json({ ok: true, id: result.recordset[0].ID_Operario });
     } catch (err) {
-        console.error('POST /api/admin/pickers error:', err);
-        res.status(500).json({ error: 'Error al crear picker' });
+        console.error('POST /api/admin/operarios error:', err);
+        res.status(500).json({ error: 'Error al crear operario' });
     }
-});
+}
 
-// PUT /api/admin/pickers/:id - Update picker
-router.put('/pickers/:id', async (req, res) => {
+router.post('/operarios', createOperario);
+router.post('/pickers', createOperario); // backward compat
+
+// PUT /api/admin/operarios/:id (and /api/admin/pickers/:id)
+async function updateOperario(req, res) {
     try {
         const id = parseInt(req.params.id);
-        const { nombre, idCentro, activo } = req.body;
+        const { nombre, idCentro, pais, activo } = req.body;
         const pool = getPool();
         await pool.request()
             .input('id', sql.Int, id)
             .input('nombre', sql.NVarChar, nombre)
             .input('idCentro', sql.Int, idCentro)
+            .input('pais', sql.NVarChar, pais || 'GT')
             .input('activo', sql.Bit, activo ? 1 : 0)
             .query(`
-                UPDATE Picker
-                SET Nombre = @nombre, ID_Centro = @idCentro, Activo = @activo
-                WHERE ID_Picker = @id
+                UPDATE Operario
+                SET Nombre = @nombre, ID_Centro = @idCentro, Pais = @pais, Activo = @activo
+                WHERE ID_Operario = @id
             `);
         res.json({ ok: true });
     } catch (err) {
-        console.error('PUT /api/admin/pickers/:id error:', err);
-        res.status(500).json({ error: 'Error al actualizar picker' });
+        console.error('PUT /api/admin/operarios/:id error:', err);
+        res.status(500).json({ error: 'Error al actualizar operario' });
     }
-});
+}
+
+router.put('/operarios/:id', updateOperario);
+router.put('/pickers/:id', updateOperario); // backward compat
 
 // GET /api/admin/centros - List centros for dropdown
 router.get('/centros', async (req, res) => {

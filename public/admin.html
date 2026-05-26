@@ -431,6 +431,7 @@
                             <th>ID</th>
                             <th>Nombre</th>
                             <th>Centro</th>
+                            <th>Pais</th>
                             <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
@@ -533,6 +534,16 @@
                     <label>Centro de Distribucion</label>
                     <select id="pickerCentro"></select>
                 </div>
+                <div class="form-group">
+                    <label>Pais</label>
+                    <select id="pickerPais">
+                        <option value="GT">Guatemala (GT)</option>
+                        <option value="SV">El Salvador (SV)</option>
+                        <option value="HN">Honduras (HN)</option>
+                        <option value="CR">Costa Rica (CR)</option>
+                        <option value="PA">Panama (PA)</option>
+                    </select>
+                </div>
                 <div class="form-group" id="pickerActivoGroup" style="display:none">
                     <label>Estado</label>
                     <div class="toggle-group">
@@ -616,7 +627,7 @@
         }
 
         async function loadPickers() {
-            const res = await fetch('/api/admin/pickers');
+            const res = await fetch('/api/admin/operarios');
             pickers = await res.json();
             renderPickers();
         }
@@ -658,12 +669,13 @@
             const tbody = document.getElementById('pickersTable');
             tbody.innerHTML = pickers.map(p => `
                 <tr>
-                    <td>${p.ID_Picker}</td>
+                    <td>${p.ID_Operario}</td>
                     <td><strong>${esc(p.Nombre)}</strong></td>
                     <td>${esc(p.CentroNombre || '-')}</td>
+                    <td>${esc(p.Pais || '-')}</td>
                     <td><span class="badge ${p.Activo ? 'badge-active' : 'badge-inactive'}">${p.Activo ? 'Activo' : 'Inactivo'}</span></td>
                     <td class="actions">
-                        <button class="btn-sm btn-edit" onclick="editPicker(${p.ID_Picker})"><i class="bi bi-pencil"></i></button>
+                        <button class="btn-sm btn-edit" onclick="editPicker(${p.ID_Operario})"><i class="bi bi-pencil"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -771,13 +783,15 @@
         // ── Picker Modal ──
         function openPickerModal(picker) {
             document.getElementById('pickerModalTitle').textContent = picker ? 'Editar Operario' : 'Nuevo Operario';
-            document.getElementById('pickerId').value = picker ? picker.ID_Picker : '';
+            document.getElementById('pickerId').value = picker ? picker.ID_Operario : '';
             document.getElementById('pickerNombre').value = picker ? picker.Nombre : '';
 
             const select = document.getElementById('pickerCentro');
             select.innerHTML = centros.map(c =>
                 `<option value="${c.ID_Centro}" ${picker && picker.ID_Centro === c.ID_Centro ? 'selected' : ''}>${c.Nombre} (${c.Pais})</option>`
             ).join('');
+
+            document.getElementById('pickerPais').value = picker ? (picker.Pais || 'GT') : 'GT';
 
             const activoGroup = document.getElementById('pickerActivoGroup');
             if (picker) {
@@ -807,13 +821,14 @@
             const data = {
                 nombre: document.getElementById('pickerNombre').value.trim(),
                 idCentro: parseInt(document.getElementById('pickerCentro').value),
+                pais: document.getElementById('pickerPais').value,
                 activo: document.getElementById('pickerActivo').checked
             };
 
             if (!data.nombre) { alert('Nombre requerido'); return; }
 
             try {
-                const url = id ? `/api/admin/pickers/${id}` : '/api/admin/pickers';
+                const url = id ? `/api/admin/operarios/${id}` : '/api/admin/operarios';
                 const method = id ? 'PUT' : 'POST';
                 const res = await fetch(url, {
                     method,
@@ -830,7 +845,7 @@
         }
 
         function editPicker(id) {
-            const picker = pickers.find(p => p.ID_Picker === id);
+            const picker = pickers.find(p => p.ID_Operario === id);
             if (picker) openPickerModal(picker);
         }
 

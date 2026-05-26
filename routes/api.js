@@ -122,10 +122,10 @@ router.get('/rutas/:routeNumber/productos', async (req, res) => {
             .query(`
                 SELECT rpm.RouteNumber, rpm.RouteName, rpm.Product, rpm.ProductName,
                        rpm.TotalArticulo, rpm.PesoTotal, rpm.Estado,
-                       rpm.PickerID, rpm.FechaAsignacion, rpm.FechaInicio, rpm.FechaFin,
-                       p.Nombre AS PickerNombre
+                       rpm.ID_Operario, rpm.PickerID, rpm.FechaAsignacion, rpm.FechaInicio, rpm.FechaFin,
+                       o.Nombre AS PickerNombre
                 FROM RoutePickingManagement rpm
-                LEFT JOIN Picker p ON p.ID_Picker = rpm.PickerID
+                LEFT JOIN Operario o ON o.ID_Operario = rpm.ID_Operario
                 WHERE rpm.RouteNumber = @routeNumber
                 ORDER BY
                     CASE rpm.Estado
@@ -213,6 +213,7 @@ router.get('/rutas/:routeNumber/productos/:product/tareas', async (req, res) => 
                        MAX(CantidadPendiente) AS CantidadPendiente,
                        MAX(UnitWeight) AS UnitWeight,
                        CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado,
+                       MAX(ID_Operario) AS ID_Operario,
                        MAX(Picker_ID) AS Picker_ID,
                        MAX(FechaLiberacion) AS FechaLiberacion,
                        MAX(UltimaActualizacion) AS UltimaActualizacion
@@ -230,25 +231,26 @@ router.get('/rutas/:routeNumber/productos/:product/tareas', async (req, res) => 
     }
 });
 
-// ── Asignar picker a un producto ──
+// ── Asignar operario a un producto ──
 
 router.post('/productos/asignar', async (req, res) => {
     try {
-        const { routeNumber, product, pickerId } = req.body;
+        const { routeNumber, product, operarioId, pickerId } = req.body;
+        const idOperario = operarioId || pickerId; // backward compat
         const pool = getPool();
         await pool.request()
             .input('routeNumber', sql.Int, routeNumber)
             .input('product', sql.NVarChar, product)
-            .input('pickerId', sql.Int, pickerId)
+            .input('operarioId', sql.Int, idOperario)
             .query(`
                 UPDATE RoutePickingManagement
-                SET PickerID = @pickerId
+                SET ID_Operario = @operarioId
                 WHERE RouteNumber = @routeNumber AND Product = @product
             `);
         res.json({ ok: true });
     } catch (err) {
         console.error('POST /api/productos/asignar error:', err);
-        res.status(500).json({ error: 'Error al asignar picker' });
+        res.status(500).json({ error: 'Error al asignar operario' });
     }
 });
 
@@ -359,9 +361,9 @@ router.post('/admin/limpiar-rutas-finalizadas', async (req, res) => {
     }
 });
 
-// ── Pickers (para modal de asignación) ──
+// ── Operarios (para modal de asignación) ──
 
-router.get('/pickers', async (req, res) => {
+async function getOperarios(req, res) {
     try {
         const pool = getPool();
         const centros = getUserCentros(req);
@@ -370,26 +372,30 @@ router.get('/pickers', async (req, res) => {
         if (centros && centros.length > 0) {
             const params = centros.map((_, i) => `@uc${i}`).join(',');
             centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
-            centroFilter = ` AND p.ID_Centro IN (${params})`;
+            centroFilter = ` AND o.ID_Centro IN (${params})`;
         }
         const result = await request.query(`
-            SELECT p.ID_Picker, p.Nombre, p.ID_Centro, cd.Nombre AS CentroNombre,
+            SELECT o.ID_Operario, o.ID_Operario AS ID_Picker, o.Nombre, o.ID_Centro, o.Pais,
+                   cd.Nombre AS CentroNombre,
                 (SELECT COUNT(*) FROM RoutePickingManagement
-                 WHERE PickerID = p.ID_Picker AND Estado IN ('Asignado','En Proceso')) AS Asignados,
+                 WHERE ID_Operario = o.ID_Operario AND Estado IN ('Asignado','En Proceso')) AS Asignados,
                 (SELECT COUNT(*) FROM RoutePickingManagement
-                 WHERE PickerID = p.ID_Picker AND Estado = 'Finalizado'
+                 WHERE ID_Operario = o.ID_Operario AND Estado = 'Finalizado'
                    AND CAST(FechaFin AS DATE) = CAST(GETDATE() AS DATE)) AS CompletadosHoy
-            FROM Picker p
-            LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = p.ID_Centro
-            WHERE p.Activo = 1${centroFilter}
-            ORDER BY p.Nombre
+            FROM Operario o
+            LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = o.ID_Centro
+            WHERE o.Activo = 1${centroFilter}
+            ORDER BY o.Nombre
         `);
         res.json(result.recordset);
     } catch (err) {
-        console.error('GET /api/pickers error:', err);
+        console.error('GET /api/operarios error:', err);
         res.status(500).json({ error: 'Error interno' });
     }
-});
+}
+
+router.get('/operarios', getOperarios);
+router.get('/pickers', getOperarios); // backward compat
 
 // ── Picker view endpoints ──
 
@@ -420,14 +426,14 @@ router.get('/centros/:id/pickers', async (req, res) => {
         const result = await pool.request()
             .input('idCentro', sql.Int, req.params.id)
             .query(`
-                SELECT p.ID_Picker, p.Nombre,
+                SELECT o.ID_Operario, o.ID_Operario AS ID_Picker, o.Nombre,
                     (SELECT COUNT(*) FROM RoutePickingManagement
-                     WHERE PickerID = p.ID_Picker AND Estado IN ('Asignado','En Proceso')) AS ProductosPendientes,
+                     WHERE ID_Operario = o.ID_Operario AND Estado IN ('Asignado','En Proceso')) AS ProductosPendientes,
                     (SELECT COUNT(*) FROM RoutePickingTask
-                     WHERE Picker_ID = p.ID_Picker AND Estado <> 'Finalizado') AS TareasPendientes
-                FROM Picker p
-                WHERE p.ID_Centro = @idCentro AND p.Activo = 1
-                ORDER BY p.Nombre
+                     WHERE ID_Operario = o.ID_Operario AND Estado <> 'Finalizado') AS TareasPendientes
+                FROM Operario o
+                WHERE o.ID_Centro = @idCentro AND o.Activo = 1
+                ORDER BY o.Nombre
             `);
         res.json(result.recordset);
     } catch (err) {
@@ -451,7 +457,7 @@ router.get('/pickers/:id/productos', async (req, res) => {
                            MAX(Estado) AS Estado,
                            MAX(UltimaActualizacion) AS UltimaActualizacion
                     FROM RoutePickingTask
-                    WHERE Picker_ID = @pickerId
+                    WHERE ID_Operario = @pickerId
                     GROUP BY Route_Number, OV_Number, DocType, InternIdProduct
                 )
                 SELECT t.Route_Number AS RouteNumber,
@@ -503,7 +509,7 @@ router.get('/pickers/:id/resumen', async (req, res) => {
                            CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado,
                            MAX(UltimaActualizacion) AS UltimaActualizacion
                     FROM RoutePickingTask
-                    WHERE Picker_ID = @pickerId
+                    WHERE ID_Operario = @pickerId
                     GROUP BY Route_Number, OV_Number, DocType, InternIdProduct
                 )
                 SELECT

@@ -297,7 +297,7 @@ async function openPickerModal(routeNumber, product, isReassign) {
         : 'Elige un operario para asignar el producto';
 
     try {
-        const res = await fetch('/api/pickers');
+        const res = await fetch('/api/operarios');
         pickersCache = await res.json();
         renderPickers(pickersCache);
     } catch (err) {
@@ -319,7 +319,7 @@ function filterPickers(query) {
 
 function renderPickers(pickers) {
     document.getElementById('pickerList').innerHTML = pickers.map(p => `
-        <div class="picker-item" onclick="assignPicker(${p.ID_Picker})">
+        <div class="picker-item" onclick="assignPicker(${p.ID_Operario})">
             <div class="picker-name"><i class="bi bi-person-circle"></i> ${p.Nombre}</div>
             <div class="picker-stats">
                 ${p.CentroNombre || ''} |
@@ -330,7 +330,7 @@ function renderPickers(pickers) {
     `).join('');
 }
 
-async function assignPicker(pickerId) {
+async function assignPicker(operarioId) {
     try {
         const res = await fetch('/api/productos/asignar', {
             method: 'POST',
@@ -338,7 +338,7 @@ async function assignPicker(pickerId) {
             body: JSON.stringify({
                 routeNumber: assigningProduct.routeNumber,
                 product: assigningProduct.product,
-                pickerId
+                operarioId
             })
         });
         if (!res.ok) { const d = await res.json(); alert(d.error); return; }
