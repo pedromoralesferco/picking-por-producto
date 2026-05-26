@@ -493,13 +493,23 @@
         let despachoData = [];
         let allCarriles = [];
         let selectedRoute = null;
+        let selectedRoutePlanId = null;
         let openDocs = new Set();
         let refreshTimer = null;
+        let pickingMode = 'product'; // 'product' or 'order'
 
         async function init() {
             try {
                 const res = await fetch('/api/auth/me');
                 if (!res.ok) { window.location.href = '/login'; return; }
+                const user = await res.json();
+                // Detect mode from user centros
+                const centrosRes = await fetch('/api/centros');
+                const centrosData = await centrosRes.json();
+                const userCentros = centrosData.filter(c => (user.centros || []).includes(c.ID_Centro));
+                const hasSV = userCentros.some(c => c.Pais === 'SV');
+                const hasGT = userCentros.some(c => c.Pais === 'GT') || userCentros.some(c => c.ID_Centro === 1);
+                if (hasSV && !hasGT) pickingMode = 'order';
             } catch { window.location.href = '/login'; return; }
 
             await loadCentros();
@@ -531,7 +541,8 @@
 
         async function loadDespacho() {
             try {
-                const res = await fetch('/api/despacho/rutas');
+                const url = pickingMode === 'order' ? '/api/order/despacho/rutas' : '/api/despacho/rutas';
+                const res = await fetch(url);
                 despachoData = await res.json();
                 renderCarriles();
             } catch (err) { console.error(err); }
@@ -581,15 +592,23 @@
 
         function renderRouteChip(r) {
             const estadoDespacho = r.EstadoDespacho || 'Pendiente';
-            const pickingPct = r.TotalProductos > 0 ? Math.round((r.ProductosFinalizados / r.TotalProductos) * 100) : 0;
+            const totalItems = pickingMode === 'order' ? (r.TotalPedidos || 0) : (r.TotalProductos || 0);
+            const finItems = pickingMode === 'order' ? (r.PedidosFinalizados || 0) : (r.ProductosFinalizados || 0);
+            const pickingPct = totalItems > 0 ? Math.round((finItems / totalItems) * 100) : 0;
             let estadoClass = 'estado-pendiente';
             if (estadoDespacho === 'Listo para Carga') estadoClass = 'estado-listo';
             if (estadoDespacho === 'Finalizado') estadoClass = 'estado-finalizado';
 
-            const isActive = selectedRoute === r.RouteNumber;
+            const isActive = pickingMode === 'order'
+                ? selectedRoutePlanId === r.ID_RoutePlan
+                : selectedRoute === r.RouteNumber;
+
+            const onClickFn = pickingMode === 'order'
+                ? `selectRouteOrder(${r.ID_RoutePlan}, ${r.RouteNumber})`
+                : `selectRoute(${r.RouteNumber})`;
 
             return `
-                <div class="route-chip ${estadoClass} ${isActive ? 'active' : ''}" onclick="selectRoute(${r.RouteNumber})">
+                <div class="route-chip ${estadoClass} ${isActive ? 'active' : ''}" onclick="${onClickFn}">
                     <div class="rc-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
                     <div class="rc-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
                     <div class="rc-bar"><div class="fill ${pickingPct === 100 ? 'complete' : ''}" style="width:${pickingPct}%"></div></div>
@@ -782,6 +801,163 @@
                 } else {
                     document.getElementById('panelDetail').innerHTML = '<div class="empty-detail"><i class="bi bi-check-circle"></i><p>Despacho finalizado</p></div>';
                     selectedRoute = null;
+                }
+            } catch (err) {
+                alert('Error de conexion');
+            }
+        }
+
+        // ── Order mode functions ──
+
+        async function selectRouteOrder(idRoutePlan, routeNumber) {
+            selectedRoutePlanId = idRoutePlan;
+            selectedRoute = null;
+            openDocs = new Set();
+            renderCarriles();
+
+            const panel = document.getElementById('panelDetail');
+            panel.innerHTML = '<div class="loading-detail"><i class="bi bi-hourglass-split"></i> Cargando...</div>';
+
+            const ruta = despachoData.find(r => r.ID_RoutePlan === idRoutePlan);
+            if (!ruta) return;
+
+            try {
+                const res = await fetch('/api/order/despacho/rutas/' + idRoutePlan + '/documentos');
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || 'HTTP ' + res.status);
+                }
+                const docs = await res.json();
+                renderDetailOrder(ruta, docs);
+            } catch (err) {
+                console.error('Error cargando documentos order:', err);
+                panel.innerHTML = '<div class="loading-detail" style="color:#c62828"><i class="bi bi-exclamation-triangle"></i> Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function renderDetailOrder(ruta, docs) {
+            const panel = document.getElementById('panelDetail');
+            const estadoDespacho = ruta.EstadoDespacho || 'Pendiente';
+            const estadoPicking = ruta.Estado || 'Iniciado';
+            const totalPedidos = ruta.TotalPedidos || 0;
+            const pedidosFin = ruta.PedidosFinalizados || 0;
+            const pickingPct = totalPedidos > 0 ? Math.round((pedidosFin / totalPedidos) * 100) : 0;
+            const pickingComplete = estadoPicking === 'Finalizado';
+
+            let despachoPillClass = 'pendiente';
+            if (estadoDespacho === 'Listo para Carga') despachoPillClass = 'listo-carga';
+            if (estadoDespacho === 'Finalizado') despachoPillClass = 'finalizado-despacho';
+
+            let pickingPillClass = pickingComplete ? 'picking-finalizado' : 'picking-iniciado';
+
+            let actionsHtml = '';
+            if (estadoDespacho === 'Pendiente') {
+                actionsHtml = `
+                    <button class="btn-estado btn-listo" ${pickingComplete ? '' : 'disabled title="Picking no finalizado"'} onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Listo para Carga')">
+                        <i class="bi bi-check2-square"></i> Marcar Listo para Carga
+                    </button>`;
+            } else if (estadoDespacho === 'Listo para Carga') {
+                actionsHtml = `
+                    <button class="btn-estado btn-finalizar-despacho" onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Finalizado')">
+                        <i class="bi bi-truck"></i> Finalizar Despacho
+                    </button>
+                    <button class="btn-estado btn-revertir" onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Pendiente')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Revertir
+                    </button>`;
+            }
+
+            const docsFinalizados = docs.filter(d => d.Estado === 'Finalizado').length;
+
+            panel.innerHTML = `
+                <div class="route-header-card">
+                    <div class="route-header-top">
+                        <div>
+                            <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')} ${ruta.Pais ? '<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem">' + ruta.Pais + '</span>' : ''}</div>
+                            <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
+                        </div>
+                    </div>
+                    <div class="route-header-grid">
+                        <div class="rh-field">
+                            <label>Despacho</label>
+                            <span class="estado-pill ${despachoPillClass}">${estadoDespacho}</span>
+                        </div>
+                        <div class="rh-field">
+                            <label>Picking</label>
+                            <span class="estado-pill ${pickingPillClass}">${estadoPicking} (${pickingPct}%)</span>
+                        </div>
+                        <div class="rh-field">
+                            <label>Peso Estimado</label>
+                            <div class="value">${formatNum(ruta.PesoEstimado || 0)} kg</div>
+                        </div>
+                        <div class="rh-field">
+                            <label>Pedidos</label>
+                            <div class="value">${docsFinalizados}/${docs.length}</div>
+                        </div>
+                    </div>
+                    <div class="picking-bar-lg">
+                        <div class="fill ${pickingComplete ? 'complete' : 'in-progress'}" style="width:${pickingPct}%"></div>
+                    </div>
+                    <div class="route-header-actions">${actionsHtml}</div>
+                </div>
+
+                <div class="docs-header">
+                    <i class="bi bi-receipt" style="color:var(--primary)"></i>
+                    Pedidos
+                    <span class="badge-count">${docs.length}</span>
+                </div>
+
+                <div id="docsList">
+                    ${docs.map(d => renderDocCardOrder(d)).join('')}
+                </div>
+            `;
+        }
+
+        function renderDocCardOrder(d) {
+            const isDone = d.Estado === 'Finalizado';
+            const linFin = d.LineasFinalizadas || 0;
+            const linTotal = d.TotalLineas || 0;
+
+            return `
+                <div class="doc-card">
+                    <div class="doc-card-header">
+                        <div class="doc-icon ${isDone ? 'done' : 'pending'}">
+                            <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
+                        </div>
+                        <div class="doc-info">
+                            <div class="doc-name">${esc(d.OV_Number)} <span style="font-size:0.72rem;color:#999;font-weight:400">(${esc(d.DocType)})</span></div>
+                            <div class="doc-meta">${linTotal} lineas · ${linFin}/${linTotal} completadas${d.OperarioNombre ? ' · <strong style="color:var(--success)">' + esc(d.OperarioNombre) + '</strong>' : ''}</div>
+                        </div>
+                        <div class="doc-right">
+                            <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
+                            <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function cambiarEstadoOrder(idRoutePlan, routeNumber, estado) {
+            const labels = {
+                'Listo para Carga': 'marcar como Listo para Carga',
+                'Finalizado': 'finalizar el despacho de',
+                'Pendiente': 'revertir a Pendiente'
+            };
+            if (!confirm(`Confirmar: ${labels[estado]} ruta #${routeNumber}?`)) return;
+
+            try {
+                const res = await fetch('/api/order/despacho/estado', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idRoutePlan, estado })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Error'); return; }
+                await loadDespacho();
+                if (estado !== 'Finalizado') {
+                    await selectRouteOrder(idRoutePlan, routeNumber);
+                } else {
+                    document.getElementById('panelDetail').innerHTML = '<div class="empty-detail"><i class="bi bi-check-circle"></i><p>Despacho finalizado</p></div>';
+                    selectedRoutePlanId = null;
                 }
             } catch (err) {
                 alert('Error de conexion');

@@ -365,10 +365,28 @@
         const CAPACITY_KG_PER_HOUR = 10000;
         let rutasData = [];
         let sortableInstance = null;
+        let pickingMode = 'product'; // 'product' or 'order'
+
+        async function detectMode() {
+            try {
+                const userRes = await fetch('/api/auth/me');
+                if (!userRes.ok) return;
+                const user = await userRes.json();
+                const centrosRes = await fetch('/api/centros');
+                const centrosData = await centrosRes.json();
+                const userCentros = centrosData.filter(c => (user.centros || []).includes(c.ID_Centro));
+                const hasSV = userCentros.some(c => c.Pais === 'SV');
+                const hasGT = userCentros.some(c => c.Pais === 'GT') || userCentros.some(c => c.ID_Centro === 1);
+                if (hasSV && !hasGT) pickingMode = 'order';
+                // If both, default to product (GT). Could add toggle later.
+            } catch (err) { console.error('Mode detection error:', err); }
+        }
 
         async function cargarRutas() {
             try {
-                const res = await fetch('/api/priorizacion/rutas');
+                await detectMode();
+                const url = pickingMode === 'order' ? '/api/order/priorizacion/rutas' : '/api/priorizacion/rutas';
+                const res = await fetch(url);
                 if (!res.ok) throw new Error('Error al cargar');
                 rutasData = await res.json();
                 renderGrid();
@@ -434,7 +452,7 @@
 
                 const tr = document.createElement('tr');
                 tr.className = 'row-pendiente';
-                tr.dataset.route = r.RouteNumber;
+                tr.dataset.route = pickingMode === 'order' ? r.ID_RoutePlan : r.RouteNumber;
                 tr.innerHTML = `
                     <td><span class="drag-handle">&#9776;</span> <span class="prio-num">${idx + 1}</span></td>
                     <td class="route-num">${r.RouteNumber}</td>
@@ -458,8 +476,10 @@
             let cumStart = window._availabilityMs || Date.now();
 
             rows.forEach((tr, idx) => {
-                const routeNum = parseInt(tr.dataset.route);
-                const ruta = rutasData.find(r => r.RouteNumber === routeNum);
+                const routeId = parseInt(tr.dataset.route);
+                const ruta = pickingMode === 'order'
+                    ? rutasData.find(r => r.ID_RoutePlan === routeId)
+                    : rutasData.find(r => r.RouteNumber === routeId);
                 if (!ruta) return;
 
                 const durMin = (ruta.PesoTotal / CAPACITY_KG_PER_HOUR) * 60;
@@ -500,7 +520,8 @@
             const orden = Array.from(rows).map(r => parseInt(r.dataset.route));
 
             try {
-                const res = await fetch('/api/priorizacion/guardar', {
+                const saveUrl = pickingMode === 'order' ? '/api/order/priorizacion/guardar' : '/api/priorizacion/guardar';
+                const res = await fetch(saveUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ orden })

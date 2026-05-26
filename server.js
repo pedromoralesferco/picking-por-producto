@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const db = require('./db');
 const apiRoutes = require('./routes/api');
+const orderApiRoutes = require('./routes/order-api');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const { requireAuthPage, requireAdminPage, requirePermisoPage } = require('./middleware/auth');
@@ -48,6 +49,7 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/order', orderApiRoutes);
 app.use('/api', apiRoutes);
 
 // Protected page routes
