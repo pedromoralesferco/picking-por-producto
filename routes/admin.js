@@ -29,9 +29,20 @@ router.get('/usuarios', async (req, res) => {
             permMap[p.ID_Usuario].push(p.Modulo);
         }
 
+        const centrosResult = await pool.request().query(`
+            SELECT ID_Usuario, ID_Centro FROM UsuarioCentro
+        `);
+
+        const centroMap = {};
+        for (const c of centrosResult.recordset) {
+            if (!centroMap[c.ID_Usuario]) centroMap[c.ID_Usuario] = [];
+            centroMap[c.ID_Usuario].push(c.ID_Centro);
+        }
+
         const result = users.recordset.map(u => ({
             ...u,
-            permisos: permMap[u.ID_Usuario] || []
+            permisos: permMap[u.ID_Usuario] || [],
+            centros: centroMap[u.ID_Usuario] || []
         }));
 
         res.json(result);
@@ -44,7 +55,7 @@ router.get('/usuarios', async (req, res) => {
 // POST /api/admin/usuarios - Create user
 router.post('/usuarios', async (req, res) => {
     try {
-        const { nombreUsuario, nombre, password, rol, permisos } = req.body;
+        const { nombreUsuario, nombre, password, rol, permisos, centros } = req.body;
         if (!nombreUsuario || !nombre || !password || !rol) {
             return res.status(400).json({ error: 'Campos requeridos: nombreUsuario, nombre, password, rol' });
         }
@@ -84,6 +95,16 @@ router.post('/usuarios', async (req, res) => {
             }
         }
 
+        // Insert centros
+        if (centros && centros.length > 0) {
+            for (const idCentro of centros) {
+                await pool.request()
+                    .input('userId', sql.Int, userId)
+                    .input('idCentro', sql.Int, idCentro)
+                    .query(`INSERT INTO UsuarioCentro (ID_Usuario, ID_Centro) VALUES (@userId, @idCentro)`);
+            }
+        }
+
         res.json({ ok: true, id: userId });
     } catch (err) {
         console.error('POST /api/admin/usuarios error:', err);
@@ -95,7 +116,7 @@ router.post('/usuarios', async (req, res) => {
 router.put('/usuarios/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const { nombre, password, rol, permisos, activo } = req.body;
+        const { nombre, password, rol, permisos, activo, centros } = req.body;
         const pool = getPool();
 
         let query = `UPDATE Usuario SET Nombre = @nombre, Rol = @rol`;
@@ -129,6 +150,20 @@ router.put('/usuarios/:id', async (req, res) => {
                     .input('userId', sql.Int, id)
                     .input('modulo', sql.NVarChar, modulo)
                     .query(`INSERT INTO UsuarioPermiso (ID_Usuario, Modulo) VALUES (@userId, @modulo)`);
+            }
+        }
+
+        // Update centros: delete old, insert new
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query(`DELETE FROM UsuarioCentro WHERE ID_Usuario = @id`);
+
+        if (centros && centros.length > 0) {
+            for (const idCentro of centros) {
+                await pool.request()
+                    .input('userId', sql.Int, id)
+                    .input('idCentro', sql.Int, idCentro)
+                    .query(`INSERT INTO UsuarioCentro (ID_Usuario, ID_Centro) VALUES (@userId, @idCentro)`);
             }
         }
 

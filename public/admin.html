@@ -406,6 +406,7 @@
                             <th>Nombre</th>
                             <th>Rol</th>
                             <th>Permisos</th>
+                            <th>Centros</th>
                             <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
@@ -501,6 +502,11 @@
                         <label><input type="checkbox" id="permDespacho" value="despacho"> Despacho</label>
                     </div>
                     <p class="hint">Los Admin tienen acceso a todo automaticamente</p>
+                </div>
+                <div class="form-group" id="centrosGroup">
+                    <label>Centros de Distribucion</label>
+                    <div class="checkbox-group" id="centrosCheckboxes" style="flex-wrap:wrap"></div>
+                    <p class="hint">Los Admin ven todos los centros automaticamente</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -621,6 +627,9 @@
         }
 
         function renderUsers() {
+            const centroNames = {};
+            centros.forEach(c => centroNames[c.ID_Centro] = c.Nombre);
+
             const tbody = document.getElementById('usersTable');
             tbody.innerHTML = users.map(u => `
                 <tr>
@@ -629,6 +638,9 @@
                     <td><span class="badge ${u.Rol === 'Admin' ? 'badge-admin' : 'badge-supervisor'}">${u.Rol}</span></td>
                     <td>${u.Rol === 'Admin' ? '<span style="color:#999;font-size:0.78rem">Todos</span>' :
                         (u.permisos.length ? u.permisos.map(p => `<span class="badge badge-permiso">${p}</span>`).join(' ') :
+                        '<span style="color:#999;font-size:0.78rem">Ninguno</span>')}</td>
+                    <td>${u.Rol === 'Admin' ? '<span style="color:#999;font-size:0.78rem">Todos</span>' :
+                        (u.centros && u.centros.length ? u.centros.map(id => `<span class="badge badge-permiso">${esc(centroNames[id] || id)}</span>`).join(' ') :
                         '<span style="color:#999;font-size:0.78rem">Ninguno</span>')}</td>
                     <td><span class="badge ${u.Activo ? 'badge-active' : 'badge-inactive'}">${u.Activo ? 'Activo' : 'Inactivo'}</span></td>
                     <td class="actions">
@@ -670,6 +682,14 @@
             document.getElementById('permGestion').checked = user ? user.permisos.includes('gestion') : false;
             document.getElementById('permPriorizacion').checked = user ? user.permisos.includes('priorizacion') : false;
             document.getElementById('permDespacho').checked = user ? user.permisos.includes('despacho') : false;
+
+            // Populate centros checkboxes
+            const userCentros = user ? (user.centros || []) : [];
+            const container = document.getElementById('centrosCheckboxes');
+            container.innerHTML = centros.map(c =>
+                `<label><input type="checkbox" class="centroCb" value="${c.ID_Centro}" ${userCentros.includes(c.ID_Centro) ? 'checked' : ''}> ${esc(c.Nombre)}</label>`
+            ).join('');
+
             togglePermisos();
             document.getElementById('userModal').style.display = 'flex';
         }
@@ -680,8 +700,9 @@
 
         function togglePermisos() {
             const rol = document.getElementById('userRol').value;
-            const group = document.getElementById('permisosGroup');
-            group.style.opacity = rol === 'Admin' ? '0.5' : '1';
+            const isAdmin = rol === 'Admin';
+            document.getElementById('permisosGroup').style.opacity = isAdmin ? '0.5' : '1';
+            document.getElementById('centrosGroup').style.opacity = isAdmin ? '0.5' : '1';
         }
 
         async function saveUser() {
@@ -697,6 +718,11 @@
             if (document.getElementById('permGestion').checked) data.permisos.push('gestion');
             if (document.getElementById('permPriorizacion').checked) data.permisos.push('priorizacion');
             if (document.getElementById('permDespacho').checked) data.permisos.push('despacho');
+
+            data.centros = [];
+            document.querySelectorAll('.centroCb:checked').forEach(cb => {
+                data.centros.push(parseInt(cb.value));
+            });
 
             if (!data.nombre) { alert('Nombre requerido'); return; }
             if (!id && !data.nombreUsuario) { alert('Nombre de usuario requerido'); return; }
@@ -737,7 +763,7 @@
             await fetch(`/api/admin/usuarios/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre: user.Nombre, rol: user.Rol, permisos: user.permisos, activo: true })
+                body: JSON.stringify({ nombre: user.Nombre, rol: user.Rol, permisos: user.permisos, centros: user.centros || [], activo: true })
             });
             loadUsers();
         }

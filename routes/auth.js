@@ -95,12 +95,26 @@ router.post('/login', loginLimiter, async (req, res) => {
             permisos = permResult.recordset.map(r => r.Modulo);
         }
 
+        // Get centros del usuario
+        let centros = [];
+        if (user.Rol === 'Admin') {
+            const centroResult = await pool.request()
+                .query(`SELECT ID_Centro FROM CentroDistribucion`);
+            centros = centroResult.recordset.map(r => r.ID_Centro);
+        } else {
+            const centroResult = await pool.request()
+                .input('userId', sql.Int, user.ID_Usuario)
+                .query(`SELECT ID_Centro FROM UsuarioCentro WHERE ID_Usuario = @userId`);
+            centros = centroResult.recordset.map(r => r.ID_Centro);
+        }
+
         req.session.user = {
             id: user.ID_Usuario,
             nombreUsuario: user.NombreUsuario,
             nombre: user.Nombre,
             rol: user.Rol,
-            permisos
+            permisos,
+            centros
         };
 
         res.json({
@@ -108,7 +122,8 @@ router.post('/login', loginLimiter, async (req, res) => {
             user: {
                 nombre: user.Nombre,
                 rol: user.Rol,
-                permisos
+                permisos,
+                centros
             }
         });
     } catch (err) {

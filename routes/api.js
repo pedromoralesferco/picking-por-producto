@@ -15,7 +15,19 @@ ALTER TABLE RoutePlan ADD
     ID_Carril INT NULL,
     EstadoDespacho NVARCHAR(20) NULL DEFAULT 'Pendiente',
     FechaDespachoFin DATETIME NULL;
+
+── SQL para crear tabla UsuarioCentro ──
+CREATE TABLE UsuarioCentro (
+    ID_Usuario INT NOT NULL REFERENCES Usuario(ID_Usuario),
+    ID_Centro INT NOT NULL REFERENCES CentroDistribucion(ID_Centro),
+    PRIMARY KEY (ID_Usuario, ID_Centro)
+);
 */
+
+// Helper: get user's centros from session (null if not logged in)
+function getUserCentros(req) {
+    return req.session && req.session.user ? req.session.user.centros : null;
+}
 
 // ── Carriles ──
 
@@ -23,11 +35,16 @@ router.get('/carriles', async (req, res) => {
     try {
         const pool = getPool();
         const centro = req.query.centro;
+        const centros = getUserCentros(req);
         let query = `SELECT ID_Carril, Nombre, ID_Centro FROM Carril WHERE Activo = 1`;
         const request = pool.request();
         if (centro) {
             query += ` AND ID_Centro = @centro`;
             request.input('centro', sql.Int, centro);
+        }
+        if (centros && centros.length > 0) {
+            query += ` AND ID_Centro IN (${centros.map((_, i) => `@uc${i}`).join(',')})`;
+            centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
         }
         query += ` ORDER BY Nombre`;
         const result = await request.query(query);
@@ -43,7 +60,15 @@ router.get('/carriles', async (req, res) => {
 router.get('/rutas', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request().query(`
+        const centros = getUserCentros(req);
+        let centroFilter = '';
+        const request = pool.request();
+        if (centros && centros.length > 0) {
+            const params = centros.map((_, i) => `@uc${i}`).join(',');
+            centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
+            centroFilter = ` AND (c.ID_Centro IN (${params}) OR rp.ID_Carril IS NULL)`;
+        }
+        const result = await request.query(`
             SELECT
                 rp.RouteNumber,
                 rp.RouteName,
@@ -70,8 +95,9 @@ router.get('/rutas', async (req, res) => {
                 FROM RoutePickingManagement
                 GROUP BY RouteNumber
             ) rpm ON rpm.RouteNumber = rp.RouteNumber
-            WHERE rp.Estado IN ('Pendiente', 'Iniciado')
-               OR (rp.Estado = 'Finalizado' AND rp.FechaFin > DATEADD(MINUTE, -30, GETDATE()))
+            WHERE (rp.Estado IN ('Pendiente', 'Iniciado')
+               OR (rp.Estado = 'Finalizado' AND rp.FechaFin > DATEADD(MINUTE, -30, GETDATE())))
+               ${centroFilter}
             ORDER BY
                 CASE rp.Estado
                     WHEN 'Iniciado' THEN 0
@@ -338,7 +364,15 @@ router.post('/admin/limpiar-rutas-finalizadas', async (req, res) => {
 router.get('/pickers', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request().query(`
+        const centros = getUserCentros(req);
+        let centroFilter = '';
+        const request = pool.request();
+        if (centros && centros.length > 0) {
+            const params = centros.map((_, i) => `@uc${i}`).join(',');
+            centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
+            centroFilter = ` AND p.ID_Centro IN (${params})`;
+        }
+        const result = await request.query(`
             SELECT p.ID_Picker, p.Nombre, p.ID_Centro, cd.Nombre AS CentroNombre,
                 (SELECT COUNT(*) FROM RoutePickingManagement
                  WHERE PickerID = p.ID_Picker AND Estado IN ('Asignado','En Proceso')) AS Asignados,
@@ -347,7 +381,7 @@ router.get('/pickers', async (req, res) => {
                    AND CAST(FechaFin AS DATE) = CAST(GETDATE() AS DATE)) AS CompletadosHoy
             FROM Picker p
             LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = p.ID_Centro
-            WHERE p.Activo = 1
+            WHERE p.Activo = 1${centroFilter}
             ORDER BY p.Nombre
         `);
         res.json(result.recordset);
@@ -362,8 +396,16 @@ router.get('/pickers', async (req, res) => {
 router.get('/centros', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request().query(`
-            SELECT ID_Centro, Nombre, Pais FROM CentroDistribucion ORDER BY Pais, Nombre
+        const centros = getUserCentros(req);
+        const request = pool.request();
+        let where = '';
+        if (centros && centros.length > 0) {
+            const params = centros.map((_, i) => `@uc${i}`).join(',');
+            centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
+            where = ` WHERE ID_Centro IN (${params})`;
+        }
+        const result = await request.query(`
+            SELECT ID_Centro, Nombre, Pais FROM CentroDistribucion${where} ORDER BY Pais, Nombre
         `);
         res.json(result.recordset);
     } catch (err) {
@@ -510,7 +552,15 @@ router.get('/pickers/:id/producto-tareas', async (req, res) => {
 router.get('/priorizacion/rutas', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request().query(`
+        const centros = getUserCentros(req);
+        let centroFilter = '';
+        const request = pool.request();
+        if (centros && centros.length > 0) {
+            const params = centros.map((_, i) => `@uc${i}`).join(',');
+            centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
+            centroFilter = ` AND (c.ID_Centro IN (${params}) OR rp.ID_Carril IS NULL)`;
+        }
+        const result = await request.query(`
             SELECT rp.RouteNumber, rp.RouteName, rp.FechaPlanificacion, rp.AlmacenOrigen,
                    rp.Estado, rp.Prioridad, rp.FechaInicio,
                    ISNULL(rp.PesoEstimado, 0) AS PesoTotal,
@@ -521,6 +571,7 @@ router.get('/priorizacion/rutas', async (req, res) => {
                    ISNULL(rpm.TotalProductos, 0) AS TotalProductos,
                    ISNULL(rpm.ProductosFinalizados, 0) AS ProductosFinalizados
             FROM RoutePlan rp
+            LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
             LEFT JOIN (
                 SELECT RouteNumber,
                        COUNT(DISTINCT Product) AS TotalProductos,
@@ -532,6 +583,7 @@ router.get('/priorizacion/rutas', async (req, res) => {
             ) rpm ON rpm.RouteNumber = rp.RouteNumber
             WHERE rp.Estado IN ('Iniciado', 'Pendiente')
               AND (rp.Estado = 'Iniciado' OR rp.FechaPlanificacion >= DATEADD(DAY, -3, CAST(GETDATE() AS DATE)))
+              ${centroFilter}
             ORDER BY
                 CASE rp.Estado WHEN 'Iniciado' THEN 0 ELSE 1 END,
                 ISNULL(rp.Prioridad, 999999),
@@ -573,7 +625,15 @@ router.post('/priorizacion/guardar', async (req, res) => {
 router.get('/despacho/rutas', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request().query(`
+        const centros = getUserCentros(req);
+        let centroFilter = '';
+        const request = pool.request();
+        if (centros && centros.length > 0) {
+            const params = centros.map((_, i) => `@uc${i}`).join(',');
+            centros.forEach((c, i) => request.input(`uc${i}`, sql.Int, c));
+            centroFilter = ` AND c.ID_Centro IN (${params})`;
+        }
+        const result = await request.query(`
             SELECT
                 rp.RouteNumber,
                 rp.RouteName,
@@ -600,6 +660,7 @@ router.get('/despacho/rutas', async (req, res) => {
                   (rp.Estado IN ('Iniciado', 'Finalizado') AND rp.EstadoDespacho IN ('Pendiente', 'Listo para Carga'))
                   OR (rp.EstadoDespacho = 'Finalizado' AND rp.FechaDespachoFin > DATEADD(MINUTE, -2, GETDATE()))
               )
+              ${centroFilter}
             ORDER BY c.Nombre, rp.RouteNumber
         `);
         res.json(result.recordset);
