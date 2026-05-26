@@ -185,8 +185,10 @@
                 document.getElementById('userInfo').innerHTML =
                     `Bienvenido, <strong>${user.nombre}</strong> <span style="opacity:0.6">(${user.rol})</span>`;
 
-                // If user already has a selected centro or only has one, redirect
-                if (user.selectedCentro) {
+                // If user already has a selected centro and didn't come to change it, redirect
+                // (skip redirect if ?change param is present)
+                const params = new URLSearchParams(window.location.search);
+                if (user.selectedCentro && !params.has('change')) {
                     window.location.href = '/dashboard';
                     return;
                 }

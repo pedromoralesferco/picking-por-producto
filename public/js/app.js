@@ -34,7 +34,7 @@ async function detectMode() {
             if (navInfo) {
                 const badge = document.createElement('span');
                 badge.className = 'centro-badge';
-                badge.innerHTML = `<i class="bi bi-building"></i> ${user.selectedCentroNombre} <a href="/select-centro" style="color:var(--primary);margin-left:0.3rem;font-size:0.7rem" title="Cambiar centro"><i class="bi bi-arrow-repeat"></i></a>`;
+                badge.innerHTML = `<i class="bi bi-building"></i> ${user.selectedCentroNombre} <a href="/select-centro?change" style="color:var(--primary);margin-left:0.3rem;font-size:0.7rem" title="Cambiar centro"><i class="bi bi-arrow-repeat"></i></a>`;
                 navInfo.insertBefore(badge, navInfo.firstChild);
             }
         }
