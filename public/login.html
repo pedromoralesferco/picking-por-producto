@@ -179,7 +179,13 @@
                     return;
                 }
 
-                window.location.href = '/dashboard';
+                // If user has multiple centros and none selected, go to selection
+                const user = data.user || {};
+                if (!user.selectedCentro && user.centros && user.centros.length > 1) {
+                    window.location.href = '/select-centro';
+                } else {
+                    window.location.href = '/dashboard';
+                }
             } catch (err) {
                 errEl.textContent = 'Error de conexion con el servidor';
                 errEl.style.display = 'block';

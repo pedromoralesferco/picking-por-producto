@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seleccionar Centro - FERCO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d4a826;
+            --primary-dark: #b8941f;
+            --dark: #222222;
+            --success: #2e7d32;
+            --bg: #f5f5f5;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .select-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 0 1.5rem;
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .brand-header .brand {
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            color: var(--primary-dark);
+            margin-bottom: 0.3rem;
+        }
+
+        .brand-header h1 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--dark);
+        }
+
+        .brand-header h1 i { color: var(--primary); }
+
+        .brand-header p {
+            font-size: 0.9rem;
+            color: #888;
+            margin-top: 0.5rem;
+        }
+
+        .user-info {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .user-info strong { color: var(--dark); }
+
+        .centro-card {
+            background: white;
+            border: 2px solid #e8e8e8;
+            border-radius: 14px;
+            padding: 1.3rem 1.5rem;
+            margin-bottom: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .centro-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 15px rgba(212, 168, 38, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .centro-card:active {
+            transform: translateY(0);
+        }
+
+        .centro-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .centro-icon.gt { background: linear-gradient(135deg, #1565c0, #42a5f5); }
+        .centro-icon.sv { background: linear-gradient(135deg, #e65100, #ff9800); }
+        .centro-icon.default { background: linear-gradient(135deg, #b8941f, #d4a826); }
+
+        .centro-info { flex: 1; }
+
+        .centro-name {
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: var(--dark);
+        }
+
+        .centro-meta {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 0.15rem;
+        }
+
+        .centro-pais {
+            display: inline-block;
+            padding: 0.1rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            background: rgba(212, 168, 38, 0.15);
+            color: var(--primary-dark);
+        }
+
+        .centro-arrow {
+            color: #ccc;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+
+        .btn-logout {
+            display: block;
+            margin: 1.5rem auto 0;
+            background: transparent;
+            border: 1px solid #ddd;
+            color: #999;
+            padding: 0.4rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .btn-logout:hover { border-color: #c62828; color: #c62828; }
+    </style>
+</head>
+<body>
+    <div class="select-container">
+        <div class="brand-header">
+            <div class="brand">FERCO CERAMICA</div>
+            <h1><i class="bi bi-building"></i> Seleccionar Centro</h1>
+            <p>Elige el centro de distribucion con el que vas a trabajar</p>
+        </div>
+
+        <div class="user-info" id="userInfo"></div>
+
+        <div id="centrosList" class="loading">
+            <p>Cargando centros...</p>
+        </div>
+
+        <button class="btn-logout" onclick="doLogout()"><i class="bi bi-box-arrow-right"></i> Cerrar sesion</button>
+    </div>
+
+    <script>
+        async function init() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) { window.location.href = '/login'; return; }
+                const user = await res.json();
+
+                document.getElementById('userInfo').innerHTML =
+                    `Bienvenido, <strong>${user.nombre}</strong> <span style="opacity:0.6">(${user.rol})</span>`;
+
+                // If user already has a selected centro or only has one, redirect
+                if (user.selectedCentro) {
+                    window.location.href = '/dashboard';
+                    return;
+                }
+
+                // Load centros
+                const centrosRes = await fetch('/api/centros');
+                const allCentros = await centrosRes.json();
+
+                // Filter to user's assigned centros
+                const userCentros = user.centros && user.centros.length > 0
+                    ? allCentros.filter(c => user.centros.includes(c.ID_Centro))
+                    : allCentros;
+
+                if (userCentros.length === 0) {
+                    document.getElementById('centrosList').innerHTML =
+                        '<p style="color:#c62828">No tienes centros asignados. Contacta al administrador.</p>';
+                    return;
+                }
+
+                if (userCentros.length === 1) {
+                    // Auto-select single centro
+                    await selectCentro(userCentros[0].ID_Centro);
+                    return;
+                }
+
+                renderCentros(userCentros);
+            } catch (err) {
+                console.error(err);
+                window.location.href = '/login';
+            }
+        }
+
+        function renderCentros(centros) {
+            const container = document.getElementById('centrosList');
+
+            const paisFlags = { GT: 'gt', SV: 'sv' };
+            const paisNames = { GT: 'Guatemala', SV: 'El Salvador' };
+            const paisIcons = { GT: 'bi-geo-alt-fill', SV: 'bi-geo-alt-fill' };
+
+            container.innerHTML = centros.map(c => {
+                const pais = c.Pais || 'GT';
+                const iconClass = paisFlags[pais] || 'default';
+                const paisName = paisNames[pais] || pais;
+
+                return `
+                    <div class="centro-card" onclick="selectCentro(${c.ID_Centro})">
+                        <div class="centro-icon ${iconClass}">
+                            <i class="bi ${paisIcons[pais] || 'bi-building'}"></i>
+                        </div>
+                        <div class="centro-info">
+                            <div class="centro-name">${c.Nombre}</div>
+                            <div class="centro-meta">
+                                <span class="centro-pais">${paisName}</span>
+                            </div>
+                        </div>
+                        <div class="centro-arrow"><i class="bi bi-chevron-right"></i></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function selectCentro(idCentro) {
+            try {
+                const res = await fetch('/api/auth/select-centro', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idCentro })
+                });
+                if (!res.ok) {
+                    const d = await res.json();
+                    alert(d.error || 'Error');
+                    return;
+                }
+                window.location.href = '/dashboard';
+            } catch (err) {
+                alert('Error al seleccionar centro');
+            }
+        }
+
+        async function doLogout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

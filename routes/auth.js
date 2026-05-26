@@ -108,13 +108,26 @@ router.post('/login', loginLimiter, async (req, res) => {
             centros = centroResult.recordset.map(r => r.ID_Centro);
         }
 
+        // Auto-select if only one centro
+        let selectedCentro = null;
+        let selectedPais = null;
+        if (centros.length === 1) {
+            selectedCentro = centros[0];
+            const centroInfo = await pool.request()
+                .input('idCentro', sql.Int, centros[0])
+                .query(`SELECT Pais FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
+            selectedPais = centroInfo.recordset.length > 0 ? centroInfo.recordset[0].Pais : 'GT';
+        }
+
         req.session.user = {
             id: user.ID_Usuario,
             nombreUsuario: user.NombreUsuario,
             nombre: user.Nombre,
             rol: user.Rol,
             permisos,
-            centros
+            centros,
+            selectedCentro,
+            selectedPais
         };
 
         res.json({
@@ -123,7 +136,9 @@ router.post('/login', loginLimiter, async (req, res) => {
                 nombre: user.Nombre,
                 rol: user.Rol,
                 permisos,
-                centros
+                centros,
+                selectedCentro,
+                selectedPais
             }
         });
     } catch (err) {
@@ -137,6 +152,52 @@ router.post('/logout', (req, res) => {
     req.session.destroy(() => {
         res.json({ ok: true });
     });
+});
+
+// POST /api/auth/select-centro
+router.post('/select-centro', async (req, res) => {
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({ error: 'No autenticado' });
+    }
+    const { idCentro } = req.body;
+    if (!idCentro) {
+        return res.status(400).json({ error: 'idCentro requerido' });
+    }
+
+    const user = req.session.user;
+
+    // Validate user has access to this centro
+    if (user.rol !== 'Admin' && user.centros && !user.centros.includes(idCentro)) {
+        return res.status(403).json({ error: 'No tienes acceso a este centro' });
+    }
+
+    try {
+        const pool = getPool();
+        const centroInfo = await pool.request()
+            .input('idCentro', sql.Int, idCentro)
+            .query(`SELECT ID_Centro, Nombre, Pais FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
+
+        if (centroInfo.recordset.length === 0) {
+            return res.status(404).json({ error: 'Centro no encontrado' });
+        }
+
+        const centro = centroInfo.recordset[0];
+        req.session.user.selectedCentro = centro.ID_Centro;
+        req.session.user.selectedPais = centro.Pais || 'GT';
+        req.session.user.selectedCentroNombre = centro.Nombre;
+
+        res.json({
+            ok: true,
+            centro: {
+                id: centro.ID_Centro,
+                nombre: centro.Nombre,
+                pais: centro.Pais
+            }
+        });
+    } catch (err) {
+        console.error('POST /api/auth/select-centro error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
 });
 
 // GET /api/auth/me

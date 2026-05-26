@@ -372,13 +372,7 @@
                 const userRes = await fetch('/api/auth/me');
                 if (!userRes.ok) return;
                 const user = await userRes.json();
-                const centrosRes = await fetch('/api/centros');
-                const centrosData = await centrosRes.json();
-                const userCentros = centrosData.filter(c => (user.centros || []).includes(c.ID_Centro));
-                const hasSV = userCentros.some(c => c.Pais === 'SV');
-                const hasGT = userCentros.some(c => c.Pais === 'GT') || userCentros.some(c => c.ID_Centro === 1);
-                if (hasSV && !hasGT) pickingMode = 'order';
-                // If both, default to product (GT). Could add toggle later.
+                pickingMode = (user.selectedPais === 'SV') ? 'order' : 'product';
             } catch (err) { console.error('Mode detection error:', err); }
         }
 

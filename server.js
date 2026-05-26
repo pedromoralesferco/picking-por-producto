@@ -52,20 +52,38 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/order', orderApiRoutes);
 app.use('/api', apiRoutes);
 
+// Centro selection page
+app.get('/select-centro', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'select-centro.html'));
+});
+
+// Middleware: require centro selected (redirects to selection if not)
+function requireCentro(req, res, next) {
+    if (!req.session || !req.session.user) {
+        return res.redirect('/login');
+    }
+    // If user has multiple centros and hasn't selected one, redirect
+    const user = req.session.user;
+    if (!user.selectedCentro && user.centros && user.centros.length > 1) {
+        return res.redirect('/select-centro');
+    }
+    next();
+}
+
 // Protected page routes
-app.get('/dashboard', requireAuthPage, (req, res) => {
+app.get('/dashboard', requireAuthPage, requireCentro, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-app.get('/gestion', requireAuthPage, requirePermisoPage('gestion'), (req, res) => {
+app.get('/gestion', requireAuthPage, requireCentro, requirePermisoPage('gestion'), (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'gestion.html'));
 });
 
-app.get('/priorizacion', requireAuthPage, requirePermisoPage('priorizacion'), (req, res) => {
+app.get('/priorizacion', requireAuthPage, requireCentro, requirePermisoPage('priorizacion'), (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'priorizacion.html'));
 });
 
-app.get('/despacho', requireAuthPage, requirePermisoPage('despacho'), (req, res) => {
+app.get('/despacho', requireAuthPage, requireCentro, requirePermisoPage('despacho'), (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'despacho.html'));
 });
 

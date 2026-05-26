@@ -24,9 +24,13 @@ CREATE TABLE UsuarioCentro (
 );
 */
 
-// Helper: get user's centros from session (null if not logged in)
+// Helper: get user's active centro(s) from session
+// If a centro is selected, return only that one; otherwise return all assigned
 function getUserCentros(req) {
-    return req.session && req.session.user ? req.session.user.centros : null;
+    if (!req.session || !req.session.user) return null;
+    const user = req.session.user;
+    if (user.selectedCentro) return [user.selectedCentro];
+    return user.centros;
 }
 
 // ── Carriles ──

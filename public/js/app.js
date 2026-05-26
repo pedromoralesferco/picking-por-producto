@@ -23,31 +23,20 @@ async function detectMode() {
         const res = await fetch('/api/auth/me');
         if (!res.ok) return;
         const user = await res.json();
-        const centros = user.centros || [];
 
-        // Fetch centro details to know countries
-        const centrosRes = await fetch('/api/centros');
-        const centrosData = await centrosRes.json();
+        // Mode is determined by the selected centro's country
+        const pais = user.selectedPais || 'GT';
+        pickingMode = (pais === 'SV') ? 'order' : 'product';
 
-        const userCentros = centrosData.filter(c => centros.includes(c.ID_Centro));
-        const hasGT = userCentros.some(c => c.Pais === 'GT') || userCentros.some(c => c.ID_Centro === 1);
-        const hasSV = userCentros.some(c => c.Pais === 'SV');
-
-        availableModes = [];
-        if (hasGT) availableModes.push('product');
-        if (hasSV) availableModes.push('order');
-
-        // Default: if admin with all centros or ambiguous, show both
-        if (availableModes.length === 0) {
-            // Fallback: check if OrderRoutePlan has data
-            availableModes = ['product'];
-        }
-
-        pickingMode = availableModes[0];
-
-        // Show mode toggle if both available
-        if (availableModes.length > 1) {
-            renderModeToggle();
+        // Show centro name in navbar
+        if (user.selectedCentroNombre) {
+            const navInfo = document.querySelector('.nav-info');
+            if (navInfo) {
+                const badge = document.createElement('span');
+                badge.className = 'centro-badge';
+                badge.innerHTML = `<i class="bi bi-building"></i> ${user.selectedCentroNombre} <a href="/select-centro" style="color:var(--primary);margin-left:0.3rem;font-size:0.7rem" title="Cambiar centro"><i class="bi bi-arrow-repeat"></i></a>`;
+                navInfo.insertBefore(badge, navInfo.firstChild);
+            }
         }
 
         updateUIForMode();
@@ -55,48 +44,6 @@ async function detectMode() {
         console.error('Error detecting mode:', err);
         pickingMode = 'product';
     }
-}
-
-function renderModeToggle() {
-    const navInfo = document.querySelector('.nav-info');
-    if (!navInfo) return;
-
-    const toggle = document.createElement('div');
-    toggle.className = 'mode-toggle';
-    toggle.innerHTML = `
-        <button class="mode-btn ${pickingMode === 'product' ? 'active' : ''}" onclick="switchMode('product')" title="Picking por Producto (Guatemala)">
-            <i class="bi bi-box-seam"></i> Producto
-        </button>
-        <button class="mode-btn ${pickingMode === 'order' ? 'active' : ''}" onclick="switchMode('order')" title="Picking por Pedido (El Salvador)">
-            <i class="bi bi-receipt"></i> Pedido
-        </button>
-    `;
-    navInfo.insertBefore(toggle, navInfo.firstChild);
-}
-
-async function switchMode(mode) {
-    if (mode === pickingMode) return;
-    pickingMode = mode;
-    selectedRuta = null;
-    selectedRoutePlanId = null;
-    rutasCache = [];
-
-    // Update toggle buttons
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.textContent.trim().toLowerCase().includes(
-            mode === 'product' ? 'producto' : 'pedido'
-        ));
-    });
-
-    updateUIForMode();
-    await loadRutas();
-
-    // Reset detail panel
-    document.getElementById('panelDetalle').innerHTML = `
-        <div class="empty-state">
-            <i class="bi bi-cursor"></i>
-            <p>Selecciona una ruta para ver sus ${mode === 'product' ? 'productos' : 'pedidos'}</p>
-        </div>`;
 }
 
 function updateUIForMode() {

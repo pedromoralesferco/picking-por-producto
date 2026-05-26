@@ -214,6 +214,15 @@
                 document.getElementById('welcome').querySelector('h2').textContent =
                     `Bienvenido, ${currentUser.nombre}`;
 
+                // Show selected centro
+                if (currentUser.selectedCentroNombre) {
+                    document.getElementById('welcome').querySelector('p').innerHTML =
+                        `Centro: <strong>${currentUser.selectedCentroNombre}</strong> ` +
+                        (currentUser.centros && currentUser.centros.length > 1
+                            ? `<a href="/select-centro" style="color:#d4a826;font-size:0.8rem;margin-left:0.3rem">Cambiar centro</a>`
+                            : '');
+                }
+
                 renderModules();
             } catch (err) {
                 window.location.href = '/login';

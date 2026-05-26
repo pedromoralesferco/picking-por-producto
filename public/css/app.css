@@ -66,38 +66,19 @@ body {
 
 .navbar-app button:hover, .navbar-app a:hover { background: rgba(212,168,38,0.35); }
 
-/* Mode toggle */
-.mode-toggle {
-    display: flex;
-    background: rgba(0,0,0,0.3);
-    border-radius: 8px;
-    overflow: hidden;
+/* Centro badge in navbar */
+.centro-badge {
+    background: rgba(212,168,38,0.15);
     border: 1px solid rgba(212,168,38,0.3);
-}
-
-.mode-btn {
-    background: transparent !important;
-    border: none !important;
-    color: #999 !important;
-    padding: 0.35rem 0.9rem !important;
-    font-size: 0.8rem !important;
-    cursor: pointer;
-    transition: all 0.2s;
+    color: #d4a826;
+    padding: 0.25rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 0.3rem;
     white-space: nowrap;
-}
-
-.mode-btn.active {
-    background: rgba(212,168,38,0.85) !important;
-    color: #222 !important;
-    font-weight: 700;
-}
-
-.mode-btn:hover:not(.active) {
-    background: rgba(212,168,38,0.15) !important;
-    color: #d4a826 !important;
 }
 
 /* Layout */

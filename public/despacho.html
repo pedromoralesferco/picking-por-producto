@@ -503,13 +503,7 @@
                 const res = await fetch('/api/auth/me');
                 if (!res.ok) { window.location.href = '/login'; return; }
                 const user = await res.json();
-                // Detect mode from user centros
-                const centrosRes = await fetch('/api/centros');
-                const centrosData = await centrosRes.json();
-                const userCentros = centrosData.filter(c => (user.centros || []).includes(c.ID_Centro));
-                const hasSV = userCentros.some(c => c.Pais === 'SV');
-                const hasGT = userCentros.some(c => c.Pais === 'GT') || userCentros.some(c => c.ID_Centro === 1);
-                if (hasSV && !hasGT) pickingMode = 'order';
+                pickingMode = (user.selectedPais === 'SV') ? 'order' : 'product';
             } catch { window.location.href = '/login'; return; }
 
             await loadCentros();
