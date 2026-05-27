@@ -101,7 +101,6 @@ router.get('/rutas/:id/pedidos', async (req, res) => {
                     opm.PesoTotal,
                     opm.Estado,
                     opm.ID_Operario,
-                    opm.PickerID,
                     opm.FechaAsignacion,
                     opm.FechaInicio,
                     opm.FechaFin,
@@ -233,7 +232,7 @@ router.post('/pedidos/asignar', async (req, res) => {
         const pool = getPool();
         // The trigger on OrderPickingManagement handles:
         // - Setting Estado='Asignado', FechaAsignacion
-        // - Cascading to OrderPickingTask (Estado='En Proceso', ID_Operario, Picker_ID)
+        // - Cascading to OrderPickingTask (Estado='En Proceso', ID_Operario)
         await pool.request()
             .input('idOrderPicking', sql.Int, idOrderPicking)
             .input('operarioId', sql.Int, idOperario)

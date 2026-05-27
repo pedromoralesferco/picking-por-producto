@@ -196,7 +196,7 @@ async function getAdminOperarios(req, res) {
     try {
         const pool = getPool();
         const result = await pool.request().query(`
-            SELECT o.ID_Operario, o.ID_Operario AS ID_Picker, o.Nombre, o.ID_Centro, o.Pais, o.Activo,
+            SELECT o.ID_Operario, o.Nombre, o.ID_Centro, o.Pais, o.Activo,
                    cd.Nombre AS CentroNombre
             FROM Operario o
             LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = o.ID_Centro

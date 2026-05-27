@@ -126,7 +126,7 @@ router.get('/rutas/:routeNumber/productos', async (req, res) => {
             .query(`
                 SELECT rpm.RouteNumber, rpm.RouteName, rpm.Product, rpm.ProductName,
                        rpm.TotalArticulo, rpm.PesoTotal, rpm.Estado,
-                       rpm.ID_Operario, rpm.PickerID, rpm.FechaAsignacion, rpm.FechaInicio, rpm.FechaFin,
+                       rpm.ID_Operario, rpm.FechaAsignacion, rpm.FechaInicio, rpm.FechaFin,
                        o.Nombre AS PickerNombre
                 FROM RoutePickingManagement rpm
                 LEFT JOIN Operario o ON o.ID_Operario = rpm.ID_Operario
@@ -218,7 +218,6 @@ router.get('/rutas/:routeNumber/productos/:product/tareas', async (req, res) => 
                        MAX(UnitWeight) AS UnitWeight,
                        CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado,
                        MAX(ID_Operario) AS ID_Operario,
-                       MAX(Picker_ID) AS Picker_ID,
                        MAX(FechaLiberacion) AS FechaLiberacion,
                        MAX(UltimaActualizacion) AS UltimaActualizacion
                 FROM RoutePickingTask
@@ -379,7 +378,7 @@ async function getOperarios(req, res) {
             centroFilter = ` AND o.ID_Centro IN (${params})`;
         }
         const result = await request.query(`
-            SELECT o.ID_Operario, o.ID_Operario AS ID_Picker, o.Nombre, o.ID_Centro, o.Pais,
+            SELECT o.ID_Operario, o.Nombre, o.ID_Centro, o.Pais,
                    cd.Nombre AS CentroNombre,
                 (SELECT COUNT(*) FROM RoutePickingManagement
                  WHERE ID_Operario = o.ID_Operario AND Estado IN ('Asignado','En Proceso')) AS Asignados,
@@ -430,7 +429,7 @@ router.get('/centros/:id/pickers', async (req, res) => {
         const result = await pool.request()
             .input('idCentro', sql.Int, req.params.id)
             .query(`
-                SELECT o.ID_Operario, o.ID_Operario AS ID_Picker, o.Nombre,
+                SELECT o.ID_Operario, o.Nombre,
                     (SELECT COUNT(*) FROM RoutePickingManagement
                      WHERE ID_Operario = o.ID_Operario AND Estado IN ('Asignado','En Proceso')) AS ProductosPendientes,
                     (SELECT COUNT(*) FROM RoutePickingTask

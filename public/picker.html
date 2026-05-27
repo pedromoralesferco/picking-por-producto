@@ -236,7 +236,7 @@
                 const res = await fetch(`/api/centros/${id}/pickers`);
                 const pickers = await res.json();
                 document.getElementById('pickersList').innerHTML = pickers.map(p => `
-                    <div class="select-item" onclick="choosePicker(${p.ID_Picker}, '${esc(p.Nombre)}')">
+                    <div class="select-item" onclick="choosePicker(${p.ID_Operario}, '${esc(p.Nombre)}')">
                         <div class="item-name"><i class="bi bi-person-circle"></i> ${p.Nombre}</div>
                         <div class="item-sub">${p.ProductosPendientes} productos · ${p.TareasPendientes} tareas pendientes</div>
                     </div>
