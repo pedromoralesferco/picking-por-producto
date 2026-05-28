@@ -98,7 +98,7 @@
         }
         td {
             padding: 3px 5px;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px dashed #999;
             vertical-align: top;
         }
         .text-right { text-align: right; }
@@ -107,15 +107,10 @@
         /* ── Texto largo (req entrega) below row ── */
         .texto-largo-row td {
             padding: 1px 5px 4px 5px;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px dashed #999;
             border-top: none;
-        }
-        .texto-largo-box {
-            border: 1px dashed #c00;
-            padding: 2px 6px;
             font-size: 8px;
-            color: #000;
-            display: inline-block;
+            font-style: italic;
         }
 
         /* ── Loading ── */
@@ -241,7 +236,7 @@
 
                 if (l.TextoLargo) {
                     html += `<tr class="texto-largo-row">
-                        <td colspan="8"><div class="texto-largo-box">${esc(l.TextoLargo)}</div></td>
+                        <td colspan="8">${esc(l.TextoLargo)}</td>
                     </tr>`;
                 }
                 return html;
