@@ -6,127 +6,119 @@
     <style>
         @page {
             size: landscape;
-            margin: 10mm;
+            margin: 8mm 10mm;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 11px;
-            color: #222;
-            padding: 8mm;
+            font-size: 10px;
+            color: #000;
+            padding: 6mm;
         }
 
+        /* ── Header: logo left, date right ── */
         .print-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 6px;
-            border-bottom: 2px solid #222;
-            padding-bottom: 6px;
-        }
-        .logo-area {
-            display: flex;
-            flex-direction: column;
+            margin-bottom: 4px;
         }
         .logo-text {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 800;
-            letter-spacing: 8px;
-            color: #222;
+            letter-spacing: 10px;
+            color: #000;
+            line-height: 1;
         }
         .logo-sub {
-            font-size: 10px;
-            letter-spacing: 6px;
-            color: #c62828;
+            font-size: 11px;
+            letter-spacing: 5px;
+            color: #c00;
             font-weight: 600;
         }
         .print-date {
             text-align: right;
             font-size: 9px;
-            color: #666;
+            color: #333;
         }
 
+        /* ── Title ── */
         .cuadro-title {
             text-align: center;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
-            margin: 8px 0 4px;
+            margin: 10px 0 2px;
         }
         .cuadro-number {
             text-align: center;
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
             margin-bottom: 10px;
         }
 
+        /* ── Info grid: transport left, route right ── */
         .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0 40px;
-            margin-bottom: 12px;
-            font-size: 10.5px;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 10px;
         }
+        .info-col { width: 48%; }
         .info-row {
             display: flex;
-            padding: 2px 0;
-            border-bottom: 1px dotted #ccc;
+            margin-bottom: 1px;
         }
         .info-label {
             font-weight: 700;
-            min-width: 120px;
+            min-width: 115px;
         }
         .info-value { flex: 1; }
+        .info-right .info-label { text-align: right; min-width: 120px; margin-right: 6px; }
 
-        .summary-row {
-            display: flex;
-            justify-content: flex-end;
-            gap: 24px;
-            margin-bottom: 8px;
-            font-size: 10.5px;
-            font-weight: 600;
+        /* ── Separator line ── */
+        .separator {
+            border-top: 1px solid #000;
+            margin: 6px 0;
         }
-        .summary-item span { font-weight: 400; }
 
+        /* ── Table ── */
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 10px;
+            font-size: 9px;
         }
         th {
-            background: #222;
-            color: #fff;
-            padding: 5px 6px;
+            border-bottom: 2px solid #000;
+            border-top: 1px solid #000;
+            padding: 4px 5px;
             text-align: left;
-            font-weight: 600;
-            border: 1px solid #222;
+            font-weight: 700;
+            text-decoration: underline;
+            font-size: 9px;
         }
         td {
-            padding: 4px 6px;
-            border: 1px solid #ccc;
+            padding: 3px 5px;
+            border-bottom: 1px solid #ddd;
             vertical-align: top;
-        }
-        tr:nth-child(even) { background: #f9f9f9; }
-        .comentarios-row {
-            background: #fff3cd !important;
-            border-left: 3px solid #d4a826;
-        }
-        .comentarios-row td {
-            font-size: 9px;
-            color: #856404;
-            padding: 3px 6px 3px 12px;
-            font-style: italic;
         }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
-        .font-bold { font-weight: 700; }
 
-        .footer-totals {
-            margin-top: 6px;
-            text-align: right;
-            font-size: 11px;
-            font-weight: 700;
+        /* ── Texto largo (req entrega) below row ── */
+        .texto-largo-row td {
+            padding: 1px 5px 4px 5px;
+            border-bottom: 1px solid #ddd;
+            border-top: none;
+        }
+        .texto-largo-box {
+            border: 1px dashed #c00;
+            padding: 2px 6px;
+            font-size: 8px;
+            color: #000;
+            display: inline-block;
         }
 
+        /* ── Loading ── */
         .loading {
             text-align: center;
             padding: 40px;
@@ -134,11 +126,7 @@
             color: #999;
         }
 
-        @media print {
-            body { padding: 0; }
-            .no-print { display: none !important; }
-        }
-
+        /* ── Toolbar (screen only) ── */
         .toolbar {
             position: fixed;
             top: 0; left: 0; right: 0;
@@ -163,13 +151,17 @@
         }
         .toolbar button:hover { background: #b8941f; }
         .toolbar span { font-size: 13px; }
-        body { padding-top: 50px; }
-        @media print { body { padding-top: 0; } .toolbar { display: none; } }
+        body { padding-top: 48px; }
+
+        @media print {
+            body { padding: 0; }
+            .toolbar { display: none !important; }
+        }
     </style>
 </head>
 <body>
-    <div class="toolbar no-print">
-        <button onclick="window.print()"><i>&#128424;</i> Imprimir</button>
+    <div class="toolbar">
+        <button onclick="window.print()">&#128424; Imprimir</button>
         <span id="toolbarTitle">Cuadro de Ruta</span>
     </div>
 
@@ -183,10 +175,9 @@
 
         async function loadCuadro() {
             if (!routeNumber) {
-                document.getElementById('loadingMsg').textContent = 'Error: No se especificó número de ruta';
+                document.getElementById('loadingMsg').textContent = 'Error: No se especifico numero de ruta';
                 return;
             }
-
             try {
                 const res = await fetch('/api/despacho/cuadro-ruta/' + routeNumber);
                 if (!res.ok) {
@@ -202,15 +193,23 @@
             }
         }
 
-        function formatDate(d) {
-            if (!d) return '-';
+        function fmtDate(d) {
+            if (!d) return '';
             const dt = new Date(d);
-            const day = dt.getDate();
+            const day = String(dt.getDate()).padStart(2, '0');
             const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+            return day + '-' + months[dt.getMonth()] + '.-' + dt.getFullYear();
+        }
+
+        function fmtDateLong(d) {
+            if (!d) return '';
+            const dt = new Date(d);
+            const day = String(dt.getDate()).padStart(2, '0');
+            const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
             return day + '-' + months[dt.getMonth()] + '-' + dt.getFullYear();
         }
 
-        function formatNum(n) {
+        function fmtNum(n) {
             return parseFloat(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
@@ -225,37 +224,34 @@
             const h = data.header;
             const lineas = data.lineas;
             const now = new Date();
-            const printDate = now.getDate() + '-' + ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][now.getMonth()] + '-' + now.getFullYear();
+            const printDate = fmtDateLong(now);
             const printTime = now.toLocaleTimeString('es-GT');
 
-            let pesoAcum = 0;
-            const rows = lineas.map((l, i) => {
-                pesoAcum += (l.Peso || 0);
-                let row = `<tr>
-                    <td class="text-center">${l.TipoDocumento || 'OV'}</td>
-                    <td class="font-bold">${esc(l.NumeroOV)}</td>
-                    <td>${esc(l.ClienteCodigo)}</td>
-                    <td>${esc(l.ClienteNombre)}</td>
-                    <td class="text-center">${formatDate(l.FechaCreacion)}</td>
-                    <td class="text-center">${formatDate(l.FechaEntrega)}</td>
+            const rows = lineas.map(l => {
+                let html = `<tr>
+                    <td>${l.TipoDocumento || 'OV'}</td>
+                    <td>${esc(l.NumeroOV)}</td>
+                    <td>${esc(l.ClienteCodigo)}<br><span style="font-size:8px">${esc(l.ClienteNombre)}</span></td>
+                    <td class="text-center">${fmtDate(l.FechaCreacion)}</td>
+                    <td class="text-center">${fmtDate(l.FechaEntrega)}</td>
                     <td>${esc(l.Direccion)}</td>
+                    <td>${esc(l.Comentarios)}</td>
                     <td>${esc(l.Asesor)}</td>
-                    <td class="text-right font-bold">${formatNum(l.Peso)} kg</td>
                 </tr>`;
 
-                if (l.Comentarios) {
-                    row += `<tr class="comentarios-row">
-                        <td colspan="9">${esc(l.Comentarios)}</td>
+                if (l.TextoLargo) {
+                    html += `<tr class="texto-largo-row">
+                        <td colspan="8"><div class="texto-largo-box">${esc(l.TextoLargo)}</div></td>
                     </tr>`;
                 }
-                return row;
+                return html;
             }).join('');
 
             document.getElementById('content').innerHTML = `
                 <div class="print-header">
-                    <div class="logo-area">
-                        <div class="logo-text">FERCO</div>
-                        <div class="logo-sub">C E R A M I C A</div>
+                    <div>
+                        <div class="logo-text">F E R C O</div>
+                        <div class="logo-sub">C E R &Aacute; M I C A</div>
                     </div>
                     <div class="print-date">
                         Fecha de impresion: ${printDate}<br>
@@ -267,78 +263,70 @@
                 <div class="cuadro-number">${h.DocNum}</div>
 
                 <div class="info-grid">
-                    <div>
+                    <div class="info-col">
                         <div class="info-row">
                             <div class="info-label">Transporte:</div>
-                            <div class="info-value">${esc(h.Transporte) || '-'}</div>
+                            <div class="info-value">${esc(h.Transporte) || ''}</div>
                         </div>
                         <div class="info-row">
-                            <div class="info-label">Transportista:</div>
-                            <div class="info-value">${esc(h.Transportista)}</div>
+                            <div class="info-value" style="margin-left:115px">${esc(h.Transportista)}</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Piloto:</div>
-                            <div class="info-value">${esc(h.Chofer) || '-'}</div>
+                            <div class="info-value">${esc(h.Chofer) || ''}</div>
                         </div>
                         <div class="info-row">
-                            <div class="info-label">Tel. Piloto:</div>
-                            <div class="info-value">${esc(h.TelPiloto) || '-'}</div>
-                        </div>
-                        <div class="info-row">
-                            <div class="info-label">Placa Camion:</div>
-                            <div class="info-value">${esc(h.Placa) || '-'}</div>
+                            <div class="info-label">Placa Camion :</div>
+                            <div class="info-value">${esc(h.Placa) || ''}</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Capacidad:</div>
-                            <div class="info-value">${h.Capacidad ? h.Capacidad + ' TON' : '-'}</div>
+                            <div class="info-value">${h.Capacidad || ''}</div>
                         </div>
                     </div>
-                    <div>
+                    <div class="info-col info-right">
                         <div class="info-row">
                             <div class="info-label">Nombre de ruta:</div>
                             <div class="info-value">${esc(h.NombreRuta)}</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Fecha de Entrega:</div>
-                            <div class="info-value">${formatDate(h.FechaEntrega)}</div>
+                            <div class="info-value">${fmtDate(h.FechaEntrega)}</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Planificado por:</div>
-                            <div class="info-value">${esc(h.Planificador) || '-'}</div>
+                            <div class="info-value">${esc(h.Planificador) || ''}</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Peso total:</div>
-                            <div class="info-value font-bold">${formatNum(h.PesoTotal / 1000)} TON</div>
+                            <div class="info-value">${fmtNum(h.PesoTotal / 1000)} TON</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">% Ocupacion:</div>
-                            <div class="info-value font-bold">${h.Ocupacion > 0 ? formatNum(h.Ocupacion) + ' %' : '-'}</div>
+                            <div class="info-value">${h.Ocupacion > 0 ? fmtNum(h.Ocupacion) + ' %' : ''}</div>
                         </div>
                     </div>
                 </div>
 
+                <div class="separator"></div>
+
                 <table>
                     <thead>
                         <tr>
-                            <th style="width:40px">Tipo</th>
-                            <th style="width:100px">Documento No.</th>
-                            <th style="width:80px">Codigo</th>
-                            <th>Cliente</th>
-                            <th style="width:85px" class="text-center">Fecha Creacion</th>
-                            <th style="width:85px" class="text-center">Fecha Entrega</th>
+                            <th style="width:35px">Tipo</th>
+                            <th style="width:95px">Documento No.</th>
+                            <th style="width:140px">Codigo_Cliente</th>
+                            <th style="width:80px" class="text-center">Fecha<br>Creacion</th>
+                            <th style="width:80px" class="text-center">Fecha<br>Entrega :</th>
                             <th>Direccion</th>
-                            <th style="width:110px">Asesor</th>
-                            <th style="width:85px" class="text-right">Peso</th>
+                            <th>Comentarios</th>
+                            <th style="width:100px">Asesor</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${rows}
                     </tbody>
                 </table>
-
-                <div class="footer-totals">
-                    Total: ${formatNum(h.PesoTotal)} kg (${lineas.length} documentos)
-                </div>
             `;
         }
 

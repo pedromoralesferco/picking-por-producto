@@ -834,7 +834,8 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
                     ODR.CardCode AS ClienteCode,
                     CLI.CardName AS ClienteNombre,
                     ODR.DocDate AS FechaCreacion,
-                    ODR.DocDueDate AS FechaEntrega
+                    ODR.DocDueDate AS FechaEntrega,
+                    ISNULL(REQ.U_U_Descripcion, '') AS TextoLargo
                 FROM [server-sql].[${db}].[dbo].[@CUADRO_RUTA_E] T0 WITH (NOLOCK)
                 INNER JOIN [server-sql].[${db}].[dbo].[@CUADRO_RUTA_D] T1 WITH (NOLOCK)
                     ON T0.DocEntry = T1.DocEntry
@@ -846,6 +847,8 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
                     ON T1.U_No_OV = CAST(ODR.DocNum AS NVARCHAR) COLLATE DATABASE_DEFAULT
                 LEFT JOIN [server-sql].[${db}].[dbo].OCRD CLI WITH (NOLOCK)
                     ON ODR.CardCode = CLI.CardCode
+                LEFT JOIN [server-sql].[${db}].[dbo].[@REQ_ENTREGA] REQ WITH (NOLOCK)
+                    ON CLI.U_ReqEntrega = REQ.Code COLLATE DATABASE_DEFAULT
                 WHERE T0.DocNum = @routeNumber
                 ORDER BY T1.LineId
             `);
@@ -887,7 +890,8 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
             Asesor: r.U_Asesor,
             Peso: r.U_Peso_1,
             FechaCreacion: r.FechaCreacion,
-            FechaEntrega: r.FechaEntrega
+            FechaEntrega: r.FechaEntrega,
+            TextoLargo: r.TextoLargo
         }));
 
         res.json({ header, lineas });
