@@ -238,6 +238,24 @@
             margin-bottom: 0.8rem;
         }
 
+        .btn-print-cuadro {
+            background: #222;
+            color: #d4a826;
+            border: 1px solid #d4a826;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .btn-print-cuadro:hover {
+            background: #d4a826;
+            color: #222;
+        }
+        .btn-print-cuadro i { margin-right: 0.3rem; }
+
         .route-header-title {
             font-size: 1.15rem;
             font-weight: 800;
@@ -674,6 +692,9 @@
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')}</div>
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
+                        <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
+                            <i class="bi bi-printer"></i> Cuadro de Ruta
+                        </button>
                     </div>
                     <div class="route-header-grid">
                         <div class="rh-field">
@@ -869,6 +890,9 @@
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')} ${ruta.Pais ? '<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem">' + ruta.Pais + '</span>' : ''}</div>
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
+                        <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
+                            <i class="bi bi-printer"></i> Cuadro de Ruta
+                        </button>
                     </div>
                     <div class="route-header-grid">
                         <div class="rh-field">
@@ -956,6 +980,10 @@
             } catch (err) {
                 alert('Error de conexion');
             }
+        }
+
+        function printCuadroRuta(routeNumber) {
+            window.open('/cuadro-ruta-print.html?ruta=' + routeNumber, '_blank');
         }
 
         function esc(str) {

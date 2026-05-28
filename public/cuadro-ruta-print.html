@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cuadro de Ruta</title>
+    <style>
+        @page {
+            size: landscape;
+            margin: 10mm;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            color: #222;
+            padding: 8mm;
+        }
+
+        .print-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+            border-bottom: 2px solid #222;
+            padding-bottom: 6px;
+        }
+        .logo-area {
+            display: flex;
+            flex-direction: column;
+        }
+        .logo-text {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 8px;
+            color: #222;
+        }
+        .logo-sub {
+            font-size: 10px;
+            letter-spacing: 6px;
+            color: #c62828;
+            font-weight: 600;
+        }
+        .print-date {
+            text-align: right;
+            font-size: 9px;
+            color: #666;
+        }
+
+        .cuadro-title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 700;
+            margin: 8px 0 4px;
+        }
+        .cuadro-number {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 40px;
+            margin-bottom: 12px;
+            font-size: 10.5px;
+        }
+        .info-row {
+            display: flex;
+            padding: 2px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+        .info-label {
+            font-weight: 700;
+            min-width: 120px;
+        }
+        .info-value { flex: 1; }
+
+        .summary-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 24px;
+            margin-bottom: 8px;
+            font-size: 10.5px;
+            font-weight: 600;
+        }
+        .summary-item span { font-weight: 400; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+        th {
+            background: #222;
+            color: #fff;
+            padding: 5px 6px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #222;
+        }
+        td {
+            padding: 4px 6px;
+            border: 1px solid #ccc;
+            vertical-align: top;
+        }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .comentarios-row {
+            background: #fff3cd !important;
+            border-left: 3px solid #d4a826;
+        }
+        .comentarios-row td {
+            font-size: 9px;
+            color: #856404;
+            padding: 3px 6px 3px 12px;
+            font-style: italic;
+        }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: 700; }
+
+        .footer-totals {
+            margin-top: 6px;
+            text-align: right;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 14px;
+            color: #999;
+        }
+
+        @media print {
+            body { padding: 0; }
+            .no-print { display: none !important; }
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #222;
+            color: #fff;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .toolbar button {
+            background: #d4a826;
+            color: #222;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .toolbar button:hover { background: #b8941f; }
+        .toolbar span { font-size: 13px; }
+        body { padding-top: 50px; }
+        @media print { body { padding-top: 0; } .toolbar { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar no-print">
+        <button onclick="window.print()"><i>&#128424;</i> Imprimir</button>
+        <span id="toolbarTitle">Cuadro de Ruta</span>
+    </div>
+
+    <div id="content">
+        <div class="loading" id="loadingMsg">Cargando cuadro de ruta...</div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const routeNumber = params.get('ruta');
+
+        async function loadCuadro() {
+            if (!routeNumber) {
+                document.getElementById('loadingMsg').textContent = 'Error: No se especificó número de ruta';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/despacho/cuadro-ruta/' + routeNumber);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Error ' + res.status);
+                }
+                const data = await res.json();
+                renderCuadro(data);
+                document.getElementById('toolbarTitle').textContent = 'Cuadro de Ruta #' + routeNumber;
+                document.title = 'Cuadro de Ruta #' + routeNumber;
+            } catch (err) {
+                document.getElementById('loadingMsg').textContent = 'Error: ' + err.message;
+            }
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            const dt = new Date(d);
+            const day = dt.getDate();
+            const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+            return day + '-' + months[dt.getMonth()] + '-' + dt.getFullYear();
+        }
+
+        function formatNum(n) {
+            return parseFloat(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            const el = document.createElement('span');
+            el.textContent = s;
+            return el.innerHTML;
+        }
+
+        function renderCuadro(data) {
+            const h = data.header;
+            const lineas = data.lineas;
+            const now = new Date();
+            const printDate = now.getDate() + '-' + ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][now.getMonth()] + '-' + now.getFullYear();
+            const printTime = now.toLocaleTimeString('es-GT');
+
+            let pesoAcum = 0;
+            const rows = lineas.map((l, i) => {
+                pesoAcum += (l.Peso || 0);
+                let row = `<tr>
+                    <td class="text-center">${l.TipoDocumento || 'OV'}</td>
+                    <td class="font-bold">${esc(l.NumeroOV)}</td>
+                    <td>${esc(l.ClienteCodigo)}</td>
+                    <td>${esc(l.ClienteNombre)}</td>
+                    <td class="text-center">${formatDate(l.FechaCreacion)}</td>
+                    <td class="text-center">${formatDate(l.FechaEntrega)}</td>
+                    <td>${esc(l.Direccion)}</td>
+                    <td>${esc(l.Asesor)}</td>
+                    <td class="text-right font-bold">${formatNum(l.Peso)} kg</td>
+                </tr>`;
+
+                if (l.Comentarios) {
+                    row += `<tr class="comentarios-row">
+                        <td colspan="9">${esc(l.Comentarios)}</td>
+                    </tr>`;
+                }
+                return row;
+            }).join('');
+
+            document.getElementById('content').innerHTML = `
+                <div class="print-header">
+                    <div class="logo-area">
+                        <div class="logo-text">FERCO</div>
+                        <div class="logo-sub">C E R A M I C A</div>
+                    </div>
+                    <div class="print-date">
+                        Fecha de impresion: ${printDate}<br>
+                        Hora de impresion: ${printTime}
+                    </div>
+                </div>
+
+                <div class="cuadro-title"># Cuadro de ruta</div>
+                <div class="cuadro-number">${h.DocNum}</div>
+
+                <div class="info-grid">
+                    <div>
+                        <div class="info-row">
+                            <div class="info-label">Transporte:</div>
+                            <div class="info-value">${esc(h.Transporte) || '-'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Transportista:</div>
+                            <div class="info-value">${esc(h.Transportista)}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Piloto:</div>
+                            <div class="info-value">${esc(h.Chofer) || '-'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Tel. Piloto:</div>
+                            <div class="info-value">${esc(h.TelPiloto) || '-'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Placa Camion:</div>
+                            <div class="info-value">${esc(h.Placa) || '-'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Capacidad:</div>
+                            <div class="info-value">${h.Capacidad ? h.Capacidad + ' TON' : '-'}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="info-row">
+                            <div class="info-label">Nombre de ruta:</div>
+                            <div class="info-value">${esc(h.NombreRuta)}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Fecha de Entrega:</div>
+                            <div class="info-value">${formatDate(h.FechaEntrega)}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Planificado por:</div>
+                            <div class="info-value">${esc(h.Planificador) || '-'}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Peso total:</div>
+                            <div class="info-value font-bold">${formatNum(h.PesoTotal / 1000)} TON</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">% Ocupacion:</div>
+                            <div class="info-value font-bold">${h.Ocupacion > 0 ? formatNum(h.Ocupacion) + ' %' : '-'}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:40px">Tipo</th>
+                            <th style="width:100px">Documento No.</th>
+                            <th style="width:80px">Codigo</th>
+                            <th>Cliente</th>
+                            <th style="width:85px" class="text-center">Fecha Creacion</th>
+                            <th style="width:85px" class="text-center">Fecha Entrega</th>
+                            <th>Direccion</th>
+                            <th style="width:110px">Asesor</th>
+                            <th style="width:85px" class="text-right">Peso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+
+                <div class="footer-totals">
+                    Total: ${formatNum(h.PesoTotal)} kg (${lineas.length} documentos)
+                </div>
+            `;
+        }
+
+        loadCuadro();
+    </script>
+</body>
+</html>

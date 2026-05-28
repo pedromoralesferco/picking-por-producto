@@ -807,4 +807,94 @@ router.get('/despacho/rutas/:routeNumber/documentos/:ovNumber/productos', async 
     }
 });
 
+// ── Cuadro de Ruta (print data) ──
+
+router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
+    try {
+        const pool = getPool();
+        const routeNumber = parseInt(req.params.routeNumber);
+
+        // Detect country from session
+        const pais = req.session?.user?.selectedPais || 'GT';
+        const db = pais === 'SV' ? 'sbointergres' : 'sboferco';
+
+        // Header + lines with joins
+        const result = await pool.request()
+            .input('routeNumber', sql.Int, routeNumber)
+            .query(`
+                SELECT
+                    T0.DocNum, T0.U_NombreR, T0.U_ID_Camion, T0.U_Placa, T0.U_Chofer,
+                    T0.U_Capacidad, T0.U_Fecha_Entrega, T0.U_CardCode,
+                    T0.U_Planificador, T0.U_TelPiloto, T0.U_Almacen_origen,
+                    PLN.Name AS Planificador,
+                    ISNULL(PRV.CardName, 'TRANSPORTE INTERNO') AS Nombre_Transportista,
+                    T1.LineId, T1.U_No_OV, T1.U_Codigo_Cliente, T1.U_Direccion,
+                    T1.U_Comentarios, T1.U_Asesor, T1.U_Peso_1,
+                    T1.U_Tipo_Documento,
+                    ODR.CardCode AS ClienteCode,
+                    CLI.CardName AS ClienteNombre,
+                    ODR.DocDate AS FechaCreacion,
+                    ODR.DocDueDate AS FechaEntrega
+                FROM [server-sql].[${db}].[dbo].[@CUADRO_RUTA_E] T0 WITH (NOLOCK)
+                INNER JOIN [server-sql].[${db}].[dbo].[@CUADRO_RUTA_D] T1 WITH (NOLOCK)
+                    ON T0.DocEntry = T1.DocEntry
+                LEFT JOIN [server-sql].[${db}].[dbo].[@PLANIFICADORES] PLN WITH (NOLOCK)
+                    ON T0.U_Planificador = PLN.Code COLLATE DATABASE_DEFAULT
+                LEFT JOIN [server-sql].[${db}].[dbo].OCRD PRV WITH (NOLOCK)
+                    ON T0.U_CardCode = PRV.CardCode
+                LEFT JOIN [server-sql].[${db}].[dbo].ORDR ODR WITH (NOLOCK)
+                    ON T1.U_No_OV = CAST(ODR.DocNum AS NVARCHAR) COLLATE DATABASE_DEFAULT
+                LEFT JOIN [server-sql].[${db}].[dbo].OCRD CLI WITH (NOLOCK)
+                    ON ODR.CardCode = CLI.CardCode
+                WHERE T0.DocNum = @routeNumber
+                ORDER BY T1.LineId
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Cuadro de ruta no encontrado' });
+        }
+
+        // Build response: header + lines
+        const first = result.recordset[0];
+        const pesoTotal = result.recordset.reduce((sum, r) => sum + (r.U_Peso_1 || 0), 0);
+        const capacidad = parseFloat(first.U_Capacidad) || 0;
+        const ocupacion = capacidad > 0 ? ((pesoTotal / 1000) / capacidad * 100) : 0;
+
+        const header = {
+            DocNum: first.DocNum,
+            NombreRuta: first.U_NombreR,
+            Transporte: first.U_ID_Camion,
+            Placa: first.U_Placa,
+            Chofer: first.U_Chofer,
+            Capacidad: first.U_Capacidad,
+            FechaEntrega: first.U_Fecha_Entrega,
+            Transportista: first.Nombre_Transportista,
+            Planificador: first.Planificador,
+            TelPiloto: first.U_TelPiloto,
+            Almacen: first.U_Almacen_origen,
+            PesoTotal: pesoTotal,
+            Ocupacion: ocupacion
+        };
+
+        const lineas = result.recordset.map(r => ({
+            LineId: r.LineId,
+            TipoDocumento: r.U_Tipo_Documento,
+            NumeroOV: r.U_No_OV,
+            ClienteCodigo: r.ClienteCode || r.U_Codigo_Cliente,
+            ClienteNombre: r.ClienteNombre,
+            Direccion: r.U_Direccion,
+            Comentarios: r.U_Comentarios,
+            Asesor: r.U_Asesor,
+            Peso: r.U_Peso_1,
+            FechaCreacion: r.FechaCreacion,
+            FechaEntrega: r.FechaEntrega
+        }));
+
+        res.json({ header, lineas });
+    } catch (err) {
+        console.error('GET /api/despacho/cuadro-ruta error:', err);
+        res.status(500).json({ error: 'Error al obtener cuadro de ruta' });
+    }
+});
+
 module.exports = router;
