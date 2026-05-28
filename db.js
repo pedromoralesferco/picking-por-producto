@@ -8,7 +8,8 @@ const config = {
     password: process.env.DB_PASSWORD,
     options: {
         encrypt: false,
-        trustServerCertificate: true
+        trustServerCertificate: true,
+        useUTC: false
     },
     pool: {
         max: 20,
