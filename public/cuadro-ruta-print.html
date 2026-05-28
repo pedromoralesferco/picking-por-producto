@@ -113,6 +113,28 @@
             font-style: italic;
         }
 
+        /* ── Watermark ── */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-35deg);
+            font-size: 120px;
+            font-weight: 900;
+            color: rgba(200, 0, 0, 0.08);
+            letter-spacing: 15px;
+            pointer-events: none;
+            z-index: 0;
+            white-space: nowrap;
+        }
+        @media print {
+            .watermark {
+                color: rgba(200, 0, 0, 0.08);
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+
         /* ── Loading ── */
         .loading {
             text-align: center;
@@ -242,7 +264,10 @@
                 return html;
             }).join('');
 
+            const esBorrador = !h.Placa;
+
             document.getElementById('content').innerHTML = `
+                ${esBorrador ? '<div class="watermark">BORRADOR</div>' : ''}
                 <div class="print-header">
                     <div>
                         <div class="logo-text">F E R C O</div>

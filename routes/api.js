@@ -827,7 +827,7 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
                     T0.U_Capacidad, T0.U_Fecha_Entrega, T0.U_CardCode,
                     T0.U_Planificador, T0.U_TelPiloto, T0.U_Almacen_origen,
                     PLN.Name AS Planificador,
-                    ISNULL(PRV.CardName, 'TRANSPORTE INTERNO') AS Nombre_Transportista,
+                    ISNULL(PRV.CardName, '') AS Nombre_Transportista,
                     T1.LineId, T1.U_No_OV, T1.U_Codigo_Cliente, T1.U_Direccion,
                     T1.U_Comentarios, T1.U_Asesor, T1.U_Peso_1,
                     T1.U_Tipo_Documento,
@@ -835,7 +835,8 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
                     CLI.CardName AS ClienteNombre,
                     ODR.DocDate AS FechaCreacion,
                     ODR.DocDueDate AS FechaEntrega,
-                    ISNULL(REQ.U_U_Descripcion, '') AS TextoLargo
+                    ISNULL(REQ.U_U_Descripcion, '') AS TextoLargo,
+                    T0.U_Fecha_Salida
                 FROM [server-sql].[${db}].[dbo].[@CUADRO_RUTA_E] T0 WITH (NOLOCK)
                 INNER JOIN [server-sql].[${db}].[dbo].[@CUADRO_RUTA_D] T1 WITH (NOLOCK)
                     ON T0.DocEntry = T1.DocEntry
