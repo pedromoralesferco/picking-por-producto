@@ -9,11 +9,13 @@ let assigningProduct = null;
 let assigningPedido = null;
 let refreshInterval = null;
 let pendingIniciarRuta = null;
+let timerInterval = null;
 
 async function init() {
     await detectMode();
     await loadRutas();
     refreshInterval = setInterval(refreshData, 30000);
+    timerInterval = setInterval(updateTimers, 1000);
 }
 
 // ── Mode Detection ──
@@ -205,6 +207,14 @@ function renderDetalle(routeNumber, ruta, productos, resumen) {
                     <div class="value" style="color:#1565c0;font-weight:600"><i class="bi bi-signpost-2"></i> ${ruta.CarrilNombre}</div>
                 </div>` : ''}
             </div>
+            ${estado === 'Iniciado' && ruta.FechaInicio ? `
+            <div class="timer-route">
+                <i class="bi bi-stopwatch"></i> Tiempo abierta: <span class="timer-value" data-timer-start="${ruta.FechaInicio}">${formatElapsed(ruta.FechaInicio)}</span>
+            </div>` : ''}
+            ${estado === 'Finalizado' && ruta.FechaInicio && ruta.FechaFin ? `
+            <div class="timer-route finalizado">
+                <i class="bi bi-stopwatch"></i> Duración: <span class="timer-value" data-timer-start="${ruta.FechaInicio}" data-timer-end="${ruta.FechaFin}">${formatElapsed(ruta.FechaInicio, ruta.FechaFin)}</span>
+            </div>` : ''}
             ${total > 0 ? `
             <div class="progress-bar-custom" style="margin-top:1rem">
                 <div class="fill" style="width:${pct}%"></div>
@@ -268,6 +278,9 @@ function renderProducto(routeNumber, p) {
                     <div class="pedido-meta" style="font-weight:600">${p.ProductName || ''}</div>
                     <div class="pedido-meta">${p.TotalArticulo || 0} articulos | ${formatNumber(p.PesoTotal || 0)} kg</div>
                     ${pickerHtml}
+                    ${p.FechaAsignacion ? `<div class="timer-item${isFinalizado ? ' finalizado' : ''}">
+                        <i class="bi bi-clock"></i> ${isFinalizado ? 'Duración' : 'Asignado hace'}: <span data-timer-start="${p.FechaAsignacion}"${p.FechaFin ? ` data-timer-end="${p.FechaFin}"` : ''}>${formatElapsed(p.FechaAsignacion, p.FechaFin || null)}</span>
+                    </div>` : ''}
                 </div>
                 <div class="pedido-actions">${buttonsHtml}</div>
             </div>
@@ -411,6 +424,14 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen) {
                     <div class="value" style="color:#1565c0;font-weight:600"><i class="bi bi-signpost-2"></i> ${ruta.CarrilNombre}</div>
                 </div>` : ''}
             </div>
+            ${estado === 'Iniciado' && ruta.FechaInicio ? `
+            <div class="timer-route">
+                <i class="bi bi-stopwatch"></i> Tiempo abierta: <span class="timer-value" data-timer-start="${ruta.FechaInicio}">${formatElapsed(ruta.FechaInicio)}</span>
+            </div>` : ''}
+            ${estado === 'Finalizado' && ruta.FechaInicio && ruta.FechaFin ? `
+            <div class="timer-route finalizado">
+                <i class="bi bi-stopwatch"></i> Duración: <span class="timer-value" data-timer-start="${ruta.FechaInicio}" data-timer-end="${ruta.FechaFin}">${formatElapsed(ruta.FechaInicio, ruta.FechaFin)}</span>
+            </div>` : ''}
             ${total > 0 ? `
             <div class="progress-bar-custom" style="margin-top:1rem">
                 <div class="fill" style="width:${pct}%"></div>
@@ -483,6 +504,9 @@ function renderPedido(idRoutePlan, p) {
                     <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${p.Estado || 'Pendiente'}</span></div>
                     <div class="pedido-meta">${p.TotalLineas || 0} lineas | ${p.TotalUnidades || 0} uds | ${formatNumber(p.PesoTotal || 0)} kg</div>
                     ${operarioHtml}
+                    ${p.FechaAsignacion ? `<div class="timer-item${isFinalizado ? ' finalizado' : ''}">
+                        <i class="bi bi-clock"></i> ${isFinalizado ? 'Duración' : 'Asignado hace'}: <span data-timer-start="${p.FechaAsignacion}"${p.FechaFin ? ` data-timer-end="${p.FechaFin}"` : ''}>${formatElapsed(p.FechaAsignacion, p.FechaFin || null)}</span>
+                    </div>` : ''}
                 </div>
                 <div class="pedido-actions">
                     ${detailBtn}
@@ -801,6 +825,27 @@ function formatNumber(n) {
 
 function esc(s) {
     return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function formatElapsed(startDate, endDate) {
+    if (!startDate) return null;
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : new Date();
+    let diff = Math.max(0, Math.floor((end - start) / 1000));
+    const h = Math.floor(diff / 3600);
+    diff %= 3600;
+    const m = Math.floor(diff / 60);
+    const s = diff % 60;
+    return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+function updateTimers() {
+    document.querySelectorAll('[data-timer-start]').forEach(el => {
+        const start = el.getAttribute('data-timer-start');
+        const end = el.getAttribute('data-timer-end') || null;
+        if (!start) return;
+        el.textContent = formatElapsed(start, end);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', init);
