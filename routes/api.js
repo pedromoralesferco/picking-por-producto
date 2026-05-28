@@ -426,9 +426,27 @@ router.get('/centros', async (req, res) => {
 router.get('/centros/:id/pickers', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request()
+        // Detect country of this centro to query the right tables
+        const centroRes = await pool.request()
             .input('idCentro', sql.Int, req.params.id)
-            .query(`
+            .query(`SELECT Pais FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
+        const pais = centroRes.recordset[0]?.Pais || 'GT';
+
+        let query;
+        if (pais === 'SV') {
+            // Order mode: count from OrderPickingManagement / OrderPickingTask
+            query = `
+                SELECT o.ID_Operario, o.Nombre,
+                    (SELECT COUNT(*) FROM OrderPickingManagement
+                     WHERE ID_Operario = o.ID_Operario AND Estado IN ('Asignado','En Proceso')) AS ProductosPendientes,
+                    (SELECT COUNT(*) FROM OrderPickingTask
+                     WHERE ID_Operario = o.ID_Operario AND Estado <> 'Finalizado') AS TareasPendientes
+                FROM Operario o
+                WHERE o.ID_Centro = @idCentro AND o.Activo = 1
+                ORDER BY o.Nombre`;
+        } else {
+            // Product mode: count from RoutePickingManagement / RoutePickingTask
+            query = `
                 SELECT o.ID_Operario, o.Nombre,
                     (SELECT COUNT(*) FROM RoutePickingManagement
                      WHERE ID_Operario = o.ID_Operario AND Estado IN ('Asignado','En Proceso')) AS ProductosPendientes,
@@ -436,8 +454,12 @@ router.get('/centros/:id/pickers', async (req, res) => {
                      WHERE ID_Operario = o.ID_Operario AND Estado <> 'Finalizado') AS TareasPendientes
                 FROM Operario o
                 WHERE o.ID_Centro = @idCentro AND o.Activo = 1
-                ORDER BY o.Nombre
-            `);
+                ORDER BY o.Nombre`;
+        }
+
+        const result = await pool.request()
+            .input('idCentro', sql.Int, req.params.id)
+            .query(query);
         res.json(result.recordset);
     } catch (err) {
         console.error('GET /api/centros/:id/pickers error:', err);

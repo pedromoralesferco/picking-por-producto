@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mi Picking - Productos</title>
+    <title>Mi Picking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         :root {
@@ -139,16 +139,6 @@
         .empty-mobile { text-align: center; padding: 3rem 1rem; color: #aaa; }
         .empty-mobile i { font-size: 3rem; opacity: 0.3; display: block; margin-bottom: 0.8rem; }
 
-        .refresh-bar { text-align: center; padding: 0.8rem; }
-
-        .btn-refresh {
-            background: #d4a826; color: #222; border: none;
-            padding: 0.6rem 1.5rem; border-radius: 10px; font-size: 0.9rem;
-            font-weight: 600; cursor: pointer; width: 100%;
-        }
-
-        .btn-refresh:active { background: #b8941f; }
-
         .picker-bar {
             background: white; padding: 0.6rem 1.2rem;
             display: flex; justify-content: space-between; align-items: center;
@@ -163,27 +153,27 @@
     <div class="header">
         <div class="header-top">
             <div>
-                <h1><i class="bi bi-boxes"></i> Mi Picking — Productos</h1>
-                <div class="subtitle" id="headerSubtitle">Selecciona tu almacén</div>
+                <h1><i class="bi bi-boxes"></i> <span id="headerTitle">Mi Picking</span></h1>
+                <div class="subtitle" id="headerSubtitle">Selecciona tu almacen</div>
             </div>
             <button class="btn-back" id="btnBack" style="display:none" onclick="goBack()">
-                <i class="bi bi-arrow-left"></i> Atrás
+                <i class="bi bi-arrow-left"></i> Atras
             </button>
         </div>
     </div>
 
     <div id="screenCentro" class="screen active">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-            <div class="selection-title" style="margin-bottom:0"><i class="bi bi-building"></i> Selecciona tu almacén</div>
+            <div class="selection-title" style="margin-bottom:0"><i class="bi bi-building"></i> Selecciona tu almacen</div>
             <a href="/" style="background:#d4a826;color:#222;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:0.4rem">
-                <i class="bi bi-house-door"></i> Menú
+                <i class="bi bi-house-door"></i> Menu
             </a>
         </div>
         <div id="centrosList"></div>
     </div>
 
     <div id="screenPicker" class="screen">
-        <div class="selection-title"><i class="bi bi-person-circle"></i> ¿Quién eres?</div>
+        <div class="selection-title"><i class="bi bi-person-circle"></i> Quien eres?</div>
         <div id="pickersList"></div>
     </div>
 
@@ -199,7 +189,7 @@
         <div style="padding:1rem">
             <div class="kpi-strip" id="kpiStrip"></div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
-                <div class="selection-title" style="margin-bottom:0"><i class="bi bi-clipboard-check"></i> Mis Productos</div>
+                <div class="selection-title" style="margin-bottom:0"><i class="bi bi-clipboard-check"></i> <span id="listTitle">Mis Productos</span></div>
                 <button onclick="loadPickerData()" style="background:#d4a826;color:#222;border:none;padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem">
                     <i class="bi bi-arrow-clockwise"></i> Actualizar
                 </button>
@@ -213,6 +203,7 @@
         let selectedPicker = null;
         let currentScreen = 'centro';
         let autoRefresh = null;
+        let pickingMode = 'product'; // 'product' (GT) or 'order' (SV)
 
         async function init() {
             try {
@@ -221,7 +212,7 @@
                 document.getElementById('centrosList').innerHTML = centros.map(c => `
                     <div class="select-item" onclick="chooseCentro(${c.ID_Centro}, '${esc(c.Nombre)}', '${c.Pais}')">
                         <div class="item-name"><i class="bi bi-building"></i> ${c.Nombre}</div>
-                        <div class="item-sub">${c.Pais}</div>
+                        <div class="item-sub">${c.Pais === 'GT' ? 'Guatemala' : c.Pais === 'SV' ? 'El Salvador' : c.Pais}</div>
                     </div>
                 `).join('');
             } catch (err) { console.error(err); }
@@ -229,16 +220,23 @@
 
         async function chooseCentro(id, nombre, pais) {
             selectedCentro = { id, nombre, pais };
+            pickingMode = (pais === 'SV') ? 'order' : 'product';
+
+            // Update header based on mode
+            document.getElementById('headerTitle').textContent =
+                pickingMode === 'order' ? 'Mi Picking — Pedidos' : 'Mi Picking — Productos';
+
             showScreen('picker');
             document.getElementById('headerSubtitle').textContent = nombre;
 
             try {
                 const res = await fetch(`/api/centros/${id}/pickers`);
                 const pickers = await res.json();
+                const itemLabel = pickingMode === 'order' ? 'pedidos' : 'productos';
                 document.getElementById('pickersList').innerHTML = pickers.map(p => `
                     <div class="select-item" onclick="choosePicker(${p.ID_Operario}, '${esc(p.Nombre)}')">
                         <div class="item-name"><i class="bi bi-person-circle"></i> ${p.Nombre}</div>
-                        <div class="item-sub">${p.ProductosPendientes} productos · ${p.TareasPendientes} tareas pendientes</div>
+                        <div class="item-sub">${p.ProductosPendientes} ${itemLabel} · ${p.TareasPendientes} tareas pendientes</div>
                     </div>
                 `).join('');
             } catch (err) { console.error(err); }
@@ -249,12 +247,23 @@
             document.getElementById('pickerName').textContent = nombre;
             document.getElementById('pickerCentro').textContent = selectedCentro.nombre;
             document.getElementById('headerSubtitle').textContent = `${nombre} - ${selectedCentro.nombre}`;
+            document.getElementById('listTitle').textContent =
+                pickingMode === 'order' ? 'Mis Pedidos' : 'Mis Productos';
             showScreen('productos');
             await loadPickerData();
             autoRefresh = setInterval(loadPickerData, 30000);
         }
 
         async function loadPickerData() {
+            if (pickingMode === 'order') {
+                await loadPickerDataOrder();
+            } else {
+                await loadPickerDataProduct();
+            }
+        }
+
+        // ── Product mode (GT) ──
+        async function loadPickerDataProduct() {
             try {
                 const [productosRes, resumenRes] = await Promise.all([
                     fetch(`/api/pickers/${selectedPicker.id}/productos`),
@@ -316,7 +325,7 @@
                                     </div>
                                     <div class="pm-meta">${p.ProductName || ''}</div>
                                     <div class="pm-meta">${done}/${total} tareas · ${formatNum(p.PesoTotal || 0)} kg</div>
-                                    ${p.CarrilNombre ? `<div class="pm-meta" style="color:#1565c0;font-weight:600;margin-top:0.2rem">📍 Llevar a: ${p.CarrilNombre}</div>` : ''}
+                                    ${p.CarrilNombre ? `<div class="pm-meta" style="color:#1565c0;font-weight:600;margin-top:0.2rem"><i class="bi bi-signpost-2"></i> Llevar a: ${p.CarrilNombre}</div>` : ''}
                                 </div>
                             </div>
                             <div class="pm-progress"><div class="fill" style="width:${pct}%"></div></div>
@@ -345,6 +354,110 @@
             } catch (err) { console.error('Error loading picker data:', err); }
         }
 
+        // ── Order mode (SV) ──
+        async function loadPickerDataOrder() {
+            try {
+                const [pedidosRes, resumenRes] = await Promise.all([
+                    fetch(`/api/order/pickers/${selectedPicker.id}/pedidos`),
+                    fetch(`/api/order/pickers/${selectedPicker.id}/resumen`)
+                ]);
+
+                const pedidos = await pedidosRes.json();
+                const resumen = await resumenRes.json();
+
+                document.getElementById('kpiStrip').innerHTML = `
+                    <div class="kpi-mini">
+                        <div class="kpi-val">${resumen.PedidosPendientes}</div>
+                        <div class="kpi-lbl">Pedidos Pendientes</div>
+                    </div>
+                    <div class="kpi-mini">
+                        <div class="kpi-val">${formatNum(resumen.PesoPendiente)}</div>
+                        <div class="kpi-lbl">Kg Pendientes</div>
+                    </div>
+                    <div class="kpi-mini accent">
+                        <div class="kpi-val">${resumen.PedidosCompletadosHoy}</div>
+                        <div class="kpi-lbl">Completados Hoy</div>
+                    </div>
+                    <div class="kpi-mini accent">
+                        <div class="kpi-val">${resumen.UnidadesPendientes}</div>
+                        <div class="kpi-lbl">Unidades Pend.</div>
+                    </div>
+                `;
+
+                if (pedidos.length === 0) {
+                    document.getElementById('productosMobileList').innerHTML = `
+                        <div class="empty-mobile">
+                            <i class="bi bi-check-circle"></i>
+                            No tienes pedidos pendientes
+                        </div>`;
+                    return;
+                }
+
+                // Load tareas for each pedido
+                const tareasPromises = pedidos.map(p =>
+                    fetch(`/api/order/pedidos/${p.ID_OrderPicking}/tareas`).then(r => r.json())
+                );
+                const allTareas = await Promise.all(tareasPromises);
+
+                document.getElementById('productosMobileList').innerHTML = pedidos.map((p, idx) => {
+                    const tareas = allTareas[idx];
+                    const done = tareas.filter(t => t.Estado === 'Finalizado').length;
+                    const total = tareas.length;
+                    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    const estadoClass = p.Estado === 'Finalizado' ? 'finalizado'
+                        : (p.Estado === 'En Proceso' ? 'en-proceso' : 'asignado');
+
+                    return `
+                        <div class="producto-mobile">
+                            <div class="producto-mobile-header" onclick="togglePedidoTareas(this)">
+                                <div style="flex:1">
+                                    <div class="pm-route">${p.RouteName || ''} — Ruta #${p.RouteNumber}</div>
+                                    <div class="pm-doc">${p.OV_Number} (${p.DocType})
+                                        <span class="estado-pill ${estadoClass}">${p.Estado}</span>
+                                    </div>
+                                    <div class="pm-meta">${p.TotalLineas} lineas · ${p.TotalUnidades} uds · ${formatNum(p.PesoTotal || 0)} kg</div>
+                                    <div class="pm-meta">${done}/${total} tareas completadas</div>
+                                    ${p.CarrilNombre ? `<div class="pm-meta" style="color:#1565c0;font-weight:600;margin-top:0.2rem"><i class="bi bi-signpost-2"></i> Llevar a: ${p.CarrilNombre}</div>` : ''}
+                                </div>
+                                <div class="pm-arrow"><i class="bi bi-chevron-right"></i></div>
+                            </div>
+                            <div class="pm-progress"><div class="fill" style="width:${pct}%"></div></div>
+                            <div class="tareas-mobile" id="tareas-${p.ID_OrderPicking}">
+                                ${tareas.map(t => {
+                                    const isDone = t.Estado === 'Finalizado';
+                                    const pendiente = t.CantidadPendiente ?? 0;
+                                    return `
+                                        <div class="tarea-mobile ${isDone ? 'is-done' : ''}">
+                                            <div class="tm-icon ${isDone ? 'done' : 'pending'}">
+                                                <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
+                                            </div>
+                                            <div class="tm-info">
+                                                <div class="tm-product">${t.InternIdProduct}</div>
+                                                <div class="tm-desc">${t.Descripcion || ''}</div>
+                                            </div>
+                                            <div class="tm-qty">
+                                                <div class="qty-pending">${pendiente}</div>
+                                                <div class="qty-total">de ${t.Cantidad}</div>
+                                            </div>
+                                        </div>`;
+                                }).join('')}
+                            </div>
+                        </div>`;
+                }).join('');
+
+            } catch (err) { console.error('Error loading order picker data:', err); }
+        }
+
+        function togglePedidoTareas(headerEl) {
+            const card = headerEl.closest('.producto-mobile');
+            const tareas = card.querySelector('.tareas-mobile');
+            const arrow = headerEl.querySelector('.pm-arrow');
+            const isOpen = tareas.classList.contains('open');
+            tareas.classList.toggle('open');
+            if (arrow) arrow.classList.toggle('open', !isOpen);
+        }
+
+        // ── Navigation ──
         function showScreen(name) {
             currentScreen = name;
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -359,10 +472,11 @@
                 document.getElementById('headerSubtitle').textContent = selectedCentro.nombre;
             } else if (currentScreen === 'picker') {
                 showScreen('centro');
-                document.getElementById('headerSubtitle').textContent = 'Selecciona tu almacén';
+                document.getElementById('headerSubtitle').textContent = 'Selecciona tu almacen';
             }
         }
 
+        // ── Utils ──
         function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
         function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
         function formatNum(n) {
