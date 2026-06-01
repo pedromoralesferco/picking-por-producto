@@ -814,11 +814,19 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
         const pool = getPool();
         const routeNumber = parseInt(req.params.routeNumber);
 
-        // Detect country from session
-        const pais = req.session?.user?.selectedPais || 'GT';
+        // Detect country from query param or session
+        const pais = req.query.pais || req.session?.user?.selectedPais || 'GT';
         const db = pais === 'SV' ? 'sbointergres' : 'sboferco';
 
         // Header + lines with joins
+        const reqJoin = pais === 'GT'
+            ? `LEFT JOIN [server-sql].[${db}].[dbo].[@REQ_ENTREGA] REQ WITH (NOLOCK)
+                    ON CLI.U_ReqEntrega = REQ.Code COLLATE DATABASE_DEFAULT`
+            : '';
+        const reqSelect = pais === 'GT'
+            ? `ISNULL(REQ.U_U_Descripcion, '') AS TextoLargo,`
+            : `'' AS TextoLargo,`;
+
         const result = await pool.request()
             .input('routeNumber', sql.Int, routeNumber)
             .query(`
@@ -835,7 +843,7 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
                     CLI.CardName AS ClienteNombre,
                     ODR.DocDate AS FechaCreacion,
                     ODR.DocDueDate AS FechaEntrega,
-                    ISNULL(REQ.U_U_Descripcion, '') AS TextoLargo,
+                    ${reqSelect}
                     T0.U_Fecha_Salida
                 FROM [server-sql].[${db}].[dbo].[@CUADRO_RUTA_E] T0 WITH (NOLOCK)
                 INNER JOIN [server-sql].[${db}].[dbo].[@CUADRO_RUTA_D] T1 WITH (NOLOCK)
@@ -848,8 +856,7 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
                     ON T1.U_No_OV = CAST(ODR.DocNum AS NVARCHAR) COLLATE DATABASE_DEFAULT
                 LEFT JOIN [server-sql].[${db}].[dbo].OCRD CLI WITH (NOLOCK)
                     ON ODR.CardCode = CLI.CardCode
-                LEFT JOIN [server-sql].[${db}].[dbo].[@REQ_ENTREGA] REQ WITH (NOLOCK)
-                    ON CLI.U_ReqEntrega = REQ.Code COLLATE DATABASE_DEFAULT
+                ${reqJoin}
                 WHERE T0.DocNum = @routeNumber
                 ORDER BY T1.LineId
             `);

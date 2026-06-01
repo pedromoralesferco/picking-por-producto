@@ -170,6 +170,7 @@
     <script>
         const params = new URLSearchParams(window.location.search);
         const routeNumber = params.get('ruta');
+        const pais = params.get('pais') || 'GT';
         let cuadroNum = routeNumber;
 
         async function loadCuadro() {
@@ -178,7 +179,7 @@
                 return;
             }
             try {
-                const res = await fetch('/api/despacho/cuadro-ruta/' + routeNumber);
+                const res = await fetch('/api/despacho/cuadro-ruta/' + routeNumber + '?pais=' + pais);
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
                     throw new Error(err.error || 'Error ' + res.status);

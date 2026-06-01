@@ -983,7 +983,8 @@
         }
 
         function printCuadroRuta(routeNumber) {
-            window.open('/cuadro-ruta-print.html?ruta=' + routeNumber, '_blank');
+            const pais = pickingMode === 'order' ? 'SV' : 'GT';
+            window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + pais, '_blank');
         }
 
         function esc(str) {
