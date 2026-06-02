@@ -22,7 +22,6 @@
             margin: 60px auto 20px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.1);
             position: relative;
-            min-height: 270mm;
         }
 
         /* ── Logo header ── */
@@ -96,16 +95,16 @@
 
         /* ── Signature area ── */
         .signature-area {
-            margin-top: 40px;
+            margin-top: 50px;
             display: flex;
-            gap: 30px;
+            gap: 40px;
+            align-items: flex-end;
         }
         .signature-box {
             flex: 1;
         }
         .signature-line {
             border-top: 1px solid #000;
-            margin-top: 60px;
             padding-top: 4px;
         }
         .signature-label {
@@ -118,6 +117,11 @@
         .comment-label {
             font-weight: 700;
             font-size: 11px;
+        }
+        .comment-line {
+            border-bottom: 1px solid #ccc;
+            min-height: 18px;
+            margin-top: 4px;
         }
 
         /* ── Toolbar ── */
@@ -191,16 +195,24 @@
             }
         }
 
-        function generatePdf() {
-            const element = document.getElementById('pdf-content');
-            const opt = {
+        function getPdfOpt() {
+            return {
                 margin:       [8, 10, 8, 10],
                 filename:     'PaseSalida_' + docNum + '.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
+                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
             };
-            html2pdf().set(opt).from(element).toPdf().get('pdf').then(function(pdf) {
+        }
+
+        function generatePdf() {
+            const element = document.getElementById('pdf-content');
+            html2pdf().set(getPdfOpt()).from(element).toPdf().get('pdf').then(function(pdf) {
+                // Remove extra blank pages
+                while (pdf.internal.getNumberOfPages() > 1) {
+                    pdf.deletePage(pdf.internal.getNumberOfPages());
+                }
                 const btn = document.getElementById('btnPdf');
                 btn.textContent = '📄 Descargar PDF';
                 btn.disabled = false;
@@ -213,14 +225,12 @@
             btn.textContent = '⏳ Generando...';
 
             const element = document.getElementById('pdf-content');
-            const opt = {
-                margin:       [8, 10, 8, 10],
-                filename:     'PaseSalida_' + docNum + '.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
-            };
-            html2pdf().set(opt).from(element).save().then(function() {
+            html2pdf().set(getPdfOpt()).from(element).toPdf().get('pdf').then(function(pdf) {
+                // Remove extra blank pages
+                while (pdf.internal.getNumberOfPages() > 1) {
+                    pdf.deletePage(pdf.internal.getNumberOfPages());
+                }
+                pdf.save('PaseSalida_' + docNum + '.pdf');
                 btn.textContent = '📄 Descargar PDF';
                 btn.disabled = false;
             });
@@ -338,6 +348,9 @@
                     </div>
                     <div class="comment-box">
                         <div class="comment-label">Comentario:</div>
+                        <div class="comment-line"></div>
+                        <div class="comment-line"></div>
+                        <div class="comment-line"></div>
                     </div>
                 </div>
             `;
