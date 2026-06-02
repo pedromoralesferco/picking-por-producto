@@ -87,6 +87,10 @@ app.get('/despacho', requireAuthPage, requireCentro, requirePermisoPage('despach
     res.sendFile(path.join(__dirname, 'public', 'despacho.html'));
 });
 
+app.get('/pase-salida', requireAuthPage, requireCentro, requirePermisoPage('pase-salida'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'pase-salida.html'));
+});
+
 app.get('/admin', requireAdminPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });

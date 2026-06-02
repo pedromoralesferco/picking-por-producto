@@ -909,4 +909,264 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
     }
 });
 
+// ══════════════════════════════════════════════
+// ── Pase de Salida ──
+// ══════════════════════════════════════════════
+
+// Search: find DL (OV delivery) or REQDEL (transfer shipment) transactions by document number
+router.get('/pase-salida/buscar/:docNum', async (req, res) => {
+    try {
+        const pool = getPool();
+        const docNum = parseInt(req.params.docNum);
+        if (isNaN(docNum)) return res.status(400).json({ error: 'Número de documento inválido' });
+
+        const pais = req.query.pais || 'GT';
+        const lisaDb = pais === 'SV' ? 'lisa_sbointergres' : 'lisa_sboferco';
+        const sapDb  = pais === 'SV' ? 'sbointergres' : 'sboferco';
+
+        // 1) Try as OV first (DL transactions)
+        const ovResult = await pool.request()
+            .input('docNum', sql.Int, docNum)
+            .query(`
+                SELECT DISTINCT
+                    'OV' AS TipoDocumento,
+                    t0.DocNumSAP AS NumeroDocumento,
+                    t0.DateTimeTransaction AS FechaTransaccion,
+                    t8.CardCode AS CodigoCliente,
+                    t8.CardName AS NombreCliente,
+                    t8.Address2 AS Direccion,
+                    slp.SlpName AS Vendedor,
+                    t8.DocDueDate AS FechaComprometida,
+                    pag.PymntGroup AS TipoPago,
+                    ship.TrnspName AS TipoSalida,
+                    t8.Comments AS Observaciones,
+                    t5.Code AS CodAlmacen,
+                    t5.Name AS Almacen,
+                    ISNULL(suc.U_BranchName, '') AS Sucursal
+                FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog t0 WITH (NOLOCK)
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.Product t4 WITH (NOLOCK) ON t4.IDProduct = t0.IDProduct
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.WareHouse t5 WITH (NOLOCK) ON t5.IDWareHouse = t0.IDWarehouse
+                LEFT JOIN [server-sql].[${sapDb}].dbo.ORDR t8 WITH (NOLOCK) ON t8.DocNum = t0.DocNumSAP
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OSLP slp WITH (NOLOCK) ON slp.SlpCode = t8.SlpCode
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OCTG pag WITH (NOLOCK) ON pag.GroupNum = t8.GroupNum
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OSHP ship WITH (NOLOCK) ON ship.TrnspCode = t8.TrnspCode
+                LEFT JOIN [server-sql].[${sapDb}].dbo.[@sucursal_ccosto] suc WITH (NOLOCK) ON suc.Name = t8.U_sucursal
+                WHERE t0.TransactionType = 'DL'
+                AND t0.DocNumSAP = @docNum
+            `);
+
+        if (ovResult.recordset.length > 0) {
+            // Get detail lines
+            const lines = await pool.request()
+                .input('docNum', sql.Int, docNum)
+                .query(`
+                    SELECT
+                        t0.InternIDProduct AS CodigoMaterial,
+                        t4.ProductName AS NombreMaterial,
+                        SUM(t0.OldQty - t0.NewQty) AS Cantidad
+                    FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog t0 WITH (NOLOCK)
+                    LEFT JOIN [server-sql].[${lisaDb}].dbo.Product t4 WITH (NOLOCK) ON t4.IDProduct = t0.IDProduct
+                    WHERE t0.TransactionType = 'DL'
+                    AND t0.DocNumSAP = @docNum
+                    GROUP BY t0.InternIDProduct, t4.ProductName
+                    ORDER BY t0.InternIDProduct
+                `);
+
+            const h = ovResult.recordset[0];
+            return res.json({
+                tipo: 'OV',
+                header: {
+                    Fecha: h.FechaTransaccion,
+                    CodigoCliente: h.CodigoCliente,
+                    NombreCliente: h.NombreCliente,
+                    NumeroDocumento: h.NumeroDocumento,
+                    Direccion: (h.Direccion || '').replace(/\r/g, ' '),
+                    Vendedor: h.Vendedor,
+                    FechaComprometida: h.FechaComprometida,
+                    TipoPago: h.TipoPago,
+                    TipoSalida: h.TipoSalida,
+                    Observaciones: h.Observaciones,
+                    CodAlmacen: h.CodAlmacen,
+                    Almacen: h.Almacen,
+                    Sucursal: h.Sucursal
+                },
+                lineas: lines.recordset.map(l => ({
+                    CodigoMaterial: l.CodigoMaterial,
+                    NombreMaterial: l.NombreMaterial,
+                    Cantidad: l.Cantidad
+                }))
+            });
+        }
+
+        // 2) Try as TR (REQDEL transactions from OWTQ)
+        const trResult = await pool.request()
+            .input('docNum', sql.Int, docNum)
+            .query(`
+                SELECT DISTINCT
+                    'TR' AS TipoDocumento,
+                    t0.DocNumSAP AS NumeroDocumento,
+                    t0.DateTimeTransaction AS FechaTransaccion,
+                    t5.Code AS CodAlmacenOrigen,
+                    t5.Name AS AlmacenOrigen,
+                    tq.ToWhsCode AS CodAlmacenDestino,
+                    whd.WhsName AS AlmacenDestino,
+                    tq.Comments AS Observaciones,
+                    tq.DocDate AS FechaDocumento,
+                    slp.SlpName AS Solicitante
+                FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog t0 WITH (NOLOCK)
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.Product t4 WITH (NOLOCK) ON t4.IDProduct = t0.IDProduct
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.WareHouse t5 WITH (NOLOCK) ON t5.IDWareHouse = t0.IDWarehouse
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OWTQ tq WITH (NOLOCK) ON tq.DocNum = t0.DocNumSAP
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS whd WITH (NOLOCK) ON whd.WhsCode = tq.ToWhsCode
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OSLP slp WITH (NOLOCK) ON slp.SlpCode = tq.SlpCode
+                WHERE t0.TransactionType = 'REQDEL'
+                AND t0.OldQty > t0.NewQty
+                AND t0.DocNumSAP = @docNum
+            `);
+
+        if (trResult.recordset.length > 0) {
+            const lines = await pool.request()
+                .input('docNum', sql.Int, docNum)
+                .query(`
+                    SELECT
+                        t0.InternIDProduct AS CodigoMaterial,
+                        t4.ProductName AS NombreMaterial,
+                        SUM(t0.OldQty - t0.NewQty) AS Cantidad
+                    FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog t0 WITH (NOLOCK)
+                    LEFT JOIN [server-sql].[${lisaDb}].dbo.Product t4 WITH (NOLOCK) ON t4.IDProduct = t0.IDProduct
+                    WHERE t0.TransactionType = 'REQDEL'
+                    AND t0.OldQty > t0.NewQty
+                    AND t0.DocNumSAP = @docNum
+                    GROUP BY t0.InternIDProduct, t4.ProductName
+                    ORDER BY t0.InternIDProduct
+                `);
+
+            const h = trResult.recordset[0];
+            return res.json({
+                tipo: 'TR',
+                header: {
+                    Fecha: h.FechaTransaccion,
+                    CodigoCliente: '',
+                    NombreCliente: h.AlmacenDestino || '',
+                    NumeroDocumento: h.NumeroDocumento,
+                    Direccion: h.AlmacenDestino || '',
+                    Vendedor: h.Solicitante || '',
+                    FechaComprometida: h.FechaDocumento,
+                    TipoPago: '',
+                    TipoSalida: 'TRASLADO',
+                    Observaciones: h.Observaciones,
+                    CodAlmacen: h.CodAlmacenOrigen,
+                    Almacen: h.AlmacenOrigen,
+                    Sucursal: h.AlmacenDestino || ''
+                },
+                lineas: lines.recordset.map(l => ({
+                    CodigoMaterial: l.CodigoMaterial,
+                    NombreMaterial: l.NombreMaterial,
+                    Cantidad: l.Cantidad
+                }))
+            });
+        }
+
+        // 3) Not found as DL or REQDEL — try to find OV in SAP (maybe not dispatched yet)
+        const sapOV = await pool.request()
+            .input('docNum', sql.Int, docNum)
+            .query(`
+                SELECT TOP 1 t8.DocNum
+                FROM [server-sql].[${sapDb}].dbo.ORDR t8 WITH (NOLOCK)
+                WHERE t8.DocNum = @docNum
+            `);
+
+        if (sapOV.recordset.length > 0) {
+            return res.status(404).json({
+                error: 'El documento ' + docNum + ' existe como OV en SAP pero aún no tiene despacho (entrega) registrado en LISA.'
+            });
+        }
+
+        const sapTR = await pool.request()
+            .input('docNum', sql.Int, docNum)
+            .query(`
+                SELECT TOP 1 tq.DocNum
+                FROM [server-sql].[${sapDb}].dbo.OWTQ tq WITH (NOLOCK)
+                WHERE tq.DocNum = @docNum
+            `);
+
+        if (sapTR.recordset.length > 0) {
+            return res.status(404).json({
+                error: 'El documento ' + docNum + ' existe como Solicitud de Traslado en SAP pero aún no tiene envío registrado en LISA.'
+            });
+        }
+
+        res.status(404).json({ error: 'No se encontró el documento ' + docNum + ' como OV ni como TR.' });
+    } catch (err) {
+        console.error('GET /api/pase-salida/buscar error:', err);
+        res.status(500).json({ error: 'Error al buscar documento: ' + err.message });
+    }
+});
+
+// List recent dispatches (DL + REQDEL) for a warehouse, for browsing
+router.get('/pase-salida/recientes', async (req, res) => {
+    try {
+        const pool = getPool();
+        const pais = req.query.pais || 'GT';
+        const codAlmacen = req.query.almacen || '';
+        const lisaDb = pais === 'SV' ? 'lisa_sbointergres' : 'lisa_sboferco';
+        const sapDb  = pais === 'SV' ? 'sbointergres' : 'sboferco';
+
+        let almacenFilter = '';
+        if (codAlmacen) {
+            almacenFilter = `AND t5.Code = @codAlmacen`;
+        }
+
+        const result = await pool.request()
+            .input('codAlmacen', sql.VarChar(8), codAlmacen)
+            .query(`
+                SELECT TOP 50
+                    t0.DocNumSAP AS NumeroDocumento,
+                    CASE WHEN t0.TransactionType = 'DL' THEN 'OV' ELSE 'TR' END AS Tipo,
+                    MAX(t0.DateTimeTransaction) AS Fecha,
+                    MAX(t8.CardName) AS Cliente,
+                    MAX(t5.Code) AS CodAlmacen,
+                    MAX(t5.Name) AS Almacen,
+                    MAX(ship.TrnspName) AS TipoSalida,
+                    COUNT(DISTINCT t0.InternIDProduct) AS CantArticulos,
+                    SUM(t0.OldQty - t0.NewQty) AS TotalPiezas
+                FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog t0 WITH (NOLOCK)
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.WareHouse t5 WITH (NOLOCK) ON t5.IDWareHouse = t0.IDWarehouse
+                LEFT JOIN [server-sql].[${sapDb}].dbo.ORDR t8 WITH (NOLOCK) ON t8.DocNum = t0.DocNumSAP AND t0.TransactionType = 'DL'
+                LEFT JOIN [server-sql].[${sapDb}].dbo.OSHP ship WITH (NOLOCK) ON ship.TrnspCode = t8.TrnspCode
+                WHERE t0.TransactionType IN ('DL', 'REQDEL')
+                AND t0.OldQty > t0.NewQty
+                AND t0.DateTimeTransaction > GETDATE() - 2
+                ${almacenFilter}
+                GROUP BY t0.DocNumSAP, t0.TransactionType
+                ORDER BY MAX(t0.DateTimeTransaction) DESC
+            `);
+
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/pase-salida/recientes error:', err);
+        res.status(500).json({ error: 'Error al obtener recientes: ' + err.message });
+    }
+});
+
+// Get list of warehouses for filter dropdown
+router.get('/pase-salida/almacenes', async (req, res) => {
+    try {
+        const pool = getPool();
+        const pais = req.query.pais || 'GT';
+        const sapDb = pais === 'SV' ? 'sbointergres' : 'sboferco';
+
+        const result = await pool.request().query(`
+            SELECT WhsCode AS Code, WhsName AS Name
+            FROM [server-sql].[${sapDb}].dbo.OWHS WITH (NOLOCK)
+            WHERE Inactive = 'N'
+            ORDER BY WhsCode
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/pase-salida/almacenes error:', err);
+        res.status(500).json({ error: 'Error al obtener almacenes' });
+    }
+});
+
 module.exports = router;

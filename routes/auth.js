@@ -111,12 +111,16 @@ router.post('/login', loginLimiter, async (req, res) => {
         // Auto-select if only one centro
         let selectedCentro = null;
         let selectedPais = null;
+        let selectedCentroCodigo = null;
         if (centros.length === 1) {
             selectedCentro = centros[0];
             const centroInfo = await pool.request()
                 .input('idCentro', sql.Int, centros[0])
-                .query(`SELECT Pais FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
-            selectedPais = centroInfo.recordset.length > 0 ? centroInfo.recordset[0].Pais : 'GT';
+                .query(`SELECT Pais, Codigo FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
+            if (centroInfo.recordset.length > 0) {
+                selectedPais = centroInfo.recordset[0].Pais || 'GT';
+                selectedCentroCodigo = centroInfo.recordset[0].Codigo || null;
+            }
         }
 
         req.session.user = {
@@ -127,7 +131,8 @@ router.post('/login', loginLimiter, async (req, res) => {
             permisos,
             centros,
             selectedCentro,
-            selectedPais
+            selectedPais,
+            selectedCentroCodigo
         };
 
         res.json({
@@ -138,7 +143,8 @@ router.post('/login', loginLimiter, async (req, res) => {
                 permisos,
                 centros,
                 selectedCentro,
-                selectedPais
+                selectedPais,
+                selectedCentroCodigo
             }
         });
     } catch (err) {
@@ -175,7 +181,7 @@ router.post('/select-centro', async (req, res) => {
         const pool = getPool();
         const centroInfo = await pool.request()
             .input('idCentro', sql.Int, idCentro)
-            .query(`SELECT ID_Centro, Nombre, Pais FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
+            .query(`SELECT ID_Centro, Nombre, Pais, Codigo FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
 
         if (centroInfo.recordset.length === 0) {
             return res.status(404).json({ error: 'Centro no encontrado' });
@@ -185,6 +191,7 @@ router.post('/select-centro', async (req, res) => {
         req.session.user.selectedCentro = centro.ID_Centro;
         req.session.user.selectedPais = centro.Pais || 'GT';
         req.session.user.selectedCentroNombre = centro.Nombre;
+        req.session.user.selectedCentroCodigo = centro.Codigo || null;
 
         res.json({
             ok: true,

@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pase de Salida</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            color: #000;
+            background: #f5f5f5;
+        }
+
+        /* ── PDF content area ── */
+        #pdf-content {
+            width: 190mm;
+            padding: 12mm 15mm;
+            background: #fff;
+            margin: 60px auto 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            position: relative;
+            min-height: 270mm;
+        }
+
+        /* ── Logo header ── */
+        .print-logo {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .logo-text {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 10px;
+            color: #000;
+            line-height: 1;
+        }
+        .logo-sub {
+            font-size: 10px;
+            letter-spacing: 5px;
+            color: #c00;
+            font-weight: 600;
+        }
+        .pase-title {
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            margin: 4px 0 14px;
+        }
+
+        /* ── Header info grid ── */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3px 20px;
+            margin-bottom: 16px;
+            font-size: 11px;
+        }
+        .info-row {
+            display: flex;
+        }
+        .info-label {
+            font-weight: 700;
+            min-width: 125px;
+        }
+        .info-value {
+            flex: 1;
+        }
+
+        /* ── Detail table ── */
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            font-size: 11px;
+        }
+        .detail-table th {
+            text-align: left;
+            font-weight: 700;
+            padding: 5px 6px;
+            border-bottom: 1px solid #000;
+            font-size: 11px;
+        }
+        .detail-table td {
+            padding: 4px 6px;
+            vertical-align: top;
+        }
+        .detail-table .total-row td {
+            font-weight: 800;
+            border-top: 1px solid #000;
+            padding-top: 6px;
+        }
+        .text-right { text-align: right; }
+
+        /* ── Signature area ── */
+        .signature-area {
+            margin-top: 40px;
+            display: flex;
+            gap: 30px;
+        }
+        .signature-box {
+            flex: 1;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            margin-top: 60px;
+            padding-top: 4px;
+        }
+        .signature-label {
+            font-weight: 700;
+            font-size: 11px;
+        }
+        .comment-box {
+            flex: 1;
+        }
+        .comment-label {
+            font-weight: 700;
+            font-size: 11px;
+        }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #222;
+            color: #fff;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .toolbar button {
+            background: #d4a826;
+            color: #222;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .toolbar button:hover { background: #b8941f; }
+        .toolbar button:disabled { background: #666; color: #999; cursor: wait; }
+        .toolbar span { font-size: 13px; }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button id="btnPdf" onclick="downloadPdf()" disabled>&#128196; Generando PDF...</button>
+        <span id="toolbarTitle">Pase de Salida</span>
+    </div>
+
+    <div id="pdf-content">
+        <div class="loading" id="loadingMsg">Cargando pase de salida...</div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const docNum = params.get('doc');
+        const pais = params.get('pais') || 'GT';
+
+        async function loadPase() {
+            if (!docNum) {
+                document.getElementById('loadingMsg').textContent = 'Error: No se especificó número de documento';
+                return;
+            }
+            try {
+                const res = await fetch('/api/pase-salida/buscar/' + docNum + '?pais=' + pais);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Error ' + res.status);
+                }
+                const data = await res.json();
+                renderPase(data);
+                document.getElementById('toolbarTitle').textContent = 'Pase de Salida #' + docNum;
+                document.title = 'Pase de Salida #' + docNum;
+                generatePdf();
+            } catch (err) {
+                document.getElementById('loadingMsg').textContent = 'Error: ' + err.message;
+            }
+        }
+
+        function generatePdf() {
+            const element = document.getElementById('pdf-content');
+            const opt = {
+                margin:       [8, 10, 8, 10],
+                filename:     'PaseSalida_' + docNum + '.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).toPdf().get('pdf').then(function(pdf) {
+                const btn = document.getElementById('btnPdf');
+                btn.textContent = '📄 Descargar PDF';
+                btn.disabled = false;
+            });
+        }
+
+        function downloadPdf() {
+            const btn = document.getElementById('btnPdf');
+            btn.disabled = true;
+            btn.textContent = '⏳ Generando...';
+
+            const element = document.getElementById('pdf-content');
+            const opt = {
+                margin:       [8, 10, 8, 10],
+                filename:     'PaseSalida_' + docNum + '.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save().then(function() {
+                btn.textContent = '📄 Descargar PDF';
+                btn.disabled = false;
+            });
+        }
+
+        function fmtDate(d) {
+            if (!d) return '';
+            const dt = new Date(d);
+            const day = String(dt.getDate()).padStart(2, '0');
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const year = dt.getFullYear();
+            return day + '/' + month + '/' + year;
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            const el = document.createElement('span');
+            el.textContent = s;
+            return el.innerHTML;
+        }
+
+        function renderPase(data) {
+            const h = data.header;
+            const lineas = data.lineas;
+
+            let totalQty = 0;
+            const rows = lineas.map(l => {
+                totalQty += l.Cantidad;
+                return `<tr>
+                    <td>${esc(l.CodigoMaterial)}</td>
+                    <td>${esc(l.NombreMaterial)}</td>
+                    <td class="text-right">${l.Cantidad}</td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('pdf-content').innerHTML = `
+                <div class="print-logo">
+                    <div class="logo-text">F E R C O</div>
+                    <div class="logo-sub">C E R &Aacute; M I C A</div>
+                </div>
+                <div class="pase-title">Pase de Salida</div>
+
+                <div class="info-grid">
+                    <div class="info-row">
+                        <span class="info-label">Fecha:</span>
+                        <span class="info-value">${fmtDate(h.Fecha)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Centro de Distribucion:</span>
+                        <span class="info-value">${esc(h.CodAlmacen)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Código Cliente:</span>
+                        <span class="info-value">${esc(h.CodigoCliente)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Tipo de salida:</span>
+                        <span class="info-value">${esc(h.TipoSalida)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">No. Documento:</span>
+                        <span class="info-value">${h.NumeroDocumento}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Nombre Cliente:</span>
+                        <span class="info-value">${esc(h.NombreCliente)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Dirección:</span>
+                        <span class="info-value">${esc(h.Direccion)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Vendedor:</span>
+                        <span class="info-value">${esc(h.Vendedor)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Sucursal:</span>
+                        <span class="info-value">${esc(h.Sucursal)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">F. Comprometida:</span>
+                        <span class="info-value">${fmtDate(h.FechaComprometida)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Tipo de Pago:</span>
+                        <span class="info-value">${esc(h.TipoPago)}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Observaciones:</span>
+                        <span class="info-value">${esc(h.Observaciones)}</span>
+                    </div>
+                </div>
+
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th style="width:100px">Código Material</th>
+                            <th>Nombre Material</th>
+                            <th style="width:70px" class="text-right">Cantidad</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                        <tr class="total-row">
+                            <td colspan="2">Total</td>
+                            <td class="text-right">${totalQty}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="signature-area">
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-label">Nombre Y firma:</div>
+                    </div>
+                    <div class="comment-box">
+                        <div class="comment-label">Comentario:</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        loadPase();
+    </script>
+</body>
+</html>

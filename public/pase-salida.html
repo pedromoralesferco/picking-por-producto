@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pase de Salida - Picking por Producto</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #d4a826;
+            --primary-dark: #b8941f;
+            --dark: #222222;
+            --dark-light: #2d2d2d;
+            --success: #2e7d32;
+            --danger: #c62828;
+            --blue: #1565c0;
+            --bg: #f5f5f5;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: var(--dark);
+            color: white;
+            padding: 0.6rem 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--primary);
+            flex-shrink: 0;
+        }
+        .header .brand { font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; color: var(--primary); }
+        .header h1 { font-size: 1rem; font-weight: 700; }
+        .header h1 i { color: var(--primary); }
+        .header-left { display: flex; align-items: center; gap: 0.8rem; }
+        .btn-link {
+            background: transparent; border: 1px solid #555; color: #ccc;
+            padding: 0.3rem 0.6rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.78rem; text-decoration: none; transition: all 0.2s;
+        }
+        .btn-link:hover { background: #444; color: white; }
+
+        /* ── Search bar ── */
+        .search-bar {
+            background: white;
+            padding: 0.8rem 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            border-bottom: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+        .search-bar input {
+            flex: 1;
+            padding: 0.55rem 0.8rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-bar input:focus { border-color: var(--primary); }
+        .search-bar select {
+            padding: 0.55rem 0.6rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            background: white;
+            cursor: pointer;
+        }
+        .btn-search {
+            background: var(--primary);
+            color: var(--dark);
+            border: none;
+            padding: 0.55rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        .btn-search:hover { background: var(--primary-dark); }
+        .btn-search:disabled { background: #ccc; cursor: wait; }
+
+        /* ── Filter bar ── */
+        .filter-bar {
+            background: #fafafa;
+            padding: 0.4rem 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            border-bottom: 1px solid #eee;
+            flex-shrink: 0;
+            font-size: 0.8rem;
+        }
+        .filter-bar label { color: #666; font-weight: 600; }
+        .filter-bar select {
+            padding: 0.3rem 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            background: white;
+        }
+        .badge-count {
+            margin-left: auto;
+            background: var(--dark);
+            color: white;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* ── Content area ── */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.2rem;
+        }
+
+        /* ── Results list ── */
+        .result-card {
+            background: white;
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            margin-bottom: 0.6rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            border-left: 4px solid transparent;
+        }
+        .result-card:hover {
+            box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+        .result-card.tipo-ov { border-left-color: var(--blue); }
+        .result-card.tipo-tr { border-left-color: var(--primary); }
+
+        .result-tipo {
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            min-width: 30px;
+            text-align: center;
+        }
+        .result-tipo.ov { background: #e3f2fd; color: var(--blue); }
+        .result-tipo.tr { background: #fff8e1; color: #f57f17; }
+
+        .result-info { flex: 1; }
+        .result-info .doc-num { font-weight: 700; font-size: 0.95rem; }
+        .result-info .doc-detail { font-size: 0.78rem; color: #888; margin-top: 2px; }
+        .result-meta { text-align: right; font-size: 0.75rem; color: #999; }
+        .result-meta .piezas { font-weight: 700; font-size: 0.85rem; color: #555; }
+        .result-arrow { color: #ccc; font-size: 1rem; }
+
+        /* ── Detail view (when a doc is selected) ── */
+        .detail-view { display: none; }
+        .detail-view.active { display: block; }
+        .list-view.hidden { display: none; }
+
+        .detail-header {
+            background: white;
+            border-radius: 12px;
+            padding: 1.2rem;
+            margin-bottom: 0.8rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .detail-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+        }
+        .detail-title h2 { font-size: 1.2rem; font-weight: 800; }
+        .btn-print {
+            background: var(--primary);
+            color: var(--dark);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .btn-print:hover { background: var(--primary-dark); }
+        .btn-back {
+            background: transparent;
+            border: 1px solid #ddd;
+            color: #666;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            margin-right: 0.5rem;
+        }
+        .btn-back:hover { background: #f0f0f0; }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4rem 1.5rem;
+            font-size: 0.85rem;
+        }
+        .detail-grid .field { display: flex; gap: 0.3rem; }
+        .detail-grid .field-label { color: #999; min-width: 110px; font-weight: 600; }
+        .detail-grid .field-value { color: #333; font-weight: 500; }
+
+        .detail-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .detail-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .detail-table th {
+            background: var(--dark);
+            color: white;
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.78rem;
+        }
+        .detail-table td {
+            padding: 0.5rem 0.8rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .detail-table tr:last-child td { border-bottom: none; }
+        .detail-table tr:hover td { background: #fafafa; }
+        .detail-table .total-row td {
+            font-weight: 800;
+            background: #f5f5f5;
+            border-top: 2px solid #ddd;
+        }
+
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+        .empty-state i { font-size: 3rem; margin-bottom: 0.8rem; display: block; opacity: 0.4; }
+        .empty-state p { font-size: 0.9rem; }
+
+        /* ── Error toast ── */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--danger);
+            color: white;
+            padding: 0.7rem 1.5rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            transition: transform 0.3s;
+            z-index: 100;
+            max-width: 90vw;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* ── Loading ── */
+        .loading-spinner {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <div>
+                <div class="brand">FERCO CERÁMICA</div>
+                <h1><i class="bi bi-file-earmark-check"></i> Pase de Salida</h1>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+            <span class="btn-link" id="userBadge" style="border:none;cursor:default"><i class="bi bi-person-circle"></i> ...</span>
+            <a href="/dashboard" class="btn-link"><i class="bi bi-grid"></i> Dashboard</a>
+        </div>
+    </div>
+
+    <div class="search-bar">
+        <select id="selectPais">
+            <option value="GT">Guatemala</option>
+            <option value="SV">El Salvador</option>
+        </select>
+        <input type="text" id="inputDocNum" placeholder="No. documento (OV o Solicitud de Traslado)..."
+               onkeydown="if(event.key==='Enter') buscar()">
+        <button class="btn-search" id="btnSearch" onclick="buscar()">
+            <i class="bi bi-search"></i> Buscar
+        </button>
+    </div>
+
+    <div class="filter-bar" id="filterBar">
+        <label>Almacén:</label>
+        <select id="selectAlmacen" onchange="cargarRecientes()">
+            <option value="">Todos</option>
+        </select>
+        <span class="badge-count" id="badgeCount">0 documentos</span>
+    </div>
+
+    <!-- List view -->
+    <div class="content list-view" id="listView">
+        <div id="listaRecientes">
+            <div class="loading-spinner" id="loadingList">
+                <i class="bi bi-arrow-repeat"></i> Cargando despachos recientes...
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail view -->
+    <div class="content detail-view" id="detailView">
+        <div class="detail-header">
+            <div class="detail-title">
+                <div style="display:flex; align-items:center; gap:0.5rem">
+                    <button class="btn-back" onclick="volverLista()"><i class="bi bi-arrow-left"></i> Volver</button>
+                    <h2 id="detailDocTitle">-</h2>
+                </div>
+                <button class="btn-print" onclick="imprimirPase()">
+                    <i class="bi bi-printer"></i> Imprimir Pase
+                </button>
+            </div>
+            <div class="detail-grid" id="detailGrid"></div>
+        </div>
+        <div class="detail-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:110px">Código Material</th>
+                        <th>Nombre Material</th>
+                        <th style="width:80px; text-align:right">Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody id="detailBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let currentData = null;
+        let currentUser = null;
+        let userPais = 'GT';
+        let userAlmacenCode = '';
+
+        async function init() {
+            // Load user session
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) { window.location.href = '/login'; return; }
+                currentUser = await res.json();
+                document.getElementById('userBadge').innerHTML =
+                    `<i class="bi bi-person-circle"></i> ${currentUser.nombre}`;
+
+                // Detect pais from selected centro
+                if (currentUser.selectedCentroPais) {
+                    userPais = currentUser.selectedCentroPais;
+                }
+                if (currentUser.selectedCentroCodigo) {
+                    userAlmacenCode = currentUser.selectedCentroCodigo;
+                }
+
+                // Set pais selector
+                document.getElementById('selectPais').value = userPais;
+                // Admin can change pais, supervisors locked to their centro
+                if (currentUser.rol !== 'Admin') {
+                    document.getElementById('selectPais').disabled = true;
+                }
+            } catch (e) {
+                window.location.href = '/login';
+                return;
+            }
+
+            await cargarAlmacenes();
+
+            // Pre-select the user's almacen if available
+            if (userAlmacenCode) {
+                document.getElementById('selectAlmacen').value = userAlmacenCode;
+            }
+
+            cargarRecientes();
+        }
+
+        async function cargarAlmacenes() {
+            try {
+                const pais = document.getElementById('selectPais').value;
+                const res = await fetch('/api/pase-salida/almacenes?pais=' + pais);
+                const data = await res.json();
+                const sel = document.getElementById('selectAlmacen');
+                sel.innerHTML = '<option value="">Todos</option>';
+                data.forEach(a => {
+                    sel.innerHTML += `<option value="${a.Code}">${a.Code} - ${a.Name}</option>`;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function cargarRecientes() {
+            const pais = document.getElementById('selectPais').value;
+            const almacen = document.getElementById('selectAlmacen').value;
+            const container = document.getElementById('listaRecientes');
+            container.innerHTML = '<div class="loading-spinner"><i class="bi bi-arrow-repeat"></i> Cargando...</div>';
+
+            try {
+                const res = await fetch(`/api/pase-salida/recientes?pais=${pais}&almacen=${almacen}`);
+                const data = await res.json();
+
+                document.getElementById('badgeCount').textContent = data.length + ' documentos';
+
+                if (data.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <p>No hay despachos recientes (últimas 48h)</p>
+                        </div>`;
+                    return;
+                }
+
+                container.innerHTML = data.map(d => `
+                    <div class="result-card tipo-${d.Tipo.toLowerCase()}" onclick="buscarDoc('${d.NumeroDocumento}')">
+                        <span class="result-tipo ${d.Tipo.toLowerCase()}">${d.Tipo}</span>
+                        <div class="result-info">
+                            <div class="doc-num">${d.NumeroDocumento}</div>
+                            <div class="doc-detail">${esc(d.Cliente || d.TipoSalida || 'Traslado')} · ${esc(d.Almacen || '')}</div>
+                        </div>
+                        <div class="result-meta">
+                            <div class="piezas">${d.TotalPiezas} pzs</div>
+                            <div>${d.CantArticulos} art.</div>
+                            <div>${fmtTime(d.Fecha)}</div>
+                        </div>
+                        <div class="result-arrow"><i class="bi bi-chevron-right"></i></div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Error: ${e.message}</p></div>`;
+            }
+        }
+
+        function buscarDoc(docNum) {
+            document.getElementById('inputDocNum').value = docNum;
+            buscar();
+        }
+
+        async function buscar() {
+            const docNum = document.getElementById('inputDocNum').value.trim();
+            if (!docNum) return;
+
+            const btn = document.getElementById('btnSearch');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Buscando...';
+
+            try {
+                const pais = document.getElementById('selectPais').value;
+                const res = await fetch(`/api/pase-salida/buscar/${docNum}?pais=${pais}`);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showToast(data.error || 'Error al buscar');
+                    return;
+                }
+
+                currentData = data;
+                mostrarDetalle(data);
+            } catch (e) {
+                showToast('Error de conexión: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-search"></i> Buscar';
+            }
+        }
+
+        function mostrarDetalle(data) {
+            document.getElementById('listView').classList.add('hidden');
+            document.getElementById('detailView').classList.add('active');
+            document.getElementById('filterBar').style.display = 'none';
+
+            const h = data.header;
+            document.getElementById('detailDocTitle').textContent =
+                (data.tipo === 'OV' ? 'OV ' : 'Traslado ') + h.NumeroDocumento;
+
+            const grid = document.getElementById('detailGrid');
+            grid.innerHTML = `
+                <div class="field"><span class="field-label">Fecha:</span><span class="field-value">${fmtDate(h.Fecha)}</span></div>
+                <div class="field"><span class="field-label">Centro Distrib.:</span><span class="field-value">${esc(h.CodAlmacen)} - ${esc(h.Almacen)}</span></div>
+                <div class="field"><span class="field-label">Código Cliente:</span><span class="field-value">${esc(h.CodigoCliente)}</span></div>
+                <div class="field"><span class="field-label">Tipo de salida:</span><span class="field-value">${esc(h.TipoSalida)}</span></div>
+                <div class="field"><span class="field-label">No. Documento:</span><span class="field-value">${h.NumeroDocumento}</span></div>
+                <div class="field"><span class="field-label">Nombre Cliente:</span><span class="field-value">${esc(h.NombreCliente)}</span></div>
+                <div class="field"><span class="field-label">Dirección:</span><span class="field-value">${esc(h.Direccion)}</span></div>
+                <div class="field"><span class="field-label">Vendedor:</span><span class="field-value">${esc(h.Vendedor)}</span></div>
+                <div class="field"><span class="field-label">Sucursal:</span><span class="field-value">${esc(h.Sucursal)}</span></div>
+                <div class="field"><span class="field-label">F. Comprometida:</span><span class="field-value">${fmtDate(h.FechaComprometida)}</span></div>
+                <div class="field"><span class="field-label">Tipo de Pago:</span><span class="field-value">${esc(h.TipoPago)}</span></div>
+                <div class="field"><span class="field-label">Observaciones:</span><span class="field-value">${esc(h.Observaciones)}</span></div>
+            `;
+
+            const body = document.getElementById('detailBody');
+            let totalQty = 0;
+            body.innerHTML = data.lineas.map(l => {
+                totalQty += l.Cantidad;
+                return `<tr>
+                    <td>${esc(l.CodigoMaterial)}</td>
+                    <td>${esc(l.NombreMaterial)}</td>
+                    <td style="text-align:right; font-weight:600">${l.Cantidad}</td>
+                </tr>`;
+            }).join('');
+            body.innerHTML += `<tr class="total-row">
+                <td colspan="2">Total</td>
+                <td style="text-align:right">${totalQty}</td>
+            </tr>`;
+        }
+
+        function volverLista() {
+            document.getElementById('listView').classList.remove('hidden');
+            document.getElementById('detailView').classList.remove('active');
+            document.getElementById('filterBar').style.display = '';
+            currentData = null;
+        }
+
+        function imprimirPase() {
+            if (!currentData) return;
+            const pais = document.getElementById('selectPais').value;
+            const docNum = currentData.header.NumeroDocumento;
+            window.open('/pase-salida-print.html?doc=' + docNum + '&pais=' + pais, '_blank');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            const el = document.createElement('span');
+            el.textContent = s;
+            return el.innerHTML;
+        }
+
+        function fmtDate(d) {
+            if (!d) return '';
+            const dt = new Date(d);
+            return dt.toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function fmtTime(d) {
+            if (!d) return '';
+            const dt = new Date(d);
+            return dt.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        document.getElementById('selectPais').addEventListener('change', () => {
+            cargarAlmacenes();
+            cargarRecientes();
+        });
+
+        init();
+    </script>
+</body>
+</html>
