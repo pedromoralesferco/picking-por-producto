@@ -547,6 +547,7 @@
                         <label><input type="checkbox" id="permGestion" value="gestion"> Gestion</label>
                         <label><input type="checkbox" id="permPriorizacion" value="priorizacion"> Priorizacion</label>
                         <label><input type="checkbox" id="permDespacho" value="despacho"> Despacho</label>
+                        <label><input type="checkbox" id="permPaseSalida" value="pase-salida"> Pase de Salida</label>
                     </div>
                     <p class="hint">Los Admin tienen acceso a todo automaticamente</p>
                 </div>
@@ -795,6 +796,7 @@
             document.getElementById('permGestion').checked = user ? user.permisos.includes('gestion') : false;
             document.getElementById('permPriorizacion').checked = user ? user.permisos.includes('priorizacion') : false;
             document.getElementById('permDespacho').checked = user ? user.permisos.includes('despacho') : false;
+            document.getElementById('permPaseSalida').checked = user ? user.permisos.includes('pase-salida') : false;
 
             // Populate centros checkboxes
             const userCentros = user ? (user.centros || []) : [];
@@ -831,6 +833,7 @@
             if (document.getElementById('permGestion').checked) data.permisos.push('gestion');
             if (document.getElementById('permPriorizacion').checked) data.permisos.push('priorizacion');
             if (document.getElementById('permDespacho').checked) data.permisos.push('despacho');
+            if (document.getElementById('permPaseSalida').checked) data.permisos.push('pase-salida');
 
             data.centros = [];
             document.querySelectorAll('.centroCb:checked').forEach(cb => {
