@@ -1136,7 +1136,7 @@ router.get('/pase-salida/recientes', async (req, res) => {
                 LEFT JOIN [server-sql].[${sapDb}].dbo.OSHP ship WITH (NOLOCK) ON ship.TrnspCode = t8.TrnspCode
                 WHERE t0.TransactionType IN ('DL', 'REQDEL')
                 AND t0.OldQty > t0.NewQty
-                AND t0.DateTimeTransaction > GETDATE() - 2
+                AND t0.DateTimeTransaction > DATEADD(HOUR, -4, GETDATE())
                 ${almacenFilter}
                 GROUP BY t0.DocNumSAP, t0.TransactionType
                 ORDER BY MAX(t0.DateTimeTransaction) DESC
