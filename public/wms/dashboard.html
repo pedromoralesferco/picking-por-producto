@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS DIMORA</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #d4a826; --primary-dark: #b8941f;
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+            --text: #e8e8ed; --text2: #9898a8; --border: #2a2a3a;
+            --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #3b82f6;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        .topbar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+        }
+        .topbar-title { font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+        .topbar-user { color: var(--text2); font-size: 0.85rem; display: flex; align-items: center; gap: 0.75rem; }
+        .btn-logout {
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+        }
+        .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+        .dashboard-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem; padding: 2rem; max-width: 1200px; margin: 0 auto;
+        }
+        .module-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            padding: 2rem; cursor: pointer; transition: all 0.2s;
+            text-decoration: none; color: var(--text);
+        }
+        .module-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212,168,38,0.1); }
+        .module-card .icon { font-size: 2.5rem; margin-bottom: 1rem; color: var(--primary); }
+        .module-card h3 { font-size: 1.15rem; margin-bottom: 0.5rem; }
+        .module-card p { color: var(--text2); font-size: 0.85rem; line-height: 1.5; }
+        .module-card .badge {
+            display: inline-block; margin-top: 0.75rem; padding: 0.2rem 0.6rem;
+            border-radius: 4px; font-size: 0.7rem; font-weight: 600;
+        }
+        .badge-count { background: rgba(212,168,38,0.15); color: var(--primary); }
+
+        .stats-bar {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem; padding: 1.5rem 2rem 0; max-width: 1200px; margin: 0 auto;
+        }
+        .stat-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+            padding: 1rem 1.25rem; display: flex; align-items: center; gap: 1rem;
+        }
+        .stat-icon { font-size: 1.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-label { color: var(--text2); font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-title"><i class="bi bi-box-seam"></i> WMS DIMORA</div>
+        <div class="topbar-user">
+            <span id="userName"></span>
+            <a href="/dashboard" class="btn-logout"><i class="bi bi-arrow-left"></i> Picking App</a>
+            <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Salir</button>
+        </div>
+    </div>
+
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-card">
+            <div class="stat-icon" style="color:var(--warning)"><i class="bi bi-clock-history"></i></div>
+            <div><div class="stat-value" id="statPickPendientes">-</div><div class="stat-label">Picking pendiente</div></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="color:var(--info)"><i class="bi bi-box-arrow-in-down"></i></div>
+            <div><div class="stat-value" id="statIngresoPendientes">-</div><div class="stat-label">Ingresos pendientes</div></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="color:var(--success)"><i class="bi bi-check-circle"></i></div>
+            <div><div class="stat-value" id="statIntegracion">-</div><div class="stat-label">Integracion pendiente</div></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="color:var(--primary)"><i class="bi bi-upc-scan"></i></div>
+            <div><div class="stat-value" id="statLPN">-</div><div class="stat-label">LPNs activas</div></div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid" id="modules"></div>
+
+    <script>
+        let userPermisos = [];
+
+        const MODULES = [
+            { id: 'wms_picking', href: '/wms/picking', icon: 'bi-cart-check', title: 'Picking OV',
+              desc: 'Importar ordenes de venta de SAP, asignar operadores y gestionar el picking linea por linea.' },
+            { id: 'wms_ingreso', href: '/wms/ingreso', icon: 'bi-box-arrow-in-down', title: 'Ingreso Mercaderia',
+              desc: 'Recibir mercaderia desde ordenes de compra de SAP y asignar ubicaciones.' },
+            { id: 'wms_traslados', href: '/wms/traslados', icon: 'bi-arrow-left-right', title: 'Traslados',
+              desc: 'Mover LPNs completas o productos individuales entre ubicaciones.' },
+            { id: 'wms_picking', href: '/wms/stock', icon: 'bi-clipboard-data', title: 'Inventario',
+              desc: 'Consultar stock por ubicacion, LPN y producto.' },
+            { id: 'wms_config', href: '/wms/config', icon: 'bi-gear', title: 'Configuracion',
+              desc: 'Gestionar ubicaciones de bodega y ver operadores.' },
+            { id: 'wms_config', href: '/wms/integracion', icon: 'bi-cloud-arrow-up', title: 'Integracion SAP',
+              desc: 'Monitorear documentos enviados a UiPath para creacion en SAP.' },
+        ];
+
+        async function init() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) return window.location.href = '/login';
+                const user = await res.json();
+                document.getElementById('userName').textContent = user.nombre;
+                userPermisos = user.permisos || [];
+
+                renderModules();
+                loadStats();
+            } catch { window.location.href = '/login'; }
+        }
+
+        function hasPerm(mod) {
+            return userPermisos.includes(mod) || userPermisos.includes('admin');
+        }
+
+        function renderModules() {
+            const grid = document.getElementById('modules');
+            grid.innerHTML = MODULES
+                .filter(m => hasPerm(m.id))
+                .map(m => `
+                    <a href="${m.href}" class="module-card">
+                        <div class="icon"><i class="bi ${m.icon}"></i></div>
+                        <h3>${m.title}</h3>
+                        <p>${m.desc}</p>
+                    </a>
+                `).join('');
+        }
+
+        async function loadStats() {
+            try {
+                const [pickRes, ingRes, intRes, lpnRes] = await Promise.allSettled([
+                    fetch('/api/wms/picking/tareas').then(r => r.json()),
+                    fetch('/api/wms/ingreso/tareas').then(r => r.json()),
+                    fetch('/api/wms/integracion?estado=Pendiente').then(r => r.json()),
+                    fetch('/api/wms/lpn?estado=Abierta').then(r => r.json()),
+                ]);
+                if (pickRes.status === 'fulfilled')
+                    document.getElementById('statPickPendientes').textContent =
+                        pickRes.value.filter(t => t.EstadoGeneral !== 'Completada').length;
+                if (ingRes.status === 'fulfilled')
+                    document.getElementById('statIngresoPendientes').textContent =
+                        ingRes.value.filter(t => t.EstadoGeneral !== 'Completada').length;
+                if (intRes.status === 'fulfilled')
+                    document.getElementById('statIntegracion').textContent = intRes.value.length;
+                if (lpnRes.status === 'fulfilled')
+                    document.getElementById('statLPN').textContent = lpnRes.value.length;
+            } catch {}
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        init();
+    </script>
+</body>
+</html>

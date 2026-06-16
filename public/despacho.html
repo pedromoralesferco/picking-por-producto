@@ -934,10 +934,11 @@
             const isDone = d.Estado === 'Finalizado';
             const linFin = d.LineasFinalizadas || 0;
             const linTotal = d.TotalLineas || 0;
+            const isOpen = openDocs.has('order-' + d.ID_OrderPicking);
 
             return `
                 <div class="doc-card">
-                    <div class="doc-card-header">
+                    <div class="doc-card-header" onclick="toggleDocOrder(${d.ID_OrderPicking})">
                         <div class="doc-icon ${isDone ? 'done' : 'pending'}">
                             <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
                         </div>
@@ -949,9 +950,55 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span></div>
                         </div>
+                        <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
+                    <div class="doc-products ${isOpen ? 'open' : ''}" id="doc-order-${d.ID_OrderPicking}"></div>
                 </div>
             `;
+        }
+
+        async function toggleDocOrder(idOrderPicking) {
+            const key = 'order-' + idOrderPicking;
+            const el = document.getElementById('doc-' + key);
+            if (!el) return;
+
+            if (openDocs.has(key)) {
+                openDocs.delete(key);
+                el.classList.remove('open');
+                el.innerHTML = '';
+                return;
+            }
+
+            openDocs.add(key);
+            el.classList.add('open');
+            el.innerHTML = '<div style="padding:0.3rem 0;font-size:0.72rem;color:#aaa"><i class="bi bi-hourglass-split"></i> Cargando...</div>';
+
+            try {
+                const res = await fetch('/api/order/despacho/rutas/0/documentos/' + idOrderPicking + '/productos');
+                const productos = await res.json();
+
+                el.innerHTML = productos.map(p => {
+                    const pDone = p.Estado === 'Finalizado';
+                    const qty = pDone ? '✓' : p.CantidadPendiente + '/' + p.Cantidad;
+                    return `
+                        <div class="prod-row">
+                            <div class="prod-icon ${pDone ? 'done' : 'pending'}">
+                                <i class="bi bi-${pDone ? 'check-lg' : 'box-seam'}"></i>
+                            </div>
+                            <div class="prod-info">
+                                <div class="prod-code">${esc(p.Product)}</div>
+                                <div class="prod-name">${esc(p.ProductName || '')}</div>
+                            </div>
+                            <div class="prod-qty">
+                                <span class="${pDone ? 'done' : ''}">${qty}</span>
+                                ${p.UnitWeight ? '<div class="prod-weight">' + formatNum(p.Cantidad * (p.UnitWeight || 0)) + ' kg</div>' : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                el.innerHTML = '<div style="padding:0.5rem;color:#c62828;font-size:0.75rem">Error al cargar productos</div>';
+            }
         }
 
         async function cambiarEstadoOrder(idRoutePlan, routeNumber, estado) {

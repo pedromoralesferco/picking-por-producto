@@ -9,6 +9,7 @@ const apiRoutes = require('./routes/api');
 const orderApiRoutes = require('./routes/order-api');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const wmsApiRoutes = require('./routes/wms-api');
 const { requireAuthPage, requireAdminPage, requirePermisoPage } = require('./middleware/auth');
 
 const app = express();
@@ -50,6 +51,7 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/order', orderApiRoutes);
+app.use('/api/wms', wmsApiRoutes);
 app.use('/api', apiRoutes);
 
 // Centro selection page
@@ -98,6 +100,29 @@ app.get('/admin', requireAdminPage, (req, res) => {
 // Picker page stays public (no auth)
 app.get('/picker', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'picker.html'));
+});
+
+// ── WMS Pages ──
+app.get('/wms', requireAuthPage, requireCentro, requirePermisoPage('wms_picking'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'dashboard.html'));
+});
+app.get('/wms/picking', requireAuthPage, requireCentro, requirePermisoPage('wms_picking'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'picking.html'));
+});
+app.get('/wms/ingreso', requireAuthPage, requireCentro, requirePermisoPage('wms_ingreso'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'ingreso.html'));
+});
+app.get('/wms/traslados', requireAuthPage, requireCentro, requirePermisoPage('wms_traslados'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'traslados.html'));
+});
+app.get('/wms/config', requireAuthPage, requireCentro, requirePermisoPage('wms_config'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'config.html'));
+});
+app.get('/wms/stock', requireAuthPage, requireCentro, requirePermisoPage('wms_picking'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'stock.html'));
+});
+app.get('/wms/integracion', requireAuthPage, requireCentro, requirePermisoPage('wms_config'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'wms', 'integracion.html'));
 });
 
 async function start() {

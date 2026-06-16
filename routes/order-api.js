@@ -523,6 +523,34 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
     }
 });
 
+// GET /api/order/despacho/rutas/:id/documentos/:idOrderPicking/productos — Lines for a pedido in despacho
+router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('idOrderPicking', sql.Int, parseInt(req.params.idOrderPicking))
+            .query(`
+                SELECT
+                    InternIdProduct AS Product,
+                    MAX(Descripcion) AS ProductName,
+                    MAX(Cantidad) AS Cantidad,
+                    MAX(CantidadPendiente) AS CantidadPendiente,
+                    MAX(UnitWeight) AS UnitWeight,
+                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado
+                FROM OrderPickingTask
+                WHERE ID_OrderPicking = @idOrderPicking
+                GROUP BY InternIdProduct
+                ORDER BY
+                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 1 ELSE 0 END,
+                    InternIdProduct
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET despacho order productos error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 // ══════════════════════════════════════════
 // ── Limpiar rutas finalizadas (Order)
 // ══════════════════════════════════════════

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS DIMORA - Integracion SAP</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #d4a826; --primary-dark: #b8941f;
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+            --text: #e8e8ed; --text2: #9898a8; --border: #2a2a3a;
+            --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #3b82f6;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        .topbar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+        }
+        .topbar-title { font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+        .topbar-user { color: var(--text2); font-size: 0.85rem; display: flex; align-items: center; gap: 0.75rem; }
+        .btn-logout {
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; text-decoration: none;
+        }
+        .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        .filters {
+            display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+            padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        .filter-group label { font-size: 0.75rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-group select {
+            padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 200px;
+        }
+        .filter-group select:focus { outline: none; border-color: var(--primary); }
+
+        table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; }
+        thead th {
+            text-align: left; padding: 0.75rem 1rem; background: var(--surface2); color: var(--text2);
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        tbody td { padding: 0.65rem 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+        tbody tr { cursor: pointer; transition: background 0.15s; }
+        tbody tr:hover { background: var(--surface2); }
+
+        .badge {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        .badge-Pendiente { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .badge-EnProceso { background: rgba(59,130,246,0.15); color: var(--info); }
+        .badge-Completado { background: rgba(34,197,94,0.15); color: var(--success); }
+        .badge-Error { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+        .btn-retry {
+            background: var(--danger); color: #fff; border: none; padding: 0.35rem 0.75rem;
+            border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+        }
+        .btn-retry:hover { opacity: 0.85; }
+
+        .error-msg {
+            background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--danger);
+            margin-top: 0.4rem; word-break: break-word;
+        }
+
+        /* Detail Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 1000; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto;
+        }
+        .modal-header {
+            padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h3 { font-size: 1rem; }
+        .modal-close { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 1.2rem; }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { padding: 1.25rem; }
+
+        .detail-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem; margin-bottom: 1.5rem;
+        }
+        .detail-item label { display: block; font-size: 0.7rem; color: var(--text2); text-transform: uppercase; margin-bottom: 0.2rem; }
+        .detail-item .val { font-size: 0.9rem; }
+
+        .detail-lines table { font-size: 0.8rem; }
+        .detail-lines thead th { font-size: 0.7rem; padding: 0.5rem 0.75rem; }
+        .detail-lines tbody td { padding: 0.5rem 0.75rem; }
+
+        .section-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--primary); }
+
+        .loading { text-align: center; padding: 2rem; color: var(--text2); }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text2); }
+        .empty-state i { font-size: 2rem; margin-bottom: 0.5rem; display: block; }
+
+        @media (max-width: 768px) {
+            table { font-size: 0.8rem; }
+            thead th, tbody td { padding: 0.5rem; }
+            .detail-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-title"><i class="bi bi-cloud-arrow-up"></i> WMS DIMORA - Integracion SAP</div>
+        <div class="topbar-user">
+            <span id="userName"></span>
+            <a href="/wms" class="btn-logout"><i class="bi bi-arrow-left"></i> WMS</a>
+            <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Salir</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="filters">
+            <div class="filter-group">
+                <label>Estado</label>
+                <select id="filterEstado" onchange="loadIntegracion()">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="EnProceso">En Proceso</option>
+                    <option value="Completado">Completado</option>
+                    <option value="Error">Error</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="integracionTable"><div class="loading"><i class="bi bi-arrow-repeat"></i> Cargando...</div></div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Detalle de Integracion</h3>
+                <button class="modal-close" onclick="closeModal()"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="loading">Cargando...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let intData = [];
+
+        async function init() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) return window.location.href = '/login';
+                const user = await res.json();
+                document.getElementById('userName').textContent = user.nombre;
+                loadIntegracion();
+            } catch { window.location.href = '/login'; }
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        async function loadIntegracion() {
+            const el = document.getElementById('integracionTable');
+            el.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat"></i> Cargando...</div>';
+
+            const estado = document.getElementById('filterEstado').value;
+            const params = estado ? '?estado=' + encodeURIComponent(estado) : '';
+
+            try {
+                const res = await fetch('/api/wms/integracion' + params);
+                if (!res.ok) throw new Error();
+                intData = await res.json();
+                renderIntegracion();
+            } catch {
+                el.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Error al cargar datos de integracion</div>';
+            }
+        }
+
+        function renderIntegracion() {
+            const el = document.getElementById('integracionTable');
+            if (!intData.length) {
+                el.innerHTML = '<div class="empty-state"><i class="bi bi-cloud-check"></i>No hay registros de integracion con este filtro</div>';
+                return;
+            }
+            el.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tipo Doc</th><th>DocNum Origen</th><th>Cliente/Proveedor</th>
+                            <th>Estado</th><th>DocNum SAP Creado</th><th>Intentos</th>
+                            <th>Fecha</th><th>Usuario</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${intData.map(r => `
+                            <tr onclick="openDetail(${r.ID_IntegracionSAP})">
+                                <td><strong>${esc(r.TipoDocumento || '')}</strong></td>
+                                <td>${esc(String(r.DocNum_SAP_Origen || '-'))}</td>
+                                <td>${esc(r.CardName || '-')}</td>
+                                <td><span class="badge badge-${r.Estado || ''}">${esc(r.Estado || '-')}</span></td>
+                                <td>${r.DocNum_SAP_Creado ? '<span style="color:var(--success);font-weight:600">' + esc(String(r.DocNum_SAP_Creado)) + '</span>' : '-'}</td>
+                                <td style="color:var(--text2)">${r.IntentosUiPath != null ? r.IntentosUiPath : '-'}</td>
+                                <td style="color:var(--text2);font-size:0.8rem">${formatDate(r.FechaCreacion)}</td>
+                                <td style="color:var(--text2)">${esc(r.UsuarioNombre || '-')}</td>
+                                <td onclick="event.stopPropagation()">
+                                    ${r.Estado === 'Error' ? `<button class="btn-retry" onclick="reintentar(${r.ID_IntegracionSAP})"><i class="bi bi-arrow-clockwise"></i> Reintentar</button>` : ''}
+                                </td>
+                            </tr>
+                            ${r.Estado === 'Error' && r.MensajeError ? `
+                            <tr onclick="openDetail(${r.ID_IntegracionSAP})" style="border-top:none">
+                                <td colspan="9" style="padding-top:0;border-top:none">
+                                    <div class="error-msg"><i class="bi bi-exclamation-triangle"></i> ${esc(r.MensajeError)}</div>
+                                </td>
+                            </tr>` : ''}
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            try {
+                const dt = new Date(d);
+                return dt.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    + ' ' + dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            } catch { return d; }
+        }
+
+        async function openDetail(id) {
+            document.getElementById('modalOverlay').classList.add('active');
+            document.getElementById('modalBody').innerHTML = '<div class="loading">Cargando detalle...</div>';
+
+            try {
+                const res = await fetch('/api/wms/integracion/' + id);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                renderDetail(data);
+            } catch {
+                document.getElementById('modalBody').innerHTML = '<div class="empty-state">Error al cargar detalle</div>';
+            }
+        }
+
+        function renderDetail(data) {
+            const h = data.header || data;
+            const lines = data.lines || data.Lineas || [];
+
+            document.getElementById('modalTitle').textContent =
+                (h.TipoDocumento || 'Documento') + ' - DocNum ' + (h.DocNum_SAP_Origen || '-');
+
+            let html = `
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Tipo Documento</label>
+                        <div class="val">${esc(h.TipoDocumento || '-')}</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>DocNum SAP Origen</label>
+                        <div class="val" style="font-weight:600">${esc(String(h.DocNum_SAP_Origen || '-'))}</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>Cliente / Proveedor</label>
+                        <div class="val">${esc(h.CardName || '-')}</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>Estado</label>
+                        <div class="val"><span class="badge badge-${h.Estado || ''}">${esc(h.Estado || '-')}</span></div>
+                    </div>
+                    <div class="detail-item">
+                        <label>DocNum SAP Creado</label>
+                        <div class="val" style="color:var(--success);font-weight:600">${h.DocNum_SAP_Creado || '-'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>Intentos UiPath</label>
+                        <div class="val">${h.IntentosUiPath != null ? h.IntentosUiPath : '-'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>Fecha Creacion</label>
+                        <div class="val">${formatDate(h.FechaCreacion)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>Usuario</label>
+                        <div class="val">${esc(h.UsuarioNombre || '-')}</div>
+                    </div>
+                </div>
+            `;
+
+            if (h.Estado === 'Error' && h.MensajeError) {
+                html += `
+                    <div style="margin-bottom:1.5rem">
+                        <div class="section-title"><i class="bi bi-exclamation-triangle"></i> Mensaje de Error</div>
+                        <div class="error-msg">${esc(h.MensajeError)}</div>
+                    </div>
+                `;
+            }
+
+            if (h.Estado === 'Error') {
+                html += `
+                    <div style="margin-bottom:1.5rem">
+                        <button class="btn-retry" onclick="reintentar(${h.ID_IntegracionSAP}); closeModal();">
+                            <i class="bi bi-arrow-clockwise"></i> Reintentar Integracion
+                        </button>
+                    </div>
+                `;
+            }
+
+            if (lines.length) {
+                html += `
+                    <div class="detail-lines">
+                        <div class="section-title"><i class="bi bi-list-ul"></i> Lineas del Documento (${lines.length})</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th><th>ItemCode</th><th>Descripcion</th>
+                                    <th>Cantidad</th><th>Almacen</th><th>Lote</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${lines.map((l, i) => `
+                                    <tr>
+                                        <td style="color:var(--text2)">${i + 1}</td>
+                                        <td><strong>${esc(l.ItemCode || '')}</strong></td>
+                                        <td>${esc(l.Descripcion || l.ItemDescription || '')}</td>
+                                        <td style="font-weight:600">${Number(l.Cantidad || l.Quantity || 0).toLocaleString()}</td>
+                                        <td style="color:var(--text2)">${esc(l.WhsCode || l.Almacen || '-')}</td>
+                                        <td style="color:var(--text2)">${esc(l.Lote || l.BatchNumber || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                html += '<div style="color:var(--text2);font-size:0.85rem;margin-top:1rem"><i class="bi bi-info-circle"></i> Sin lineas de detalle disponibles</div>';
+            }
+
+            document.getElementById('modalBody').innerHTML = html;
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        async function reintentar(id) {
+            if (!confirm('Reintentar integracion SAP para este documento?')) return;
+            try {
+                const res = await fetch('/api/wms/integracion/' + id + '/reintentar', { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Error al reintentar');
+                }
+                loadIntegracion();
+            } catch (e) { alert(e.message); }
+        }
+
+        // Close modal on overlay click
+        document.getElementById('modalOverlay').addEventListener('click', e => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        init();
+    </script>
+</body>
+</html>

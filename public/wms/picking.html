@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS DIMORA - Picking OV</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #d4a826; --primary-dark: #b8941f;
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+            --text: #e8e8ed; --text2: #9898a8; --border: #2a2a3a;
+            --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #3b82f6;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        /* Topbar */
+        .topbar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .topbar-title { font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+        .topbar-right { display: flex; align-items: center; gap: 0.75rem; }
+        .btn-back {
+            color: var(--text2); text-decoration: none; font-size: 0.85rem;
+            border: 1px solid var(--border); padding: 0.35rem 0.75rem; border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .btn-back:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-logout {
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+        }
+        .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+        /* Layout */
+        .layout {
+            display: grid; grid-template-columns: 380px 1fr;
+            height: calc(100vh - 49px); overflow: hidden;
+        }
+        .panel-left {
+            border-right: 1px solid var(--border); overflow-y: auto;
+            background: var(--surface);
+        }
+        .panel-right {
+            overflow-y: auto; padding: 1.5rem;
+        }
+
+        /* Panel header */
+        .panel-header {
+            padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; background: var(--surface); z-index: 10;
+        }
+        .panel-header h2 { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+
+        /* Buttons */
+        .btn-primary {
+            background: var(--primary); color: #000; border: none;
+            padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.8rem; font-weight: 600; transition: background 0.2s;
+        }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm {
+            padding: 0.3rem 0.65rem; font-size: 0.75rem; border-radius: 5px;
+            cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+            color: var(--text2); transition: all 0.2s;
+        }
+        .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-sm.success { border-color: var(--success); color: var(--success); }
+        .btn-sm.success:hover { background: rgba(34,197,94,0.1); }
+        .btn-sm.info { border-color: var(--info); color: var(--info); }
+        .btn-sm.info:hover { background: rgba(59,130,246,0.1); }
+        .btn-confirm {
+            background: var(--success); color: #fff; border: none;
+            padding: 0.6rem 1.5rem; border-radius: 8px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 600; transition: background 0.2s;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .btn-confirm:hover { background: #16a34a; }
+        .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* OV Cards */
+        .ov-list { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        .ov-card {
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+            padding: 0.85rem 1rem; cursor: pointer; transition: all 0.2s;
+        }
+        .ov-card:hover { border-color: var(--primary); }
+        .ov-card.active { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+        .ov-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+        .ov-card-doc { font-weight: 600; font-size: 0.9rem; }
+        .ov-card-client { color: var(--text2); font-size: 0.8rem; margin-bottom: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ov-card-footer { display: flex; justify-content: space-between; align-items: center; }
+        .ov-progress { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--text2); }
+        .progress-bar-bg {
+            width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+        }
+        .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+        /* Badges */
+        .badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        }
+        .badge-pendiente { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .badge-en-proceso { background: rgba(59,130,246,0.15); color: var(--info); }
+        .badge-completada, .badge-completado { background: rgba(34,197,94,0.15); color: var(--success); }
+        .badge-asignada { background: rgba(168,85,247,0.15); color: #a855f7; }
+
+        /* Detail panel */
+        .detail-placeholder {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; color: var(--text2);
+        }
+        .detail-placeholder i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+        .detail-placeholder p { font-size: 0.9rem; }
+
+        .detail-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+        }
+        .detail-header h2 { font-size: 1.2rem; font-weight: 700; }
+        .detail-header .sub { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+
+        /* Lines table */
+        .lines-table {
+            width: 100%; border-collapse: collapse;
+        }
+        .lines-table th {
+            text-align: left; padding: 0.6rem 0.75rem; font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2);
+            border-bottom: 1px solid var(--border); white-space: nowrap;
+        }
+        .lines-table td {
+            padding: 0.65rem 0.75rem; font-size: 0.82rem; border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        .lines-table tr:hover td { background: var(--surface2); }
+        .lines-table .item-code { font-weight: 600; color: var(--primary); font-size: 0.78rem; }
+        .lines-table .item-desc { color: var(--text2); font-size: 0.75rem; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lines-table .qty { font-variant-numeric: tabular-nums; }
+        .lines-table .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+        .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.show { opacity: 1; pointer-events: all; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            width: 90%; max-width: 700px; max-height: 80vh; display: flex; flex-direction: column;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h3 { font-size: 1rem; font-weight: 600; }
+        .modal-close {
+            background: none; border: none; color: var(--text2); font-size: 1.2rem;
+            cursor: pointer; padding: 0.25rem;
+        }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { padding: 1.25rem; overflow-y: auto; flex: 1; }
+        .modal-footer {
+            padding: 0.75rem 1.25rem; border-top: 1px solid var(--border);
+            display: flex; justify-content: flex-end; gap: 0.5rem;
+        }
+
+        /* Modal table */
+        .modal-table { width: 100%; border-collapse: collapse; }
+        .modal-table th {
+            text-align: left; padding: 0.5rem 0.6rem; font-size: 0.7rem;
+            text-transform: uppercase; color: var(--text2); border-bottom: 1px solid var(--border);
+        }
+        .modal-table td { padding: 0.5rem 0.6rem; font-size: 0.82rem; border-bottom: 1px solid var(--border); }
+        .modal-table tr:hover td { background: var(--surface2); }
+
+        /* Form elements */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: 0.8rem; color: var(--text2); margin-bottom: 0.35rem; }
+        .form-input {
+            width: 100%; padding: 0.55rem 0.75rem; background: var(--surface2);
+            border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+            font-size: 0.85rem; outline: none; transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: var(--primary); }
+        .form-input::placeholder { color: var(--text2); opacity: 0.6; }
+        select.form-input { cursor: pointer; }
+
+        /* LPN section */
+        .lpn-section { display: flex; gap: 0.5rem; align-items: flex-end; }
+        .lpn-section .form-group { flex: 1; margin-bottom: 0; }
+
+        /* Loading */
+        .spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid var(--border); border-top-color: var(--primary);
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-center { display: flex; justify-content: center; padding: 2rem; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 2rem; color: var(--text2); font-size: 0.85rem; }
+        .empty-state i { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.3; display: block; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .layout { grid-template-columns: 1fr; height: auto; }
+            .panel-left { border-right: none; border-bottom: 1px solid var(--border); max-height: 45vh; }
+            .panel-right { min-height: 50vh; }
+            .topbar { padding: 0.6rem 1rem; }
+            .topbar-title { font-size: 0.95rem; }
+            .lines-table .item-desc { max-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="topbar-title"><i class="bi bi-box-seam"></i> WMS DIMORA - Picking OV</div>
+    <div class="topbar-right">
+        <a href="/wms" class="btn-back"><i class="bi bi-arrow-left"></i> WMS</a>
+        <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Salir</button>
+    </div>
+</div>
+
+<div class="layout">
+    <!-- Left Panel: OV List -->
+    <div class="panel-left">
+        <div class="panel-header">
+            <h2><i class="bi bi-list-ul"></i> Ordenes de Venta</h2>
+            <button class="btn-primary" onclick="abrirModalImportar()">
+                <i class="bi bi-cloud-download"></i> Importar OV
+            </button>
+        </div>
+        <div class="ov-list" id="ovList">
+            <div class="loading-center"><div class="spinner"></div></div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Detail -->
+    <div class="panel-right" id="panelRight">
+        <div class="detail-placeholder">
+            <i class="bi bi-hand-index"></i>
+            <p>Selecciona una Orden de Venta para ver sus lineas</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Importar OV de SAP -->
+<div class="modal-overlay" id="modalImportar">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="bi bi-cloud-download"></i> Importar OV de SAP</h3>
+            <button class="modal-close" onclick="cerrarModal('modalImportar')">&times;</button>
+        </div>
+        <div class="modal-body" id="modalImportarBody">
+            <div class="loading-center"><div class="spinner"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Asignar Operador -->
+<div class="modal-overlay" id="modalAsignar">
+    <div class="modal" style="max-width:450px;">
+        <div class="modal-header">
+            <h3><i class="bi bi-person-plus"></i> Asignar Operador</h3>
+            <button class="modal-close" onclick="cerrarModal('modalAsignar')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Linea</label>
+                <input class="form-input" id="asignarLineaInfo" readonly>
+            </div>
+            <div class="form-group">
+                <label>Operador</label>
+                <select class="form-input" id="asignarOperador">
+                    <option value="">Cargando...</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-sm" onclick="cerrarModal('modalAsignar')">Cancelar</button>
+            <button class="btn-primary" id="btnAsignarConfirm" onclick="confirmarAsignar()">Asignar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Pickear -->
+<div class="modal-overlay" id="modalPickear">
+    <div class="modal" style="max-width:500px;">
+        <div class="modal-header">
+            <h3><i class="bi bi-upc-scan"></i> Registrar Picking</h3>
+            <button class="modal-close" onclick="cerrarModal('modalPickear')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Linea</label>
+                <input class="form-input" id="pickLineaInfo" readonly>
+            </div>
+            <div class="form-group">
+                <label>Cantidad a pickear</label>
+                <input class="form-input" id="pickCantidad" type="number" min="1" placeholder="Ingrese cantidad">
+            </div>
+            <div class="form-group">
+                <label>LPN (contenedor)</label>
+                <div class="lpn-section">
+                    <div class="form-group">
+                        <input class="form-input" id="pickLpnCodigo" placeholder="Buscar o crear LPN...">
+                    </div>
+                    <button class="btn-sm info" onclick="buscarLPN()" style="height:36px;">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                    <button class="btn-sm success" onclick="crearLPN()" style="height:36px;">
+                        <i class="bi bi-plus"></i> Crear
+                    </button>
+                </div>
+                <div id="lpnResultado" style="margin-top:0.5rem; font-size:0.8rem; color:var(--text2);"></div>
+                <input type="hidden" id="pickLpnId">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-sm" onclick="cerrarModal('modalPickear')">Cancelar</button>
+            <button class="btn-primary" id="btnPickConfirm" onclick="confirmarPick()">Confirmar Pick</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── State ──
+    let ordenes = [];
+    let ordenActiva = null;
+    let tareas = [];
+    let asignarTareaId = null;
+    let pickTareaId = null;
+    let operadoresCache = null;
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', () => {
+        cargarOrdenes();
+    });
+
+    // ── API helper ──
+    async function apiFetch(url, options = {}) {
+        try {
+            const res = await fetch(url, {
+                headers: { 'Content-Type': 'application/json' },
+                ...options
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: 'Error desconocido' }));
+                throw new Error(err.error || err.message || `HTTP ${res.status}`);
+            }
+            return await res.json();
+        } catch (e) {
+            alert('Error: ' + e.message);
+            throw e;
+        }
+    }
+
+    // ── Logout ──
+    function logout() {
+        fetch('/api/wms/logout', { method: 'POST' })
+            .then(() => { window.location.href = '/wms'; })
+            .catch(() => { window.location.href = '/wms'; });
+    }
+
+    // ── Cargar Ordenes ──
+    async function cargarOrdenes() {
+        const container = document.getElementById('ovList');
+        container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+        try {
+            const data = await apiFetch('/api/wms/picking/ordenes');
+            ordenes = data;
+            renderOrdenes();
+        } catch (e) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-circle"></i>Error al cargar ordenes</div>';
+        }
+    }
+
+    function renderOrdenes() {
+        const container = document.getElementById('ovList');
+        if (!ordenes.length) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-inbox"></i>No hay ordenes importadas. Importa una OV de SAP.</div>';
+            return;
+        }
+        container.innerHTML = ordenes.map(ov => {
+            const completadas = ov.LineasCompletadas || 0;
+            const total = ov.TotalLineas || 1;
+            const pct = Math.round((completadas / total) * 100);
+            const estado = (ov.EstadoGeneral || 'Pendiente').toLowerCase().replace(/\s+/g, '-');
+            const estadoLabel = ov.EstadoGeneral || 'Pendiente';
+            const isActive = ordenActiva && ordenActiva.DocNum_SAP === ov.DocNum_SAP;
+            let barColor = 'var(--warning)';
+            if (pct >= 100) barColor = 'var(--success)';
+            else if (pct > 0) barColor = 'var(--info)';
+            return `
+                <div class="ov-card ${isActive ? 'active' : ''}" onclick="seleccionarOV(${JSON.stringify(ov.DocNum_SAP)})">
+                    <div class="ov-card-header">
+                        <span class="ov-card-doc">OV ${ov.DocNum_SAP}</span>
+                        <span class="badge badge-${estado}">${estadoLabel}</span>
+                    </div>
+                    <div class="ov-card-client" title="${ov.CardName || ''}">${ov.CardName || 'Sin cliente'}</div>
+                    <div class="ov-card-footer">
+                        <div class="ov-progress">
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width:${pct}%; background:${barColor};"></div>
+                            </div>
+                            <span>${completadas}/${total}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ── Seleccionar OV ──
+    async function seleccionarOV(docNum) {
+        ordenActiva = ordenes.find(o => o.DocNum_SAP === docNum) || { DocNum_SAP: docNum };
+        renderOrdenes();
+
+        const panel = document.getElementById('panelRight');
+        panel.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+
+        try {
+            const data = await apiFetch(`/api/wms/picking/tareas/${docNum}`);
+            tareas = data;
+            renderDetalle();
+        } catch (e) {
+            panel.innerHTML = '<div class="detail-placeholder"><i class="bi bi-exclamation-circle"></i><p>Error al cargar las lineas</p></div>';
+        }
+    }
+
+    function renderDetalle() {
+        const panel = document.getElementById('panelRight');
+        const ov = ordenActiva;
+        const todasCompletas = tareas.length > 0 && tareas.every(t => (t.Estado || '').toLowerCase() === 'completada');
+
+        let html = `
+            <div class="detail-header">
+                <div>
+                    <h2>OV ${ov.DocNum_SAP}</h2>
+                    <div class="sub">${ov.CardName || ''}</div>
+                </div>
+                ${todasCompletas ? `
+                    <button class="btn-confirm" onclick="confirmarSAP('${ov.DocNum_SAP}')">
+                        <i class="bi bi-check2-circle"></i> Confirmar y Enviar a SAP
+                    </button>
+                ` : ''}
+            </div>
+            <div class="table-wrap">
+                <table class="lines-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Descripcion</th>
+                            <th>Cant.</th>
+                            <th>Pickeado</th>
+                            <th>Estado</th>
+                            <th>Operador</th>
+                            <th>LPN</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        if (!tareas.length) {
+            html += '<tr><td colspan="8" class="empty-state">No hay lineas para esta orden</td></tr>';
+        } else {
+            tareas.forEach(t => {
+                const estado = (t.Estado || 'Pendiente').toLowerCase().replace(/\s+/g, '-');
+                const estadoLabel = t.Estado || 'Pendiente';
+                const esCompletada = estado === 'completada';
+                html += `
+                    <tr>
+                        <td class="item-code">${t.ItemCode || ''}</td>
+                        <td class="item-desc" title="${t.Descripcion || ''}">${t.Descripcion || ''}</td>
+                        <td class="qty">${t.Cantidad || 0}</td>
+                        <td class="qty">${t.CantidadPickeada || 0}</td>
+                        <td><span class="badge badge-${estado}">${estadoLabel}</span></td>
+                        <td style="font-size:0.78rem; color:var(--text2);">${t.OperadorNombre || '-'}</td>
+                        <td style="font-size:0.78rem; color:var(--text2);">${t.LPN_Codigo || '-'}</td>
+                        <td>
+                            <div class="actions">
+                                ${!esCompletada ? `
+                                    <button class="btn-sm" onclick="abrirAsignar(${t.TareaID}, '${(t.ItemCode || '').replace(/'/g, "\\'")} - ${(t.Descripcion || '').replace(/'/g, "\\'")}')" title="Asignar operador">
+                                        <i class="bi bi-person-plus"></i> Asignar
+                                    </button>
+                                    <button class="btn-sm success" onclick="abrirPickear(${t.TareaID}, '${(t.ItemCode || '').replace(/'/g, "\\'")} - ${(t.Descripcion || '').replace(/'/g, "\\'")}', ${t.Cantidad || 0}, ${t.CantidadPickeada || 0})" title="Registrar pick">
+                                        <i class="bi bi-upc-scan"></i> Pickear
+                                    </button>
+                                ` : `
+                                    <span style="font-size:0.75rem; color:var(--success);"><i class="bi bi-check-circle"></i> Listo</span>
+                                `}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += '</tbody></table></div>';
+        panel.innerHTML = html;
+    }
+
+    // ── Confirmar a SAP ──
+    async function confirmarSAP(docNum) {
+        if (!confirm('Se enviara la confirmacion de picking a SAP. Continuar?')) return;
+        try {
+            await apiFetch(`/api/wms/picking/confirmar/${docNum}`, { method: 'POST' });
+            alert('Picking confirmado y enviado a SAP exitosamente.');
+            await cargarOrdenes();
+            ordenActiva = null;
+            document.getElementById('panelRight').innerHTML = `
+                <div class="detail-placeholder">
+                    <i class="bi bi-check-circle" style="color:var(--success);"></i>
+                    <p>Picking confirmado exitosamente</p>
+                </div>
+            `;
+        } catch (e) { /* apiFetch already shows alert */ }
+    }
+
+    // ── Modal: Importar OV de SAP ──
+    async function abrirModalImportar() {
+        mostrarModal('modalImportar');
+        const body = document.getElementById('modalImportarBody');
+        body.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+        try {
+            const data = await apiFetch('/api/wms/picking/ordenes-sap');
+            if (!data.length) {
+                body.innerHTML = '<div class="empty-state"><i class="bi bi-check-circle"></i>No hay ordenes abiertas en SAP para importar.</div>';
+                return;
+            }
+            let html = `
+                <table class="modal-table">
+                    <thead>
+                        <tr>
+                            <th>DocNum</th>
+                            <th>DocEntry</th>
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            data.forEach(o => {
+                html += `
+                    <tr>
+                        <td style="font-weight:600;">${o.DocNum || ''}</td>
+                        <td style="color:var(--text2);">${o.DocEntry || ''}</td>
+                        <td>${o.CardName || ''}</td>
+                        <td style="color:var(--text2); font-size:0.78rem;">${o.DocDate || ''}</td>
+                        <td>
+                            <button class="btn-primary" onclick="importarOV(${o.DocEntry}, ${o.DocNum}, this)">
+                                <i class="bi bi-download"></i> Importar
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            body.innerHTML = html;
+        } catch (e) {
+            body.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-circle"></i>Error al cargar ordenes de SAP</div>';
+        }
+    }
+
+    async function importarOV(docEntry, docNum, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner"></div>';
+        try {
+            await apiFetch('/api/wms/picking/importar', {
+                method: 'POST',
+                body: JSON.stringify({ docEntry, docNum })
+            });
+            btn.innerHTML = '<i class="bi bi-check"></i> Importada';
+            btn.style.background = 'var(--success)';
+            await cargarOrdenes();
+        } catch (e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-download"></i> Importar';
+        }
+    }
+
+    // ── Modal: Asignar Operador ──
+    async function abrirAsignar(tareaId, lineaInfo) {
+        asignarTareaId = tareaId;
+        document.getElementById('asignarLineaInfo').value = lineaInfo;
+        mostrarModal('modalAsignar');
+
+        const select = document.getElementById('asignarOperador');
+        if (operadoresCache) {
+            renderOperadores(select, operadoresCache);
+        } else {
+            select.innerHTML = '<option value="">Cargando...</option>';
+            try {
+                const data = await apiFetch('/api/wms/operadores');
+                operadoresCache = data;
+                renderOperadores(select, data);
+            } catch (e) {
+                select.innerHTML = '<option value="">Error al cargar</option>';
+            }
+        }
+    }
+
+    function renderOperadores(select, ops) {
+        select.innerHTML = '<option value="">Seleccionar operador...</option>';
+        ops.forEach(op => {
+            select.innerHTML += `<option value="${op.OperadorID}">${op.Nombre} ${op.Apellido || ''}</option>`;
+        });
+    }
+
+    async function confirmarAsignar() {
+        const operadorId = document.getElementById('asignarOperador').value;
+        if (!operadorId) { alert('Selecciona un operador'); return; }
+        const btn = document.getElementById('btnAsignarConfirm');
+        btn.disabled = true;
+        btn.textContent = 'Asignando...';
+        try {
+            await apiFetch('/api/wms/picking/asignar', {
+                method: 'POST',
+                body: JSON.stringify({ tareaId: asignarTareaId, operadorId: parseInt(operadorId) })
+            });
+            cerrarModal('modalAsignar');
+            await seleccionarOV(ordenActiva.DocNum_SAP);
+            await cargarOrdenes();
+        } catch (e) { /* handled */ }
+        btn.disabled = false;
+        btn.textContent = 'Asignar';
+    }
+
+    // ── Modal: Pickear ──
+    function abrirPickear(tareaId, lineaInfo, cantTotal, cantPickeada) {
+        pickTareaId = tareaId;
+        document.getElementById('pickLineaInfo').value = lineaInfo;
+        const restante = cantTotal - cantPickeada;
+        document.getElementById('pickCantidad').value = restante > 0 ? restante : '';
+        document.getElementById('pickCantidad').max = restante;
+        document.getElementById('pickCantidad').placeholder = `Max: ${restante}`;
+        document.getElementById('pickLpnCodigo').value = '';
+        document.getElementById('pickLpnId').value = '';
+        document.getElementById('lpnResultado').textContent = '';
+        mostrarModal('modalPickear');
+    }
+
+    async function buscarLPN() {
+        const codigo = document.getElementById('pickLpnCodigo').value.trim();
+        if (!codigo) { alert('Ingresa un codigo de LPN'); return; }
+        const resultado = document.getElementById('lpnResultado');
+        resultado.innerHTML = '<div class="spinner"></div>';
+        try {
+            const data = await apiFetch(`/api/wms/lpn/buscar/${encodeURIComponent(codigo)}`);
+            document.getElementById('pickLpnId').value = data.LPN_ID;
+            resultado.innerHTML = `<span style="color:var(--success);"><i class="bi bi-check-circle"></i> LPN encontrado: ${data.Codigo} (ID: ${data.LPN_ID})</span>`;
+        } catch (e) {
+            resultado.innerHTML = '<span style="color:var(--warning);">LPN no encontrado. Puedes crear uno nuevo.</span>';
+            document.getElementById('pickLpnId').value = '';
+        }
+    }
+
+    async function crearLPN() {
+        const codigo = document.getElementById('pickLpnCodigo').value.trim();
+        if (!codigo) { alert('Ingresa un codigo para el nuevo LPN'); return; }
+        const resultado = document.getElementById('lpnResultado');
+        resultado.innerHTML = '<div class="spinner"></div>';
+        try {
+            const data = await apiFetch('/api/wms/lpn', {
+                method: 'POST',
+                body: JSON.stringify({ codigo })
+            });
+            document.getElementById('pickLpnId').value = data.LPN_ID || data.id;
+            resultado.innerHTML = `<span style="color:var(--success);"><i class="bi bi-check-circle"></i> LPN creado: ${codigo} (ID: ${data.LPN_ID || data.id})</span>`;
+        } catch (e) {
+            resultado.innerHTML = '<span style="color:var(--danger);">Error al crear LPN</span>';
+        }
+    }
+
+    async function confirmarPick() {
+        const cantidad = parseInt(document.getElementById('pickCantidad').value);
+        const lpnId = document.getElementById('pickLpnId').value;
+        if (!cantidad || cantidad <= 0) { alert('Ingresa una cantidad valida'); return; }
+        const btn = document.getElementById('btnPickConfirm');
+        btn.disabled = true;
+        btn.textContent = 'Procesando...';
+        try {
+            const body = { tareaId: pickTareaId, cantidad };
+            if (lpnId) body.lpnId = parseInt(lpnId);
+            await apiFetch('/api/wms/picking/pickear', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            cerrarModal('modalPickear');
+            await seleccionarOV(ordenActiva.DocNum_SAP);
+            await cargarOrdenes();
+        } catch (e) { /* handled */ }
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Pick';
+    }
+
+    // ── Modal helpers ──
+    function mostrarModal(id) {
+        document.getElementById(id).classList.add('show');
+    }
+    function cerrarModal(id) {
+        document.getElementById(id).classList.remove('show');
+    }
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.classList.remove('show');
+        });
+    });
+
+    // Close modals on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show'));
+        }
+    });
+</script>
+</body>
+</html>

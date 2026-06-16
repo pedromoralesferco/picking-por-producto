@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS DIMORA - Inventario</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #d4a826; --primary-dark: #b8941f;
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+            --text: #e8e8ed; --text2: #9898a8; --border: #2a2a3a;
+            --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #3b82f6;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        .topbar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+        }
+        .topbar-title { font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+        .topbar-user { color: var(--text2); font-size: 0.85rem; display: flex; align-items: center; gap: 0.75rem; }
+        .btn-logout {
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; text-decoration: none;
+        }
+        .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        .filters {
+            display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+            padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        .filter-group label { font-size: 0.75rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-group select, .filter-group input {
+            padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 200px;
+        }
+        .filter-group select:focus, .filter-group input:focus { outline: none; border-color: var(--primary); }
+        .btn-filter {
+            background: var(--primary); color: #000; border: none; padding: 0.5rem 1rem;
+            border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 0.4rem; height: fit-content;
+        }
+        .btn-filter:hover { background: var(--primary-dark); }
+        .btn-clear {
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            padding: 0.5rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; height: fit-content;
+        }
+        .btn-clear:hover { border-color: var(--text2); color: var(--text); }
+
+        .summary-bar {
+            display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap;
+        }
+        .summary-item {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+            padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.75rem;
+        }
+        .summary-item .value { font-size: 1.25rem; font-weight: 700; }
+        .summary-item .label { font-size: 0.75rem; color: var(--text2); }
+
+        table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; }
+        thead th {
+            text-align: left; padding: 0.75rem 1rem; background: var(--surface2); color: var(--text2);
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        tbody td { padding: 0.65rem 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+        tbody tr:hover { background: var(--surface2); }
+
+        .badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        .badge-lpn { background: rgba(59,130,246,0.15); color: var(--info); }
+        .badge-loose { background: rgba(152,152,168,0.15); color: var(--text2); }
+        .badge-lpn-estado {
+            padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;
+        }
+
+        .row-lpn { border-left: 3px solid var(--info); }
+        .row-loose { border-left: 3px solid var(--border); }
+
+        .loading { text-align: center; padding: 2rem; color: var(--text2); }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text2); }
+        .empty-state i { font-size: 2rem; margin-bottom: 0.5rem; display: block; }
+
+        @media (max-width: 768px) {
+            .filters { flex-direction: column; }
+            .filter-group select, .filter-group input { min-width: unset; width: 100%; }
+            table { font-size: 0.8rem; }
+            thead th, tbody td { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-title"><i class="bi bi-clipboard-data"></i> WMS DIMORA - Inventario</div>
+        <div class="topbar-user">
+            <span id="userName"></span>
+            <a href="/wms" class="btn-logout"><i class="bi bi-arrow-left"></i> WMS</a>
+            <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Salir</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="filters">
+            <div class="filter-group">
+                <label>Ubicacion</label>
+                <select id="filterUbicacion">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>ItemCode</label>
+                <input type="text" id="filterItemCode" placeholder="Buscar por codigo...">
+            </div>
+            <button class="btn-filter" onclick="loadStock()"><i class="bi bi-search"></i> Filtrar</button>
+            <button class="btn-clear" onclick="clearFilters()"><i class="bi bi-x-lg"></i> Limpiar</button>
+        </div>
+
+        <div class="summary-bar" id="summaryBar" style="display:none;">
+            <div class="summary-item">
+                <div><i class="bi bi-box-seam" style="color:var(--primary);font-size:1.2rem"></i></div>
+                <div><div class="value" id="totalItems">0</div><div class="label">Items</div></div>
+            </div>
+            <div class="summary-item">
+                <div><i class="bi bi-stack" style="color:var(--success);font-size:1.2rem"></i></div>
+                <div><div class="value" id="totalQty">0</div><div class="label">Cantidad Total</div></div>
+            </div>
+            <div class="summary-item">
+                <div><i class="bi bi-upc-scan" style="color:var(--info);font-size:1.2rem"></i></div>
+                <div><div class="value" id="totalLPN">0</div><div class="label">En LPN</div></div>
+            </div>
+            <div class="summary-item">
+                <div><i class="bi bi-box" style="color:var(--text2);font-size:1.2rem"></i></div>
+                <div><div class="value" id="totalLoose">0</div><div class="label">Sueltos</div></div>
+            </div>
+        </div>
+
+        <div id="stockTable"><div class="loading"><i class="bi bi-arrow-repeat"></i> Cargando...</div></div>
+    </div>
+
+    <script>
+        let stockData = [];
+
+        async function init() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) return window.location.href = '/login';
+                const user = await res.json();
+                document.getElementById('userName').textContent = user.nombre;
+                loadUbicaciones();
+                loadStock();
+            } catch { window.location.href = '/login'; }
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        async function loadUbicaciones() {
+            try {
+                const res = await fetch('/api/wms/ubicaciones/activas');
+                if (!res.ok) return;
+                const ubis = await res.json();
+                const sel = document.getElementById('filterUbicacion');
+                ubis.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u.Codigo;
+                    opt.textContent = u.Codigo + (u.Descripcion ? ' - ' + u.Descripcion : '');
+                    sel.appendChild(opt);
+                });
+            } catch {}
+        }
+
+        async function loadStock() {
+            const el = document.getElementById('stockTable');
+            el.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat"></i> Cargando...</div>';
+
+            const params = new URLSearchParams();
+            const ubi = document.getElementById('filterUbicacion').value;
+            const item = document.getElementById('filterItemCode').value.trim();
+            if (ubi) params.set('ubicacion', ubi);
+            if (item) params.set('itemCode', item);
+
+            try {
+                const res = await fetch('/api/wms/stock?' + params.toString());
+                if (!res.ok) throw new Error();
+                stockData = await res.json();
+                renderStock();
+                updateSummary();
+            } catch {
+                el.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Error al cargar inventario</div>';
+                document.getElementById('summaryBar').style.display = 'none';
+            }
+        }
+
+        function renderStock() {
+            const el = document.getElementById('stockTable');
+            if (!stockData.length) {
+                el.innerHTML = '<div class="empty-state"><i class="bi bi-inbox"></i>No hay stock con los filtros seleccionados</div>';
+                return;
+            }
+            el.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ItemCode</th><th>Descripcion</th><th>Cantidad</th><th>Lote</th>
+                            <th>Ubicacion</th><th>Zona</th><th>LPN</th><th>Estado LPN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stockData.map(s => {
+                            const hasLPN = s.ID_LPN != null && s.LPN_Codigo;
+                            return `
+                            <tr class="${hasLPN ? 'row-lpn' : 'row-loose'}">
+                                <td><strong>${esc(s.ItemCode)}</strong></td>
+                                <td>${esc(s.Descripcion || '')}</td>
+                                <td style="font-weight:600">${Number(s.Cantidad).toLocaleString()}</td>
+                                <td style="color:var(--text2)">${esc(s.Lote || '-')}</td>
+                                <td>${esc(s.UbicacionCodigo || '-')}</td>
+                                <td style="color:var(--text2)">${esc(s.Zona || '-')}</td>
+                                <td>${hasLPN ? `<span class="badge badge-lpn"><i class="bi bi-upc-scan"></i> ${esc(s.LPN_Codigo)}</span>` : '<span class="badge badge-loose">Suelto</span>'}</td>
+                                <td>${hasLPN && s.LPN_Estado ? `<span class="badge-lpn-estado" style="background:${lpnColor(s.LPN_Estado)}20;color:${lpnColor(s.LPN_Estado)}">${esc(s.LPN_Estado)}</span>` : '-'}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function lpnColor(estado) {
+            const map = { 'Abierta': 'var(--info)', 'Cerrada': 'var(--success)', 'EnTransito': 'var(--warning)' };
+            return map[estado] || 'var(--text2)';
+        }
+
+        function updateSummary() {
+            const bar = document.getElementById('summaryBar');
+            bar.style.display = 'flex';
+            const totalItems = stockData.length;
+            const totalQty = stockData.reduce((sum, s) => sum + Number(s.Cantidad || 0), 0);
+            const inLPN = stockData.filter(s => s.ID_LPN != null && s.LPN_Codigo).length;
+            const loose = totalItems - inLPN;
+            document.getElementById('totalItems').textContent = totalItems.toLocaleString();
+            document.getElementById('totalQty').textContent = totalQty.toLocaleString();
+            document.getElementById('totalLPN').textContent = inLPN.toLocaleString();
+            document.getElementById('totalLoose').textContent = loose.toLocaleString();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterUbicacion').value = '';
+            document.getElementById('filterItemCode').value = '';
+            loadStock();
+        }
+
+        // Allow Enter key on item code input
+        document.getElementById('filterItemCode').addEventListener('keydown', e => {
+            if (e.key === 'Enter') loadStock();
+        });
+
+        function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        init();
+    </script>
+</body>
+</html>

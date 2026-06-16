@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS DIMORA - Traslados</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #d4a826; --primary-dark: #b8941f;
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+            --text: #e8e8ed; --text2: #9898a8; --border: #2a2a3a;
+            --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #3b82f6;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        .topbar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+        }
+        .topbar-title { font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+        .topbar-user { color: var(--text2); font-size: 0.85rem; display: flex; align-items: center; gap: 0.75rem; }
+        .btn-logout {
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            padding: 0.35rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; text-decoration: none;
+        }
+        .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+        .tab-btn {
+            background: transparent; border: none; color: var(--text2); padding: 0.75rem 1.5rem;
+            cursor: pointer; font-size: 0.9rem; font-weight: 500; border-bottom: 2px solid transparent;
+            transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+            padding: 1.25rem; margin-bottom: 1rem;
+        }
+        .card-title { font-size: 0.85rem; color: var(--text2); margin-bottom: 1rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Form elements */
+        .form-group { margin-bottom: 1rem; }
+        .form-label { display: block; font-size: 0.8rem; color: var(--text2); margin-bottom: 0.35rem; font-weight: 500; }
+        .form-input, .form-select {
+            width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+            padding: 0.6rem 0.75rem; border-radius: 6px; font-size: 0.9rem; outline: none;
+        }
+        .form-input:focus, .form-select:focus { border-color: var(--primary); }
+        .form-select option { background: var(--surface2); color: var(--text); }
+
+        .input-row { display: flex; gap: 0.75rem; align-items: flex-end; }
+        .input-row .form-group { flex: 1; margin-bottom: 0; }
+
+        .btn {
+            padding: 0.6rem 1.25rem; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.4rem;
+        }
+        .btn-primary { background: var(--primary); color: #000; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--primary); }
+        .btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+
+        /* LPN Info */
+        .lpn-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+        .lpn-field { }
+        .lpn-field .label { font-size: 0.7rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+        .lpn-field .value { font-size: 0.95rem; font-weight: 600; margin-top: 0.15rem; }
+
+        .lpn-contents { margin-top: 1rem; }
+        .lpn-contents table { width: 100%; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { text-align: left; color: var(--text2); font-weight: 600; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--border); }
+        tbody tr:hover { background: var(--surface2); }
+        tbody tr.selected { background: rgba(212,168,38,0.12); border-left: 2px solid var(--primary); }
+        tbody tr.clickable { cursor: pointer; }
+
+        /* Badges */
+        .badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        .badge-open { background: rgba(34,197,94,0.15); color: var(--success); }
+        .badge-closed { background: rgba(152,152,168,0.15); color: var(--text2); }
+        .badge-lpn { background: rgba(59,130,246,0.15); color: var(--info); }
+        .badge-producto { background: rgba(212,168,38,0.15); color: var(--primary); }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 0.75rem 1.25rem;
+            border-radius: 8px; font-size: 0.85rem; font-weight: 500; z-index: 1000;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s; pointer-events: none;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-success { background: var(--success); color: #000; }
+        .toast-error { background: var(--danger); color: #fff; }
+
+        /* Historial section */
+        .historial-section { margin-top: 2rem; }
+        .arrow { color: var(--primary); font-weight: 600; }
+
+        /* Empty state */
+        .empty { text-align: center; padding: 2rem; color: var(--text2); font-size: 0.85rem; }
+
+        /* Spinner */
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Move form panel */
+        .move-panel {
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+            padding: 1rem; margin-top: 1rem; display: none;
+        }
+        .move-panel.active { display: block; }
+        .move-panel-title { font-size: 0.8rem; color: var(--primary); font-weight: 600; margin-bottom: 0.75rem; }
+
+        @media (max-width: 600px) {
+            .container { padding: 1rem; }
+            .input-row { flex-direction: column; }
+            .lpn-info { grid-template-columns: 1fr 1fr; }
+            table { font-size: 0.75rem; }
+            th, td { padding: 0.4rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-title"><i class="bi bi-arrow-left-right"></i> WMS DIMORA - Traslados</div>
+        <div class="topbar-user">
+            <span id="userName"></span>
+            <a href="/wms" class="btn-logout"><i class="bi bi-arrow-left"></i> WMS</a>
+            <button class="btn-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Salir</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="lpn"><i class="bi bi-upc-scan"></i> Mover LPN</button>
+            <button class="tab-btn" data-tab="producto"><i class="bi bi-box-seam"></i> Mover Producto</button>
+        </div>
+
+        <!-- Tab 1: Mover LPN -->
+        <div class="tab-panel active" id="tab-lpn">
+            <div class="card">
+                <div class="card-title">Buscar LPN</div>
+                <div class="input-row">
+                    <div class="form-group">
+                        <label class="form-label">Codigo LPN</label>
+                        <input type="text" class="form-input" id="lpnSearchInput" placeholder="Escanear o escribir codigo LPN..." autofocus>
+                    </div>
+                    <button class="btn btn-primary" onclick="buscarLPN()" id="btnBuscarLPN"><i class="bi bi-search"></i> Buscar</button>
+                </div>
+            </div>
+
+            <div class="card" id="lpnInfoCard" style="display:none;">
+                <div class="card-title">Informacion del LPN</div>
+                <div class="lpn-info" id="lpnInfoFields"></div>
+                <div class="lpn-contents" id="lpnContents"></div>
+
+                <hr style="border-color: var(--border); margin: 1rem 0;">
+                <div class="card-title">Destino</div>
+                <div class="input-row">
+                    <div class="form-group">
+                        <label class="form-label">Ubicacion Destino</label>
+                        <select class="form-select" id="lpnDestUbicacion">
+                            <option value="">Seleccionar ubicacion...</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="confirmarMovLPN()" id="btnMovLPN" disabled>
+                        <i class="bi bi-arrow-right-circle"></i> Confirmar Movimiento
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Mover Producto -->
+        <div class="tab-panel" id="tab-producto">
+            <div class="card">
+                <div class="card-title">Filtrar Stock</div>
+                <div class="input-row">
+                    <div class="form-group">
+                        <label class="form-label">Ubicacion</label>
+                        <select class="form-select" id="stockFilterUbicacion">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ItemCode</label>
+                        <input type="text" class="form-input" id="stockFilterItem" placeholder="Buscar por ItemCode...">
+                    </div>
+                    <button class="btn btn-primary" onclick="buscarStock()"><i class="bi bi-search"></i> Buscar</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Stock Disponible</div>
+                <div id="stockTableWrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ItemCode</th>
+                                <th>Descripcion</th>
+                                <th>Cantidad</th>
+                                <th>Ubicacion</th>
+                                <th>LPN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stockTableBody">
+                            <tr><td colspan="5" class="empty">Usa los filtros para buscar stock</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Move panel appears when a stock row is selected -->
+            <div class="move-panel" id="movePanel">
+                <div class="move-panel-title"><i class="bi bi-arrows-move"></i> Trasladar Producto</div>
+                <div id="movePanelInfo" style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--text2);"></div>
+                <div class="input-row" style="margin-bottom:0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">Cantidad a mover</label>
+                        <input type="number" class="form-input" id="moveCantidad" min="1" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ubicacion Destino</label>
+                        <select class="form-select" id="moveDestUbicacion">
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-row" style="margin-bottom:0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">LPN Destino (opcional)</label>
+                        <div style="display:flex; gap:0.5rem;">
+                            <input type="text" class="form-input" id="moveDestLPNSearch" placeholder="Codigo LPN destino...">
+                            <button class="btn btn-secondary btn-sm" onclick="buscarLPNDestino()"><i class="bi bi-search"></i></button>
+                        </div>
+                        <input type="hidden" id="moveDestLPNId">
+                        <div id="moveDestLPNInfo" style="font-size:0.78rem; color:var(--text2); margin-top:0.3rem;"></div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="confirmarMovProducto()" id="btnMovProducto" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> Confirmar Traslado
+                </button>
+            </div>
+        </div>
+
+        <!-- Historial -->
+        <div class="historial-section">
+            <div class="card">
+                <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Historial de Movimientos</span>
+                    <button class="btn btn-secondary btn-sm" onclick="loadHistorial()"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Operacion</th>
+                                <th>Item / LPN</th>
+                                <th>Origen</th>
+                                <th></th>
+                                <th>Destino</th>
+                                <th>Operador</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historialBody">
+                            <tr><td colspan="8" class="empty"><span class="spinner"></span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // --- State ---
+        let ubicaciones = [];
+        let currentLPN = null;
+        let stockRecords = [];
+        let selectedStock = null;
+
+        // --- Init ---
+        async function init() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) return window.location.href = '/login';
+                const user = await res.json();
+                document.getElementById('userName').textContent = user.nombre;
+            } catch { return window.location.href = '/login'; }
+
+            await loadUbicaciones();
+            loadHistorial();
+            setupTabs();
+            setupListeners();
+        }
+
+        // --- Tabs ---
+        function setupTabs() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+                });
+            });
+        }
+
+        // --- Listeners ---
+        function setupListeners() {
+            document.getElementById('lpnSearchInput').addEventListener('keydown', e => {
+                if (e.key === 'Enter') buscarLPN();
+            });
+            document.getElementById('stockFilterItem').addEventListener('keydown', e => {
+                if (e.key === 'Enter') buscarStock();
+            });
+            document.getElementById('lpnDestUbicacion').addEventListener('change', () => {
+                document.getElementById('btnMovLPN').disabled = !document.getElementById('lpnDestUbicacion').value;
+            });
+            document.getElementById('moveCantidad').addEventListener('input', validateMoveForm);
+            document.getElementById('moveDestUbicacion').addEventListener('change', validateMoveForm);
+            document.getElementById('moveDestLPNSearch').addEventListener('keydown', e => {
+                if (e.key === 'Enter') buscarLPNDestino();
+            });
+        }
+
+        // --- Ubicaciones ---
+        async function loadUbicaciones() {
+            try {
+                const res = await fetch('/api/wms/ubicaciones/activas');
+                ubicaciones = await res.json();
+                populateUbicacionSelect('lpnDestUbicacion', ubicaciones);
+                populateUbicacionSelect('stockFilterUbicacion', ubicaciones, true);
+                populateUbicacionSelect('moveDestUbicacion', ubicaciones);
+            } catch (err) {
+                console.error('Error loading ubicaciones:', err);
+            }
+        }
+
+        function populateUbicacionSelect(id, list, includeAll) {
+            const sel = document.getElementById(id);
+            const firstOpt = sel.options[0].outerHTML;
+            sel.innerHTML = firstOpt + list.map(u =>
+                `<option value="${u.id}">${u.Codigo}${u.Descripcion ? ' - ' + u.Descripcion : ''}</option>`
+            ).join('');
+        }
+
+        // --- Tab 1: Mover LPN ---
+        async function buscarLPN() {
+            const codigo = document.getElementById('lpnSearchInput').value.trim();
+            if (!codigo) return;
+
+            const btn = document.getElementById('btnBuscarLPN');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>';
+
+            try {
+                const res = await fetch('/api/wms/lpn/buscar/' + encodeURIComponent(codigo));
+                if (!res.ok) throw new Error('LPN no encontrada');
+                const lpn = await res.json();
+                currentLPN = lpn;
+
+                // Load contents
+                const contRes = await fetch('/api/wms/lpn/' + lpn.id);
+                if (contRes.ok) {
+                    const detail = await contRes.json();
+                    currentLPN.contenido = detail.contenido || detail.Contenido || [];
+                }
+
+                renderLPNInfo();
+                document.getElementById('lpnInfoCard').style.display = '';
+                document.getElementById('lpnDestUbicacion').value = '';
+                document.getElementById('btnMovLPN').disabled = true;
+            } catch (err) {
+                showToast(err.message || 'Error buscando LPN', 'error');
+                document.getElementById('lpnInfoCard').style.display = 'none';
+                currentLPN = null;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-search"></i> Buscar';
+            }
+        }
+
+        function renderLPNInfo() {
+            const lpn = currentLPN;
+            const estadoBadge = (lpn.Estado || '').toLowerCase() === 'abierta'
+                ? `<span class="badge badge-open">${lpn.Estado}</span>`
+                : `<span class="badge badge-closed">${lpn.Estado}</span>`;
+
+            document.getElementById('lpnInfoFields').innerHTML = `
+                <div class="lpn-field"><div class="label">Codigo</div><div class="value">${lpn.Codigo || ''}</div></div>
+                <div class="lpn-field"><div class="label">Estado</div><div class="value">${estadoBadge}</div></div>
+                <div class="lpn-field"><div class="label">Ubicacion</div><div class="value">${lpn.UbicacionCodigo || lpn.ubicacionCodigo || '-'}</div></div>
+            `;
+
+            const items = currentLPN.contenido || [];
+            if (items.length) {
+                document.getElementById('lpnContents').innerHTML = `
+                    <div style="font-size:0.78rem; color:var(--text2); margin-bottom:0.4rem; font-weight:600;">CONTENIDO (${items.length})</div>
+                    <table>
+                        <thead><tr><th>ItemCode</th><th>Descripcion</th><th>Cantidad</th></tr></thead>
+                        <tbody>${items.map(i => `
+                            <tr>
+                                <td>${i.ItemCode || ''}</td>
+                                <td>${i.Descripcion || i.ItemName || ''}</td>
+                                <td>${i.Cantidad || i.cantidad || 0}</td>
+                            </tr>
+                        `).join('')}</tbody>
+                    </table>`;
+            } else {
+                document.getElementById('lpnContents').innerHTML = '<div class="empty">LPN sin contenido</div>';
+            }
+        }
+
+        async function confirmarMovLPN() {
+            if (!currentLPN) return;
+            const idUbicacionDestino = parseInt(document.getElementById('lpnDestUbicacion').value);
+            if (!idUbicacionDestino) return;
+
+            const btn = document.getElementById('btnMovLPN');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Moviendo...';
+
+            try {
+                const res = await fetch('/api/wms/traslados/lpn', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idLPN: currentLPN.id, idUbicacionDestino })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || err.message || 'Error al mover LPN');
+                }
+                showToast('LPN movida exitosamente', 'success');
+                document.getElementById('lpnInfoCard').style.display = 'none';
+                document.getElementById('lpnSearchInput').value = '';
+                currentLPN = null;
+                loadHistorial();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Confirmar Movimiento';
+            }
+        }
+
+        // --- Tab 2: Mover Producto ---
+        async function buscarStock() {
+            const ubicacion = document.getElementById('stockFilterUbicacion').value;
+            const itemCode = document.getElementById('stockFilterItem').value.trim();
+
+            const params = new URLSearchParams();
+            if (ubicacion) params.append('idUbicacion', ubicacion);
+            if (itemCode) params.append('itemCode', itemCode);
+
+            const body = document.getElementById('stockTableBody');
+            body.innerHTML = '<tr><td colspan="5" class="empty"><span class="spinner"></span></td></tr>';
+            selectedStock = null;
+            document.getElementById('movePanel').classList.remove('active');
+
+            try {
+                const res = await fetch('/api/wms/stock?' + params.toString());
+                if (!res.ok) throw new Error('Error al buscar stock');
+                stockRecords = await res.json();
+
+                if (!stockRecords.length) {
+                    body.innerHTML = '<tr><td colspan="5" class="empty">Sin resultados</td></tr>';
+                    return;
+                }
+
+                body.innerHTML = stockRecords.map((s, i) => `
+                    <tr class="clickable" data-idx="${i}">
+                        <td>${s.ItemCode || ''}</td>
+                        <td>${s.Descripcion || ''}</td>
+                        <td style="font-weight:600;">${s.Cantidad || 0}</td>
+                        <td>${s.UbicacionCodigo || ''}</td>
+                        <td>${s.LPN_Codigo ? `<span class="badge badge-lpn">${s.LPN_Codigo}</span>` : '-'}</td>
+                    </tr>
+                `).join('');
+
+                body.querySelectorAll('tr.clickable').forEach(row => {
+                    row.addEventListener('click', () => selectStockRow(parseInt(row.dataset.idx)));
+                });
+            } catch (err) {
+                body.innerHTML = `<tr><td colspan="5" class="empty" style="color:var(--danger);">${err.message}</td></tr>`;
+            }
+        }
+
+        function selectStockRow(idx) {
+            selectedStock = stockRecords[idx];
+            document.querySelectorAll('#stockTableBody tr').forEach(r => r.classList.remove('selected'));
+            document.querySelector(`#stockTableBody tr[data-idx="${idx}"]`).classList.add('selected');
+
+            document.getElementById('movePanelInfo').innerHTML =
+                `<strong>${selectedStock.ItemCode}</strong> - ${selectedStock.Descripcion || ''} | ` +
+                `Disponible: <strong>${selectedStock.Cantidad}</strong> | Ubicacion: ${selectedStock.UbicacionCodigo || '-'}`;
+            document.getElementById('moveCantidad').value = '';
+            document.getElementById('moveCantidad').max = selectedStock.Cantidad;
+            document.getElementById('moveDestUbicacion').value = '';
+            document.getElementById('moveDestLPNSearch').value = '';
+            document.getElementById('moveDestLPNId').value = '';
+            document.getElementById('moveDestLPNInfo').textContent = '';
+            document.getElementById('btnMovProducto').disabled = true;
+            document.getElementById('movePanel').classList.add('active');
+        }
+
+        function validateMoveForm() {
+            const cant = parseInt(document.getElementById('moveCantidad').value);
+            const dest = document.getElementById('moveDestUbicacion').value;
+            const valid = selectedStock && cant > 0 && cant <= selectedStock.Cantidad && dest;
+            document.getElementById('btnMovProducto').disabled = !valid;
+        }
+
+        async function buscarLPNDestino() {
+            const codigo = document.getElementById('moveDestLPNSearch').value.trim();
+            const infoEl = document.getElementById('moveDestLPNInfo');
+            document.getElementById('moveDestLPNId').value = '';
+            if (!codigo) { infoEl.textContent = ''; return; }
+
+            try {
+                const res = await fetch('/api/wms/lpn/buscar/' + encodeURIComponent(codigo));
+                if (!res.ok) throw new Error('LPN no encontrada');
+                const lpn = await res.json();
+                document.getElementById('moveDestLPNId').value = lpn.id;
+                infoEl.innerHTML = `<span style="color:var(--success);"><i class="bi bi-check-circle"></i></span> ${lpn.Codigo} - ${lpn.UbicacionCodigo || 'Sin ubicacion'} (${lpn.Estado})`;
+            } catch (err) {
+                infoEl.innerHTML = `<span style="color:var(--danger);"><i class="bi bi-x-circle"></i> ${err.message}</span>`;
+            }
+        }
+
+        async function confirmarMovProducto() {
+            if (!selectedStock) return;
+            const cantidad = parseInt(document.getElementById('moveCantidad').value);
+            const idUbicacionDestino = parseInt(document.getElementById('moveDestUbicacion').value);
+            const idLPNDestino = document.getElementById('moveDestLPNId').value ? parseInt(document.getElementById('moveDestLPNId').value) : null;
+
+            if (!cantidad || cantidad <= 0 || cantidad > selectedStock.Cantidad) {
+                showToast('Cantidad invalida', 'error');
+                return;
+            }
+            if (!idUbicacionDestino) {
+                showToast('Selecciona ubicacion destino', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnMovProducto');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Moviendo...';
+
+            try {
+                const payload = {
+                    idStockOrigen: selectedStock.id,
+                    cantidad,
+                    idUbicacionDestino
+                };
+                if (idLPNDestino) payload.idLPNDestino = idLPNDestino;
+
+                const res = await fetch('/api/wms/traslados/producto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || err.message || 'Error al trasladar producto');
+                }
+                showToast('Producto trasladado exitosamente', 'success');
+                selectedStock = null;
+                document.getElementById('movePanel').classList.remove('active');
+                buscarStock(); // refresh
+                loadHistorial();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Confirmar Traslado';
+            }
+        }
+
+        // --- Historial ---
+        async function loadHistorial() {
+            const body = document.getElementById('historialBody');
+            body.innerHTML = '<tr><td colspan="8" class="empty"><span class="spinner"></span></td></tr>';
+
+            try {
+                const res = await fetch('/api/wms/movimientos?limit=20');
+                if (!res.ok) throw new Error('Error cargando historial');
+                const movs = await res.json();
+
+                if (!movs.length) {
+                    body.innerHTML = '<tr><td colspan="8" class="empty">Sin movimientos recientes</td></tr>';
+                    return;
+                }
+
+                body.innerHTML = movs.map(m => {
+                    const tipoClass = (m.Tipo || '').toLowerCase() === 'lpn' ? 'badge-lpn' : 'badge-producto';
+                    const ref = m.ItemCode || m.LPN_Codigo || '-';
+                    const fecha = m.FechaMovimiento ? new Date(m.FechaMovimiento).toLocaleString('es-CL') : '';
+                    return `<tr>
+                        <td><span class="badge ${tipoClass}">${m.Tipo || ''}</span></td>
+                        <td>${m.TipoOperacion || ''}</td>
+                        <td>${ref}</td>
+                        <td>${m.UbicacionOrigen || '-'}</td>
+                        <td class="arrow"><i class="bi bi-arrow-right"></i></td>
+                        <td>${m.UbicacionDestino || '-'}</td>
+                        <td>${m.OperadorNombre || '-'}</td>
+                        <td style="white-space:nowrap;">${fecha}</td>
+                    </tr>`;
+                }).join('');
+            } catch (err) {
+                body.innerHTML = `<tr><td colspan="8" class="empty" style="color:var(--danger);">${err.message}</td></tr>`;
+            }
+        }
+
+        // --- Utility ---
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast toast-' + type + ' show';
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        init();
+    </script>
+</body>
+</html>
