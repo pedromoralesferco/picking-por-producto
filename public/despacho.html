@@ -975,6 +975,7 @@
 
             try {
                 const res = await fetch('/api/order/despacho/rutas/0/documentos/' + idOrderPicking + '/productos');
+                if (!res.ok) throw new Error(res.status);
                 const productos = await res.json();
 
                 el.innerHTML = productos.map(p => {
@@ -983,21 +984,15 @@
                     return `
                         <div class="prod-row">
                             <div class="prod-icon ${pDone ? 'done' : 'pending'}">
-                                <i class="bi bi-${pDone ? 'check-lg' : 'box-seam'}"></i>
+                                <i class="bi bi-${pDone ? 'check-circle-fill' : 'circle'}"></i>
                             </div>
-                            <div class="prod-info">
-                                <div class="prod-code">${esc(p.Product)}</div>
-                                <div class="prod-name">${esc(p.ProductName || '')}</div>
-                            </div>
-                            <div class="prod-qty">
-                                <span class="${pDone ? 'done' : ''}">${qty}</span>
-                                ${p.UnitWeight ? '<div class="prod-weight">' + formatNum(p.Cantidad * (p.UnitWeight || 0)) + ' kg</div>' : ''}
-                            </div>
+                            <div class="prod-name" title="${esc(p.ProductName || '')}">${esc(p.Product)} — ${esc(p.ProductName || '')}</div>
+                            <div class="prod-qty ${pDone ? 'done' : ''}">${qty}</div>
                         </div>
                     `;
                 }).join('');
             } catch (err) {
-                el.innerHTML = '<div style="padding:0.5rem;color:#c62828;font-size:0.75rem">Error al cargar productos</div>';
+                el.innerHTML = '<div style="padding:0.3rem 0;font-size:0.72rem;color:#c62828">Error: ' + err.message + '</div>';
             }
         }
 

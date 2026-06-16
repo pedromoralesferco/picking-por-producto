@@ -138,6 +138,7 @@
         .mod-icon.priorizacion { background: linear-gradient(135deg, #283593, #5c6bc0); }
         .mod-icon.despacho { background: linear-gradient(135deg, #1565c0, #42a5f5); }
         .mod-icon.pase-salida { background: linear-gradient(135deg, #2e7d32, #43a047); }
+        .mod-icon.wms { background: linear-gradient(135deg, #6a1b9a, #ab47bc); }
         .mod-icon.admin { background: linear-gradient(135deg, #c62828, #e53935); }
 
         .module-card h3 {
@@ -275,6 +276,16 @@
                     iconClass: 'pase-salida',
                     title: 'Pase de Salida',
                     desc: 'Buscar e imprimir pases de salida de mercaderia.'
+                });
+            }
+
+            if (isAdmin || permisos.includes('wms_picking')) {
+                modules.push({
+                    href: '/wms',
+                    icon: 'bi-box-seam',
+                    iconClass: 'wms',
+                    title: 'WMS DIMORA',
+                    desc: 'Gestion de bodega: picking, ingreso, traslados e inventario.'
                 });
             }
 
