@@ -1,5 +1,6 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
+const { getSapDb, getLisaDb, esOrderMode } = require('../config/paises');
 const router = express.Router();
 
 /*
@@ -433,7 +434,7 @@ router.get('/centros/:id/pickers', async (req, res) => {
         const pais = centroRes.recordset[0]?.Pais || 'GT';
 
         let query;
-        if (pais === 'SV') {
+        if (esOrderMode(pais)) {
             // Order mode: count from OrderPickingManagement / OrderPickingTask
             query = `
                 SELECT o.ID_Operario, o.Nombre,
@@ -816,7 +817,7 @@ router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {
 
         // Detect country from query param or session
         const pais = req.query.pais || req.session?.user?.selectedPais || 'GT';
-        const db = pais === 'SV' ? 'sbointergres' : 'sboferco';
+        const db = getSapDb(pais);
 
         // Header + lines with joins
         const reqJoin = pais === 'GT'
@@ -921,8 +922,8 @@ router.get('/pase-salida/buscar/:docNum', async (req, res) => {
         if (isNaN(docNum)) return res.status(400).json({ error: 'Número de documento inválido' });
 
         const pais = req.query.pais || 'GT';
-        const lisaDb = pais === 'SV' ? 'lisa_sbointergres' : 'lisa_sboferco';
-        const sapDb  = pais === 'SV' ? 'sbointergres' : 'sboferco';
+        const lisaDb = getLisaDb(pais);
+        const sapDb  = getSapDb(pais);
 
         // 1) Try as OV first (DL transactions)
         const ovResult = await pool.request()
@@ -1112,8 +1113,8 @@ router.get('/pase-salida/recientes', async (req, res) => {
         const pool = getPool();
         const pais = req.query.pais || 'GT';
         const codAlmacen = req.query.almacen || '';
-        const lisaDb = pais === 'SV' ? 'lisa_sbointergres' : 'lisa_sboferco';
-        const sapDb  = pais === 'SV' ? 'sbointergres' : 'sboferco';
+        const lisaDb = getLisaDb(pais);
+        const sapDb  = getSapDb(pais);
 
         let almacenFilter = '';
         if (codAlmacen) {
@@ -1157,7 +1158,7 @@ router.get('/pase-salida/almacenes', async (req, res) => {
     try {
         const pool = getPool();
         const pais = req.query.pais || 'GT';
-        const sapDb = pais === 'SV' ? 'sbointergres' : 'sboferco';
+        const sapDb = getSapDb(pais);
 
         const result = await pool.request().query(`
             SELECT WhsCode AS Code, WhsName AS Name

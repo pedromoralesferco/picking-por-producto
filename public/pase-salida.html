@@ -308,6 +308,7 @@
         <select id="selectPais">
             <option value="GT">Guatemala</option>
             <option value="SV">El Salvador</option>
+            <option value="HN">Honduras</option>
         </select>
         <input type="text" id="inputDocNum" placeholder="No. documento (OV o Solicitud de Traslado)..."
                onkeydown="if(event.key==='Enter') buscar()">
@@ -379,8 +380,8 @@
                     `<i class="bi bi-person-circle"></i> ${currentUser.nombre}`;
 
                 // Detect pais from selected centro
-                if (currentUser.selectedCentroPais) {
-                    userPais = currentUser.selectedCentroPais;
+                if (currentUser.selectedPais) {
+                    userPais = currentUser.selectedPais;
                 }
                 if (currentUser.selectedCentroCodigo) {
                     userAlmacenCode = currentUser.selectedCentroCodigo;

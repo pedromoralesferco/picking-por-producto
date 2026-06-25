@@ -515,13 +515,15 @@
         let openDocs = new Set();
         let refreshTimer = null;
         let pickingMode = 'product'; // 'product' or 'order'
+        let userPais = 'GT';
 
         async function init() {
             try {
                 const res = await fetch('/api/auth/me');
                 if (!res.ok) { window.location.href = '/login'; return; }
                 const user = await res.json();
-                pickingMode = (user.selectedPais === 'SV') ? 'order' : 'product';
+                userPais = user.selectedPais || 'GT';
+                pickingMode = ['SV', 'HN'].includes(userPais) ? 'order' : 'product';
             } catch { window.location.href = '/login'; return; }
 
             await loadCentros();
@@ -1025,8 +1027,7 @@
         }
 
         function printCuadroRuta(routeNumber) {
-            const pais = pickingMode === 'order' ? 'SV' : 'GT';
-            window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + pais, '_blank');
+            window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
         }
 
         function esc(str) {

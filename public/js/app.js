@@ -28,7 +28,8 @@ async function detectMode() {
 
         // Mode is determined by the selected centro's country
         const pais = user.selectedPais || 'GT';
-        pickingMode = (pais === 'SV') ? 'order' : 'product';
+        // Países en modalidad "por pedido" (order): El Salvador, Honduras
+        pickingMode = ['SV', 'HN'].includes(pais) ? 'order' : 'product';
 
         // Show centro name in navbar
         if (user.selectedCentroNombre) {
@@ -46,6 +47,11 @@ async function detectMode() {
         console.error('Error detecting mode:', err);
         pickingMode = 'product';
     }
+}
+
+// Nombre completo del país a partir del código
+function nombrePais(codigo) {
+    return ({ GT: 'Guatemala', SV: 'El Salvador', HN: 'Honduras' })[codigo] || codigo || '';
 }
 
 function updateUIForMode() {
@@ -123,7 +129,7 @@ function renderRutaCardOrder(r) {
         <div class="ruta-date">${formatDate(r.FechaPlanificacion)}</div>
         <div class="ruta-number"><i class="bi bi-signpost-split"></i> #${r.RouteNumber}</div>
         <div class="ruta-name">${r.RouteName || ''}</div>
-        ${r.Pais ? `<span style="font-size:0.65rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:3px;font-weight:600">${r.Pais}</span>` : ''}
+        ${r.Pais ? `<span style="font-size:0.65rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:3px;font-weight:600">${nombrePais(r.Pais)}</span>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.4rem">
             <span class="estado estado-${estadoCss}">${estado}</span>
             <span style="font-size:0.75rem;color:#888">${r.TotalPedidos > 0 ? r.PedidosFinalizados + '/' + r.TotalPedidos + ' pedidos — ' + pct + '%' : 'Sin pedidos'}</span>
@@ -399,7 +405,7 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen) {
     panel.innerHTML = `
         <div class="resumen-card">
             <div class="resumen-header">
-                <h5><i class="bi bi-info-circle"></i> Ruta #${routeNumber} ${ruta.Pais ? `<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.15rem 0.5rem;border-radius:4px;margin-left:0.5rem">${ruta.Pais}</span>` : ''}</h5>
+                <h5><i class="bi bi-info-circle"></i> Ruta #${routeNumber} ${ruta.Pais ? `<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.15rem 0.5rem;border-radius:4px;margin-left:0.5rem">${nombrePais(ruta.Pais)}</span>` : ''}</h5>
                 ${actionBtn}
             </div>
             <div class="resumen-grid">

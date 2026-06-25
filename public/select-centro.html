@@ -224,9 +224,9 @@
         function renderCentros(centros) {
             const container = document.getElementById('centrosList');
 
-            const paisFlags = { GT: 'gt', SV: 'sv' };
-            const paisNames = { GT: 'Guatemala', SV: 'El Salvador' };
-            const paisIcons = { GT: 'bi-geo-alt-fill', SV: 'bi-geo-alt-fill' };
+            const paisFlags = { GT: 'gt', SV: 'sv', HN: 'hn' };
+            const paisNames = { GT: 'Guatemala', SV: 'El Salvador', HN: 'Honduras' };
+            const paisIcons = { GT: 'bi-geo-alt-fill', SV: 'bi-geo-alt-fill', HN: 'bi-geo-alt-fill' };
 
             container.innerHTML = centros.map(c => {
                 const pais = c.Pais || 'GT';
