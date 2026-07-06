@@ -399,7 +399,9 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen) {
             <i class="bi bi-play-circle"></i> Iniciar Ruta</button>`;
     } else if (estado === 'Iniciado') {
         actionBtn = `<button class="btn-finalizar" onclick="finalizarRutaOrder(${idRoutePlan})">
-            <i class="bi bi-check-circle"></i> Finalizar Ruta</button>`;
+            <i class="bi bi-check-circle"></i> Finalizar Ruta</button>
+            <button class="btn-reimportar" onclick="reimportarRutaOrder(${idRoutePlan})" title="Sincroniza líneas/pedidos con el cuadro de ruta actual">
+            <i class="bi bi-arrow-repeat"></i> Re-importar líneas</button>`;
     }
 
     panel.innerHTML = `
@@ -613,6 +615,26 @@ async function finalizarRutaOrder(idRoutePlan) {
         if (ruta) await selectRutaOrder(idRoutePlan, ruta.RouteNumber);
     } catch (err) {
         alert('Error al finalizar ruta');
+    }
+}
+
+async function reimportarRutaOrder(idRoutePlan) {
+    if (!confirm('Re-importar líneas de esta ruta?\n\nSe agregarán los pedidos/líneas nuevos del cuadro y se quitarán los que ya no estén. No se altera el progreso de las líneas que permanecen.')) return;
+    try {
+        const res = await fetch(`/api/order/rutas/${idRoutePlan}/reimportar`, { method: 'POST' });
+        const d = await res.json();
+        if (!res.ok) { alert(d.error || 'Error al re-importar líneas'); return; }
+        const r = d.resumen || {};
+        alert(`Re-import completado:\n` +
+              `• Pedidos agregados: ${r.PedidosAgregados ?? 0}\n` +
+              `• Líneas agregadas: ${r.LineasAgregadas ?? 0}\n` +
+              `• Líneas eliminadas: ${r.LineasEliminadas ?? 0}\n` +
+              `• Pedidos eliminados: ${r.PedidosEliminados ?? 0}`);
+        await loadRutas();
+        const ruta = rutasCache.find(r => r.ID_RoutePlan === idRoutePlan);
+        if (ruta) await selectRutaOrder(idRoutePlan, ruta.RouteNumber);
+    } catch (err) {
+        alert('Error al re-importar líneas');
     }
 }
 

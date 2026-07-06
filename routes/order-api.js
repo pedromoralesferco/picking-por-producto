@@ -217,6 +217,24 @@ router.post('/rutas/:id/finalizar', async (req, res) => {
     }
 });
 
+// POST /api/order/rutas/:id/reimportar — Re-sync líneas/pedidos contra el cuadro actual (SV/HN)
+router.post('/rutas/:id/reimportar', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('idRoutePlan', sql.Int, parseInt(req.params.id))
+            .query('EXEC dbo.SP_ReimportOrderRouteLines @ID_RoutePlan = @idRoutePlan');
+        const resumen = result.recordset && result.recordset[0]
+            ? result.recordset[0]
+            : { PedidosAgregados: 0, LineasAgregadas: 0, LineasEliminadas: 0, PedidosEliminados: 0 };
+        res.json({ ok: true, resumen });
+    } catch (err) {
+        console.error('POST /api/order/rutas/:id/reimportar error:', err);
+        // El SP usa RAISERROR para casos controlados (cuadro vacío, línea sin match, etc.)
+        res.status(500).json({ error: err.message || 'Error al re-importar líneas' });
+    }
+});
+
 // ══════════════════════════════════════════
 // ── Asignación de Pedidos a Operarios
 // ══════════════════════════════════════════
