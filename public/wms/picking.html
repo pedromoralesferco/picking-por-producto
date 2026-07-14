@@ -379,7 +379,7 @@
         const container = document.getElementById('ovList');
         container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
         try {
-            const data = await apiFetch('/api/wms/picking/ordenes');
+            const data = await apiFetch('/api/wms/picking/tareas');
             ordenes = data;
             renderOrdenes();
         } catch (e) {
@@ -661,8 +661,8 @@
         resultado.innerHTML = '<div class="spinner"></div>';
         try {
             const data = await apiFetch(`/api/wms/lpn/buscar/${encodeURIComponent(codigo)}`);
-            document.getElementById('pickLpnId').value = data.LPN_ID;
-            resultado.innerHTML = `<span style="color:var(--success);"><i class="bi bi-check-circle"></i> LPN encontrado: ${data.Codigo} (ID: ${data.LPN_ID})</span>`;
+            document.getElementById('pickLpnId').value = data.ID_LPN;
+            resultado.innerHTML = `<span style="color:var(--success);"><i class="bi bi-check-circle"></i> LPN encontrado: ${data.Codigo} (ID: ${data.ID_LPN})</span>`;
         } catch (e) {
             resultado.innerHTML = '<span style="color:var(--warning);">LPN no encontrado. Puedes crear uno nuevo.</span>';
             document.getElementById('pickLpnId').value = '';
@@ -688,17 +688,30 @@
 
     async function confirmarPick() {
         const cantidad = parseInt(document.getElementById('pickCantidad').value);
-        const lpnId = document.getElementById('pickLpnId').value;
+        const codigo = document.getElementById('pickLpnCodigo').value.trim();
         if (!cantidad || cantidad <= 0) { alert('Ingresa una cantidad valida'); return; }
+        if (!codigo) { alert('Ingresa o escanea un codigo de LPN'); return; }
         const btn = document.getElementById('btnPickConfirm');
         btn.disabled = true;
         btn.textContent = 'Procesando...';
         try {
-            const body = { tareaId: pickTareaId, cantidad };
-            if (lpnId) body.lpnId = parseInt(lpnId);
+            // Resolver LPN automaticamente: usar la ya seleccionada, o buscar-o-crear por codigo
+            let lpnId = document.getElementById('pickLpnId').value;
+            if (!lpnId) {
+                try {
+                    const found = await apiFetch(`/api/wms/lpn/buscar/${encodeURIComponent(codigo)}`);
+                    lpnId = found.ID_LPN;
+                } catch (e) {
+                    const created = await apiFetch('/api/wms/lpn', {
+                        method: 'POST',
+                        body: JSON.stringify({ codigo })
+                    });
+                    lpnId = created.id;
+                }
+            }
             await apiFetch('/api/wms/picking/pickear', {
                 method: 'POST',
-                body: JSON.stringify(body)
+                body: JSON.stringify({ idTarea: pickTareaId, cantidad, idLPN: parseInt(lpnId) })
             });
             cerrarModal('modalPickear');
             await seleccionarOV(ordenActiva.DocNum_SAP);

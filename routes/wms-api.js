@@ -110,17 +110,30 @@ router.put('/ubicaciones/:id', requirePermiso('wms_config'), async (req, res) =>
 // POST /api/wms/lpn - Create new LPN
 router.post('/lpn', async (req, res) => {
     try {
-        const { idUbicacion, tipo } = req.body;
+        const { idUbicacion, tipo, codigo: codigoInput } = req.body;
         const pool = getPool();
 
-        // Generate next LPN code
-        const seqResult = await pool.request().query(`
-            UPDATE WMS_Secuencia SET ValorActual = ValorActual + 1
-            OUTPUT INSERTED.ValorActual
-            WHERE Nombre = 'LPN'
-        `);
-        const seq = seqResult.recordset[0].ValorActual;
-        const codigo = 'LPN-' + String(seq).padStart(5, '0');
+        let codigo;
+        if (codigoInput && codigoInput.trim()) {
+            // Codigo provisto por el operario (tecleo/escaneo)
+            codigo = codigoInput.toUpperCase().trim();
+            const existing = await pool.request()
+                .input('codigo', sql.NVarChar, codigo)
+                .query(`SELECT ID_LPN, Codigo FROM WMS_LicensePlate WHERE Codigo = @codigo`);
+            if (existing.recordset.length > 0) {
+                // Ya existe: devolver la existente (find-or-create)
+                return res.json({ ok: true, id: existing.recordset[0].ID_LPN, codigo: existing.recordset[0].Codigo, yaExistia: true });
+            }
+        } else {
+            // Sin codigo: generar automatico LPN-0000X
+            const seqResult = await pool.request().query(`
+                UPDATE WMS_Secuencia SET ValorActual = ValorActual + 1
+                OUTPUT INSERTED.ValorActual
+                WHERE Nombre = 'LPN'
+            `);
+            const seq = seqResult.recordset[0].ValorActual;
+            codigo = 'LPN-' + String(seq).padStart(5, '0');
+        }
 
         const result = await pool.request()
             .input('codigo', sql.NVarChar, codigo)
