@@ -7,7 +7,9 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Helper: SAP DB for DIMORA
-const SAP_DB = 'SBODIMORA';
+// Override temporal via .env (SAP_DB=SANDBOX-TEST) para validaciones.
+// Sin la variable, usa la sociedad de produccion 'SBODIMORA'.
+const SAP_DB = process.env.SAP_DB || 'SBODIMORA';
 
 // ══════════════════════════════════════════════════
 // ── Ubicaciones ──
