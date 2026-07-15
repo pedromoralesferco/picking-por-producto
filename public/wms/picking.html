@@ -493,10 +493,10 @@
                         <td>
                             <div class="actions">
                                 ${!esCompletada ? `
-                                    <button class="btn-sm" onclick="abrirAsignar(${t.TareaID}, '${(t.ItemCode || '').replace(/'/g, "\\'")} - ${(t.Descripcion || '').replace(/'/g, "\\'")}')" title="Asignar operador">
+                                    <button class="btn-sm" onclick="abrirAsignar(${t.ID_Tarea}, '${(t.ItemCode || '').replace(/'/g, "\\'")} - ${(t.Descripcion || '').replace(/'/g, "\\'")}')" title="Asignar operador">
                                         <i class="bi bi-person-plus"></i> Asignar
                                     </button>
-                                    <button class="btn-sm success" onclick="abrirPickear(${t.TareaID}, '${(t.ItemCode || '').replace(/'/g, "\\'")} - ${(t.Descripcion || '').replace(/'/g, "\\'")}', ${t.Cantidad || 0}, ${t.CantidadPickeada || 0})" title="Registrar pick">
+                                    <button class="btn-sm success" onclick="abrirPickear(${t.ID_Tarea}, '${(t.ItemCode || '').replace(/'/g, "\\'")} - ${(t.Descripcion || '').replace(/'/g, "\\'")}', ${t.Cantidad || 0}, ${t.CantidadPickeada || 0})" title="Registrar pick">
                                         <i class="bi bi-upc-scan"></i> Pickear
                                     </button>
                                 ` : `
