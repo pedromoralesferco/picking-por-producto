@@ -642,6 +642,21 @@ router.post('/picking/pickear', requirePermiso('wms_picking'), async (req, res) 
             return res.status(400).json({ error: 'LPN no esta abierta' });
         }
 
+        // Verificar stock disponible en la LPN PRODUCTION (saldo del WMS); la salida resta de aqui
+        const origenResult = await pool.request()
+            .input('item', sql.NVarChar, tarea.ItemCode)
+            .query(`
+                SELECT TOP 1 s.ID_Stock, s.Cantidad, s.ID_LPN, s.ID_Ubicacion
+                FROM WMS_Stock s
+                JOIN WMS_LicensePlate lp ON lp.ID_LPN = s.ID_LPN
+                WHERE s.ItemCode = @item AND lp.Codigo = 'PRODUCTION'
+            `);
+        const dispOrigen = origenResult.recordset.length ? origenResult.recordset[0].Cantidad : 0;
+        if (dispOrigen < cantidad) {
+            return res.status(400).json({ error: `Stock insuficiente en PRODUCTION para ${tarea.ItemCode} (disponible ${dispOrigen})` });
+        }
+        const origen = origenResult.recordset[0];
+
         const newPickeada = tarea.CantidadPickeada + cantidad;
         const newEstado = newPickeada >= tarea.Cantidad ? 'Completada' : 'EnProceso';
 
@@ -658,45 +673,26 @@ router.post('/picking/pickear', requirePermiso('wms_picking'), async (req, res) 
                 WHERE ID_Tarea = @id
             `);
 
-        // Add to stock in the LPN
-        const existingStock = await pool.request()
-            .input('item', sql.NVarChar, tarea.ItemCode)
-            .input('idLPN', sql.Int, idLPN)
-            .input('ubic', sql.Int, lpn.ID_Ubicacion)
-            .query(`SELECT ID_Stock FROM WMS_Stock WHERE ItemCode = @item AND ID_LPN = @idLPN AND ID_Ubicacion = @ubic`);
+        // Salida: descontar la cantidad pickeada del stock origen (PRODUCTION)
+        await pool.request()
+            .input('id', sql.Int, origen.ID_Stock)
+            .input('cant', sql.Decimal(18, 4), cantidad)
+            .query(`UPDATE WMS_Stock SET Cantidad = Cantidad - @cant, FechaActualizacion = GETDATE() WHERE ID_Stock = @id`);
 
-        if (existingStock.recordset.length > 0) {
-            await pool.request()
-                .input('id', sql.Int, existingStock.recordset[0].ID_Stock)
-                .input('cant', sql.Decimal(18, 4), cantidad)
-                .query(`UPDATE WMS_Stock SET Cantidad = Cantidad + @cant, FechaActualizacion = GETDATE() WHERE ID_Stock = @id`);
-        } else {
-            await pool.request()
-                .input('item', sql.NVarChar, tarea.ItemCode)
-                .input('desc', sql.NVarChar, tarea.Descripcion)
-                .input('cant', sql.Decimal(18, 4), cantidad)
-                .input('ubic', sql.Int, lpn.ID_Ubicacion)
-                .input('idLPN', sql.Int, idLPN)
-                .query(`
-                    INSERT INTO WMS_Stock (ItemCode, Descripcion, Cantidad, ID_Ubicacion, ID_LPN)
-                    VALUES (@item, @desc, @cant, @ubic, @idLPN)
-                `);
-        }
-
-        // Record movement
+        // Record movement (salida desde PRODUCTION hacia la LPN de picking)
         await pool.request()
             .input('item', sql.NVarChar, tarea.ItemCode)
             .input('cant', sql.Decimal(18, 4), cantidad)
-            .input('ubOrigen', sql.Int, tarea.ID_UbicacionOrigen)
-            .input('ubDest', sql.Int, lpn.ID_Ubicacion)
+            .input('ubOrigen', sql.Int, origen.ID_Ubicacion)
+            .input('idLPNOrigen', sql.Int, origen.ID_LPN)
             .input('idLPN', sql.Int, idLPN)
             .input('idOp', sql.Int, req.session.user.id)
             .input('ref', sql.NVarChar, `OV-${tarea.DocNum_SAP}`)
             .query(`
                 INSERT INTO WMS_Movimiento (Tipo, TipoOperacion, ItemCode, Cantidad,
-                    ID_UbicacionOrigen, ID_UbicacionDestino, ID_LPN_Destino, ID_Operador, Referencia)
+                    ID_UbicacionOrigen, ID_LPN_Origen, ID_LPN_Destino, ID_Operador, Referencia)
                 VALUES ('Producto', 'Picking', @item, @cant,
-                    @ubOrigen, @ubDest, @idLPN, @idOp, @ref)
+                    @ubOrigen, @idLPNOrigen, @idLPN, @idOp, @ref)
             `);
 
         res.json({ ok: true, estado: newEstado, cantidadPickeada: newPickeada });
