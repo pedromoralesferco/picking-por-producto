@@ -653,7 +653,7 @@ router.post('/picking/pickear', requirePermiso('wms_picking'), async (req, res) 
             `);
         const dispOrigen = origenResult.recordset.length ? origenResult.recordset[0].Cantidad : 0;
         if (dispOrigen < cantidad) {
-            return res.status(400).json({ error: `Stock insuficiente en PRODUCTION para ${tarea.ItemCode} (disponible ${dispOrigen})` });
+            return res.status(400).json({ error: `Stock insuficiente en bodega para ${tarea.ItemCode} (disponible ${dispOrigen})` });
         }
         const origen = origenResult.recordset[0];
 
