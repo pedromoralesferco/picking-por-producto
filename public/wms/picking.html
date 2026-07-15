@@ -309,8 +309,8 @@
             </div>
             <div class="form-group">
                 <label>Origen — LPN (escanear o elegir)</label>
-                <input class="form-input" id="pickOrigen" list="pickOrigenList" placeholder="Escanea o escribe la LPN de origen...">
-                <datalist id="pickOrigenList"></datalist>
+                <input class="form-input" id="pickOrigen" placeholder="Escanea o escribe la LPN de origen..." oninput="onOrigenChange()">
+                <div id="origenLista" style="margin-top:0.4rem; display:flex; flex-wrap:wrap; gap:0.35rem;"></div>
                 <div id="origenInfo" style="margin-top:0.35rem; font-size:0.8rem; color:var(--text2);"></div>
             </div>
             <div class="form-group">
@@ -348,6 +348,8 @@
     let tareas = [];
     let asignarTareaId = null;
     let pickTareaId = null;
+    let pickFuentes = [];
+    let pickPendiente = 0;
     let operadoresCache = null;
 
     // ── Init ──
@@ -649,32 +651,53 @@
     // ── Modal: Pickear ──
     async function abrirPickear(tareaId, itemCode, lineaInfo, cantTotal, cantPickeada) {
         pickTareaId = tareaId;
+        pickPendiente = cantTotal - cantPickeada;
+        pickFuentes = [];
         document.getElementById('pickLineaInfo').value = lineaInfo;
-        const restante = cantTotal - cantPickeada;
-        document.getElementById('pickCantidad').value = restante > 0 ? restante : '';
-        document.getElementById('pickCantidad').max = restante;
-        document.getElementById('pickCantidad').placeholder = `Max: ${restante}`;
+        document.getElementById('pickCantidad').value = '';
+        document.getElementById('pickCantidad').placeholder = `Pendiente: ${pickPendiente}`;
         document.getElementById('pickLpnCodigo').value = '';
         document.getElementById('pickLpnId').value = '';
         document.getElementById('lpnResultado').textContent = '';
         const inp = document.getElementById('pickOrigen');
-        const dl = document.getElementById('pickOrigenList');
+        const lista = document.getElementById('origenLista');
         const info = document.getElementById('origenInfo');
-        inp.value = ''; dl.innerHTML = ''; info.textContent = 'Cargando origen...';
+        inp.value = ''; lista.innerHTML = ''; info.textContent = 'Cargando origen...';
         mostrarModal('modalPickear');
         try {
-            const fuentes = await apiFetch(`/api/wms/stock/disponible/${encodeURIComponent(itemCode)}`);
-            if (!fuentes.length) {
+            pickFuentes = await apiFetch(`/api/wms/stock/disponible/${encodeURIComponent(itemCode)}`);
+            if (!pickFuentes.length) {
                 info.textContent = 'Sin stock en bodega para este item';
-            } else {
-                dl.innerHTML = fuentes.map(f =>
-                    `<option value="${f.LPN_Codigo || ''}">${f.LPN_Codigo || 'suelto'} — ${f.Cantidad} disp</option>`
-                ).join('');
-                inp.value = fuentes[0].LPN_Codigo || '';   // default: LPN con mas stock
-                info.textContent = `${fuentes.length} LPN(s) con stock. Escanea o elige otra si aplica.`;
+                return;
             }
+            lista.innerHTML = pickFuentes.map(f =>
+                `<button type="button" class="btn-sm" onclick="seleccionarOrigen('${(f.LPN_Codigo || '').replace(/'/g, "\\'")}')">${f.LPN_Codigo || 'suelto'} — ${f.Cantidad} disp (${f.Ubicacion_Codigo || '-'})</button>`
+            ).join('');
+            seleccionarOrigen(pickFuentes[0].LPN_Codigo || '');   // default: LPN con mas stock
         } catch (e) {
             info.textContent = 'Error al cargar origen';
+        }
+    }
+
+    function seleccionarOrigen(codigo) {
+        document.getElementById('pickOrigen').value = codigo;
+        onOrigenChange();
+    }
+
+    function onOrigenChange() {
+        const cod = document.getElementById('pickOrigen').value.trim().toUpperCase();
+        const f = pickFuentes.find(x => (x.LPN_Codigo || '').toUpperCase() === cod);
+        const dispo = f ? Number(f.Cantidad) : 0;
+        const maxPick = f ? Math.min(pickPendiente, dispo) : pickPendiente;
+        const cantEl = document.getElementById('pickCantidad');
+        cantEl.max = maxPick;
+        cantEl.value = maxPick > 0 ? maxPick : '';
+        cantEl.placeholder = `Max: ${maxPick}`;
+        const info = document.getElementById('origenInfo');
+        if (f) {
+            info.textContent = `Origen ${f.LPN_Codigo}: ${dispo} disp · Pendiente OV: ${pickPendiente} · Max a pickear: ${maxPick}`;
+        } else if (cod) {
+            info.textContent = `LPN "${cod}" no tiene stock de este item`;
         }
     }
 
