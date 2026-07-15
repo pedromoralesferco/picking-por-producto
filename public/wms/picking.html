@@ -308,8 +308,10 @@
                 <input class="form-input" id="pickLineaInfo" readonly>
             </div>
             <div class="form-group">
-                <label>Origen (bodega / ubicacion)</label>
-                <select class="form-input" id="pickOrigen"></select>
+                <label>Origen — LPN (escanear o elegir)</label>
+                <input class="form-input" id="pickOrigen" list="pickOrigenList" placeholder="Escanea o escribe la LPN de origen...">
+                <datalist id="pickOrigenList"></datalist>
+                <div id="origenInfo" style="margin-top:0.35rem; font-size:0.8rem; color:var(--text2);"></div>
             </div>
             <div class="form-group">
                 <label>Cantidad a pickear</label>
@@ -655,20 +657,24 @@
         document.getElementById('pickLpnCodigo').value = '';
         document.getElementById('pickLpnId').value = '';
         document.getElementById('lpnResultado').textContent = '';
-        const sel = document.getElementById('pickOrigen');
-        sel.innerHTML = '<option value="">Cargando...</option>';
+        const inp = document.getElementById('pickOrigen');
+        const dl = document.getElementById('pickOrigenList');
+        const info = document.getElementById('origenInfo');
+        inp.value = ''; dl.innerHTML = ''; info.textContent = 'Cargando origen...';
         mostrarModal('modalPickear');
         try {
             const fuentes = await apiFetch(`/api/wms/stock/disponible/${encodeURIComponent(itemCode)}`);
             if (!fuentes.length) {
-                sel.innerHTML = '<option value="">Sin stock en bodega</option>';
+                info.textContent = 'Sin stock en bodega para este item';
             } else {
-                sel.innerHTML = fuentes.map(f =>
-                    `<option value="${f.ID_Stock}">${f.Ubicacion_Codigo || '-'} / ${f.LPN_Codigo || 'suelto'} — ${f.Cantidad} disp</option>`
+                dl.innerHTML = fuentes.map(f =>
+                    `<option value="${f.LPN_Codigo || ''}">${f.LPN_Codigo || 'suelto'} — ${f.Cantidad} disp</option>`
                 ).join('');
+                inp.value = fuentes[0].LPN_Codigo || '';   // default: LPN con mas stock
+                info.textContent = `${fuentes.length} LPN(s) con stock. Escanea o elige otra si aplica.`;
             }
         } catch (e) {
-            sel.innerHTML = '<option value="">Error al cargar origen</option>';
+            info.textContent = 'Error al cargar origen';
         }
     }
 
@@ -722,10 +728,10 @@
                 });
                 lpnId = lpn.id;
             }
-            const idStockOrigen = document.getElementById('pickOrigen').value;
+            const codigoOrigen = document.getElementById('pickOrigen').value.trim();
             await apiFetch('/api/wms/picking/pickear', {
                 method: 'POST',
-                body: JSON.stringify({ idTarea: pickTareaId, cantidad, idLPN: parseInt(lpnId), idStockOrigen: idStockOrigen ? parseInt(idStockOrigen) : null })
+                body: JSON.stringify({ idTarea: pickTareaId, cantidad, idLPN: parseInt(lpnId), codigoOrigen })
             });
             cerrarModal('modalPickear');
             await seleccionarOV(ordenActiva.DocNum_SAP);
