@@ -612,7 +612,7 @@ router.post('/picking/asignar', requirePermiso('wms_picking'), async (req, res) 
 // POST /api/wms/picking/pickear - Record pick (product into LPN)
 router.post('/picking/pickear', requirePermiso('wms_picking'), async (req, res) => {
     try {
-        const { idTarea, cantidad, idLPN } = req.body;
+        const { idTarea, cantidad, idLPN, idStockOrigen } = req.body;
         if (!idTarea || !cantidad || !idLPN) {
             return res.status(400).json({ error: 'idTarea, cantidad e idLPN requeridos' });
         }
@@ -642,15 +642,27 @@ router.post('/picking/pickear', requirePermiso('wms_picking'), async (req, res) 
             return res.status(400).json({ error: 'LPN no esta abierta' });
         }
 
-        // Verificar stock disponible en la LPN PRODUCTION (saldo del WMS); la salida resta de aqui
-        const origenResult = await pool.request()
-            .input('item', sql.NVarChar, tarea.ItemCode)
-            .query(`
-                SELECT TOP 1 s.ID_Stock, s.Cantidad, s.ID_LPN, s.ID_Ubicacion
-                FROM WMS_Stock s
-                JOIN WMS_LicensePlate lp ON lp.ID_LPN = s.ID_LPN
-                WHERE s.ItemCode = @item AND lp.Codigo = 'PRODUCTION'
-            `);
+        // Origen del stock: la ubicacion/LPN elegida (idStockOrigen); si no viene, PRODUCTION por default
+        let origenResult;
+        if (idStockOrigen) {
+            origenResult = await pool.request()
+                .input('id', sql.Int, idStockOrigen)
+                .input('item', sql.NVarChar, tarea.ItemCode)
+                .query(`
+                    SELECT TOP 1 s.ID_Stock, s.Cantidad, s.ID_LPN, s.ID_Ubicacion
+                    FROM WMS_Stock s
+                    WHERE s.ID_Stock = @id AND s.ItemCode = @item
+                `);
+        } else {
+            origenResult = await pool.request()
+                .input('item', sql.NVarChar, tarea.ItemCode)
+                .query(`
+                    SELECT TOP 1 s.ID_Stock, s.Cantidad, s.ID_LPN, s.ID_Ubicacion
+                    FROM WMS_Stock s
+                    JOIN WMS_LicensePlate lp ON lp.ID_LPN = s.ID_LPN
+                    WHERE s.ItemCode = @item AND lp.Codigo = 'PRODUCTION'
+                `);
+        }
         const dispOrigen = origenResult.recordset.length ? origenResult.recordset[0].Cantidad : 0;
         if (dispOrigen < cantidad) {
             return res.status(400).json({ error: `Stock insuficiente en bodega para ${tarea.ItemCode} (disponible ${dispOrigen})` });
@@ -1095,6 +1107,29 @@ router.post('/ingreso/confirmar/:docNum', requirePermiso('wms_ingreso'), async (
 // ══════════════════════════════════════════════════
 // ── Stock & Inventory ──
 // ══════════════════════════════════════════════════
+
+// GET /api/wms/stock/disponible/:itemCode - Fuentes de stock (ubicacion/LPN) de un item, para elegir origen al pickear
+router.get('/stock/disponible/:itemCode', requirePermiso('wms_picking'), async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('item', sql.NVarChar, req.params.itemCode)
+            .query(`
+                SELECT s.ID_Stock, s.Cantidad,
+                       s.ID_LPN, lp.Codigo AS LPN_Codigo,
+                       s.ID_Ubicacion, u.Codigo AS Ubicacion_Codigo
+                FROM WMS_Stock s
+                LEFT JOIN WMS_LicensePlate lp ON lp.ID_LPN = s.ID_LPN
+                LEFT JOIN WMS_Ubicacion u ON u.ID_Ubicacion = s.ID_Ubicacion
+                WHERE s.ItemCode = @item AND s.Cantidad > 0
+                ORDER BY s.Cantidad DESC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/wms/stock/disponible error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
 
 // GET /api/wms/stock - Inventory view
 router.get('/stock', async (req, res) => {
