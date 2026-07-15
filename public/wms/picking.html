@@ -526,13 +526,17 @@
         if (!confirm('Se enviara la confirmacion de picking a SAP. Continuar?')) return;
         try {
             await apiFetch(`/api/wms/picking/confirmar/${docNum}`, { method: 'POST' });
-            alert('Picking confirmado y enviado a SAP exitosamente.');
+            // Abrir el pase de salida (PDF) en una pestana nueva
+            window.open(`/wms/pase-salida-print.html?doc=${docNum}`, '_blank');
             await cargarOrdenes();
             ordenActiva = null;
             document.getElementById('panelRight').innerHTML = `
                 <div class="detail-placeholder">
                     <i class="bi bi-check-circle" style="color:var(--success);"></i>
                     <p>Picking confirmado exitosamente</p>
+                    <button class="btn-primary" style="margin-top:1rem;" onclick="window.open('/wms/pase-salida-print.html?doc=${docNum}','_blank')">
+                        <i class="bi bi-file-earmark-pdf"></i> Pase de Salida (PDF)
+                    </button>
                 </div>
             `;
         } catch (e) { /* apiFetch already shows alert */ }

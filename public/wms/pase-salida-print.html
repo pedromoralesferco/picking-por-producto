@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pase de Salida</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #f5f5f5; }
+
+        .toolbar {
+            position: fixed; top: 0; left: 0; right: 0; height: 46px; background: #1f1f1f;
+            display: flex; align-items: center; gap: 14px; padding: 0 16px; z-index: 10;
+        }
+        .toolbar button {
+            background: #c9a227; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .toolbar button:disabled { background: #666; color: #999; cursor: wait; }
+        .toolbar button.sec { background: #444; }
+        .toolbar span { color: #eee; font-size: 13px; }
+
+        #pdf-content {
+            width: 190mm; padding: 12mm 15mm; background: #fff; margin: 62px auto 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1); position: relative;
+        }
+        .print-logo { text-align: center; margin-bottom: 6px; }
+        .logo-text { font-size: 26px; font-weight: 800; letter-spacing: 8px; color: #000; line-height: 1; }
+        .logo-sub { font-size: 10px; letter-spacing: 4px; color: #c00; font-weight: 600; }
+        .pase-title { font-size: 18px; font-weight: 700; text-align: center; margin: 6px 0 14px; }
+
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; margin-bottom: 16px; }
+        .info-row { display: flex; gap: 6px; }
+        .info-row .lbl { font-weight: 700; min-width: 78px; }
+
+        table.items { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        table.items th, table.items td { border: 1px solid #333; padding: 5px 7px; text-align: left; }
+        table.items th { background: #eee; font-size: 10px; text-transform: uppercase; }
+        table.items td.num, table.items th.num { text-align: right; }
+        table.items tfoot td { font-weight: 700; background: #f7f7f7; }
+
+        .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
+        .firma { text-align: center; }
+        .firma .line { border-top: 1px solid #000; margin-bottom: 4px; }
+        .firma .cap { font-size: 10px; color: #333; }
+
+        .loading { text-align: center; padding: 60px; font-size: 14px; color: #999; }
+
+        @media print { .toolbar { display: none; } body { background: #fff; } #pdf-content { margin: 0 auto; box-shadow: none; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button id="btnPdf" onclick="downloadPdf()" disabled>Generando PDF...</button>
+        <button class="sec" onclick="window.print()">Imprimir</button>
+        <span id="toolbarTitle">Pase de Salida</span>
+    </div>
+
+    <div id="pdf-content">
+        <div class="loading" id="loadingMsg">Cargando pase de salida...</div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const docNum = params.get('doc');
+
+        function esc(s) { const el = document.createElement('span'); el.textContent = (s == null ? '' : s); return el.innerHTML; }
+        function hoy() {
+            const dt = new Date();
+            const p = n => String(n).padStart(2, '0');
+            return `${p(dt.getDate())}/${p(dt.getMonth() + 1)}/${dt.getFullYear()} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+        }
+
+        function getPdfOpt() {
+            return {
+                margin: [8, 10, 8, 10],
+                filename: 'PaseSalida_OV' + docNum + '.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+        }
+        function generatePdf() {
+            const el = document.getElementById('pdf-content');
+            html2pdf().set(getPdfOpt()).from(el).toPdf().get('pdf').then(function (pdf) {
+                while (pdf.internal.getNumberOfPages() > 1) pdf.deletePage(pdf.internal.getNumberOfPages());
+                const btn = document.getElementById('btnPdf');
+                btn.textContent = 'Descargar PDF'; btn.disabled = false;
+            });
+        }
+        function downloadPdf() {
+            const btn = document.getElementById('btnPdf');
+            btn.disabled = true; btn.textContent = 'Generando...';
+            const el = document.getElementById('pdf-content');
+            html2pdf().set(getPdfOpt()).from(el).toPdf().get('pdf').then(function (pdf) {
+                while (pdf.internal.getNumberOfPages() > 1) pdf.deletePage(pdf.internal.getNumberOfPages());
+                pdf.save('PaseSalida_OV' + docNum + '.pdf');
+                btn.textContent = 'Descargar PDF'; btn.disabled = false;
+            });
+        }
+
+        function render(data) {
+            const h = data.header || {};
+            const lineas = data.lineas || [];
+            let total = 0;
+            const rows = lineas.map(l => {
+                const c = Number(l.Cantidad) || 0; total += c;
+                return `<tr>
+                    <td>${esc(l.ItemCode)}</td>
+                    <td>${esc(l.Descripcion)}</td>
+                    <td>${esc(l.LPN || '')}</td>
+                    <td class="num">${c}</td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('pdf-content').innerHTML = `
+                <div class="print-logo">
+                    <div class="logo-text">FERCO</div>
+                    <div class="logo-sub">CERAMICA · WMS DIMORA</div>
+                </div>
+                <div class="pase-title">PASE DE SALIDA</div>
+                <div class="info-grid">
+                    <div class="info-row"><span class="lbl">OV No.:</span><span>${esc(h.DocNum_SAP || docNum)}</span></div>
+                    <div class="info-row"><span class="lbl">Fecha:</span><span>${hoy()}</span></div>
+                    <div class="info-row"><span class="lbl">Cliente:</span><span>${esc(h.CardName || '')}</span></div>
+                    <div class="info-row"><span class="lbl">Codigo:</span><span>${esc(h.CardCode || '')}</span></div>
+                </div>
+                <table class="items">
+                    <thead>
+                        <tr><th>Codigo</th><th>Descripcion</th><th>LPN</th><th class="num">Cantidad</th></tr>
+                    </thead>
+                    <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#999;">Sin lineas pickeadas</td></tr>'}</tbody>
+                    <tfoot>
+                        <tr><td colspan="3" class="num">TOTAL</td><td class="num">${total}</td></tr>
+                    </tfoot>
+                </table>
+                <div class="firmas">
+                    <div class="firma"><div class="line"></div><div class="cap">Entrega (Bodega)</div></div>
+                    <div class="firma"><div class="line"></div><div class="cap">Recibe (Transporte / Cliente)</div></div>
+                </div>
+            `;
+        }
+
+        async function load() {
+            if (!docNum) { document.getElementById('loadingMsg').textContent = 'Error: falta el numero de OV (?doc=)'; return; }
+            try {
+                const res = await fetch('/api/wms/picking/pase/' + encodeURIComponent(docNum));
+                if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || ('Error ' + res.status)); }
+                const data = await res.json();
+                render(data);
+                document.getElementById('toolbarTitle').textContent = 'Pase de Salida · OV ' + docNum;
+                document.title = 'Pase de Salida OV ' + docNum;
+                generatePdf();
+            } catch (err) {
+                document.getElementById('loadingMsg').textContent = 'Error: ' + err.message;
+            }
+        }
+        load();
+    </script>
+</body>
+</html>

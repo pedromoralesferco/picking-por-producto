@@ -1110,6 +1110,31 @@ router.post('/ingreso/confirmar/:docNum', requirePermiso('wms_ingreso'), async (
 // ── Stock & Inventory ──
 // ══════════════════════════════════════════════════
 
+// GET /api/wms/picking/pase/:docNum - Datos para el pase de salida (PDF)
+router.get('/picking/pase/:docNum', requirePermiso('wms_picking'), async (req, res) => {
+    try {
+        const docNum = parseInt(req.params.docNum);
+        const pool = getPool();
+        const header = await pool.request()
+            .input('d', sql.Int, docNum)
+            .query(`SELECT TOP 1 DocNum_SAP, CardCode, CardName FROM WMS_TareaPicking WHERE DocNum_SAP = @d`);
+        const lineas = await pool.request()
+            .input('d', sql.Int, docNum)
+            .query(`
+                SELECT t.ItemCode, t.Descripcion, t.CantidadPickeada AS Cantidad,
+                       lp.Codigo AS LPN
+                FROM WMS_TareaPicking t
+                LEFT JOIN WMS_LicensePlate lp ON lp.ID_LPN = t.ID_LPN
+                WHERE t.DocNum_SAP = @d AND t.CantidadPickeada > 0
+                ORDER BY t.LineNum_SAP
+            `);
+        res.json({ header: header.recordset[0] || null, lineas: lineas.recordset });
+    } catch (err) {
+        console.error('GET /api/wms/picking/pase error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 // GET /api/wms/stock/disponible/:itemCode - Fuentes de stock (ubicacion/LPN) de un item, para elegir origen al pickear
 router.get('/stock/disponible/:itemCode', requirePermiso('wms_picking'), async (req, res) => {
     try {
