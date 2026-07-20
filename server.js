@@ -93,6 +93,10 @@ app.get('/pase-salida', requireAuthPage, requireCentro, requirePermisoPage('pase
     res.sendFile(path.join(__dirname, 'public', 'pase-salida.html'));
 });
 
+app.get('/planificador', requireAuthPage, requireCentro, requirePermisoPage('planificador'), (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'planificador.html'));
+});
+
 app.get('/admin', requireAdminPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
