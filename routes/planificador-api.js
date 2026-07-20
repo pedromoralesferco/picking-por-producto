@@ -167,7 +167,7 @@ function callAnthropic(system, userText) {
         if (!process.env.ANTHROPIC_API_KEY) return reject(new Error('Falta ANTHROPIC_API_KEY en el .env del servidor.'));
         const payload = JSON.stringify({
             model: 'claude-opus-4-8',
-            max_tokens: 16000,
+            max_tokens: 24000,
             thinking: { type: 'adaptive' },
             output_config: { effort: 'high' },
             system,
@@ -190,7 +190,7 @@ function callAnthropic(system, userText) {
                     const j = JSON.parse(data);
                     if (j.stop_reason === 'refusal') return reject(new Error('La IA rechazó la solicitud.'));
                     const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-                    resolve(text);
+                    resolve({ text, stopReason: j.stop_reason });
                 } catch (e) { reject(new Error('Respuesta no parseable de Anthropic.')); }
             });
         });
@@ -203,7 +203,13 @@ function callAnthropic(system, userText) {
 
 function parsePlan(text) {
     let t = (text || '').trim();
-    if (t.startsWith('```')) t = t.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+    // 1) si viene en un bloque markdown ```json ... ```, tomar su contenido
+    const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) t = fence[1].trim();
+    // 2) extraer el objeto JSON más externo (ignora texto antes/después)
+    const i = t.indexOf('{');
+    const j = t.lastIndexOf('}');
+    if (i !== -1 && j !== -1 && j > i) t = t.slice(i, j + 1);
     return JSON.parse(t);
 }
 
@@ -260,10 +266,19 @@ router.post('/planificar', async (req, res) => {
             return res.json({ fecha, puntos, rutas: [], especiales, notas: 'No hay puntos ruteables.', validacion: { ok: true, violaciones: [], sinAsignar: [] } });
         }
 
-        const text = await callAnthropic(SYSTEM_PROMPT, buildUserMsg(ruteables, flota));
+        const ai = await callAnthropic(SYSTEM_PROMPT, buildUserMsg(ruteables, flota));
         let plan;
-        try { plan = parsePlan(text); }
-        catch (e) { return res.status(502).json({ error: 'La IA devolvió un formato inesperado.', raw: (text || '').slice(0, 1200) }); }
+        try { plan = parsePlan(ai.text); }
+        catch (e) {
+            console.error('Planificador: respuesta no parseable. stop_reason=%s raw=%s', ai.stopReason, (ai.text || '').slice(0, 2000));
+            return res.status(502).json({
+                error: ai.stopReason === 'max_tokens'
+                    ? 'La IA devolvió una respuesta truncada (se quedó sin espacio). Reintenta.'
+                    : 'La IA devolvió un formato inesperado.',
+                stopReason: ai.stopReason,
+                raw: (ai.text || '').slice(0, 1500)
+            });
+        }
 
         const validacion = validar(plan, puntosById, flota);
         res.json({ fecha, puntos, rutas: plan.rutas || [], especiales, notas: plan.notas || '', validacion });

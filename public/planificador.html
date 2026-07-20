@@ -279,10 +279,16 @@ async function planificar() {
             body: JSON.stringify({ fecha, flota })
         });
         const d = await res.json();
-        if (!res.ok) throw new Error(d.error || 'Error al planificar');
+        if (!res.ok) {
+            let h = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + esc(d.error || 'Error al planificar');
+            if (d.raw) h += '<details style="margin-top:.5rem"><summary style="cursor:pointer">Ver respuesta cruda de la IA</summary><pre style="white-space:pre-wrap;font-size:.72rem;max-height:220px;overflow:auto;background:#fff;padding:.5rem;border-radius:6px;margin-top:.4rem">' + esc(d.raw) + '</pre></details>';
+            h += '</div>';
+            document.getElementById('result').innerHTML = h;
+            return;
+        }
         renderPlan(d);
     } catch (err) {
-        document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + err.message + '</div>';
+        document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + esc(err.message) + '</div>';
     } finally {
         document.getElementById('btnPlan').disabled = false;
     }
