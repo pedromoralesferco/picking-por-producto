@@ -27,7 +27,10 @@ En **PowerShell (como administrador)** en el servidor:
 ```powershell
 cd C:\PickingManagementV2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$base = "https://raw.githubusercontent.com/pedromoralesferco/picking-por-producto/main"
+# RECOMENDADO: fija el HASH del commit (no 'main') para evitar el caché del CDN
+# de raw.githubusercontent — así siempre bajas exactamente la versión que quieres.
+$commit = "4048d8e"   # <-- reemplaza por el commit que vas a desplegar
+$base = "https://raw.githubusercontent.com/pedromoralesferco/picking-por-producto/$commit"
 
 # 1) Descargar SOLO los archivos que cambiaron (ejemplos)
 Invoke-WebRequest "$base/routes/wms-api.js"       -OutFile "routes\wms-api.js"
@@ -43,10 +46,13 @@ Luego en el navegador: **Ctrl+Shift+R** (recarga dura para evitar caché del fro
 Busca en el archivo descargado un texto que sepas que agregaste en el commit:
 
 ```powershell
-if (Select-String "routes\wms-api.js" -Pattern "TEXTO_DEL_CAMBIO" -Quiet) { "OK" } else { "FALTA (cache de GitHub, reintenta en ~1 min)" }
+if (Select-String "routes\wms-api.js" -Pattern "TEXTO_DEL_CAMBIO" -Quiet) { "OK" } else { "FALTA (revisa el hash del commit)" }
 ```
 
-> Nota: `raw.githubusercontent.com` puede tardar hasta ~1 minuto en reflejar un push reciente (caché CDN). Si dice FALTA, espera y reintenta.
+> **Sobre el caché de GitHub:** si descargas desde `.../main`, `raw.githubusercontent.com`
+> puede tardar hasta ~1 minuto en reflejar un push reciente (caché CDN) y bajarte la
+> versión vieja. **Descargando desde el hash del commit (`$commit`) esto no pasa** — es
+> la forma recomendada.
 
 ## Confirmar que la app está arriba
 
@@ -68,6 +74,27 @@ Ver el error real de Node:
 ```powershell
 pm2 logs picking --lines 40 --nostream
 ```
+
+O arrancarlo a mano para ver el error de inicio directo (Ctrl+C para salir):
+
+```powershell
+cd C:\PickingManagementV2
+node server.js
+```
+
+> ⚠️ **Falsa alarma conocida:** al arrancar aparece un `ValidationError ... ERR_ERL_KEY_GEN_IPV6`
+> de `express-rate-limit` (en `auth.js`). Es una **advertencia, no un crash** — fíjate que
+> después igual imprime `Connected to SQL Server` y `Picking por Producto running on
+> http://localhost:8080`. El crash real, si lo hay, es una línea `Error:` / `Cannot find module`
+> **antes** de esos mensajes.
+
+## Blindaje del módulo Planificador
+
+El módulo Planificador se carga en `server.js` dentro de un `try/catch`. Si su archivo
+(`routes/planificador-api.js`) bajara incompleto en un deploy, **solo se desactiva el
+Planificador** (verás en el log `AVISO: Planificador deshabilitado ...`) y **el resto de la
+app arranca normal**. Si el Planificador no abre tras un deploy, revisa ese aviso en
+`pm2 logs picking` y vuelve a descargar el archivo (fijando el hash del commit).
 
 ## Base de datos
 

@@ -10,7 +10,6 @@ const orderApiRoutes = require('./routes/order-api');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const wmsApiRoutes = require('./routes/wms-api');
-const planificadorApiRoutes = require('./routes/planificador-api');
 const { requireAuthPage, requireAdminPage, requirePermisoPage } = require('./middleware/auth');
 
 const app = express();
@@ -53,7 +52,21 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/order', orderApiRoutes);
 app.use('/api/wms', wmsApiRoutes);
-app.use('/api/planificador', planificadorApiRoutes);
+
+// Planificador (blindado): si su módulo falla al cargar (p.ej. un archivo
+// bajó incompleto en un deploy), se desactiva SOLO el planificador y el
+// resto de la app arranca normal — no tumba todo el servidor.
+try {
+    const planificadorApiRoutes = require('./routes/planificador-api');
+    app.use('/api/planificador', planificadorApiRoutes);
+    app.get('/planificador', requireAuthPage, requireCentro, requirePermisoPage('planificador'), (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'planificador.html'));
+    });
+    console.log('Modulo Planificador cargado.');
+} catch (err) {
+    console.error('AVISO: Planificador deshabilitado (fallo al cargar el modulo):', err.message);
+}
+
 app.use('/api', apiRoutes);
 
 // Centro selection page
@@ -93,10 +106,6 @@ app.get('/despacho', requireAuthPage, requireCentro, requirePermisoPage('despach
 
 app.get('/pase-salida', requireAuthPage, requireCentro, requirePermisoPage('pase-salida'), (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'pase-salida.html'));
-});
-
-app.get('/planificador', requireAuthPage, requireCentro, requirePermisoPage('planificador'), (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'planificador.html'));
 });
 
 app.get('/admin', requireAdminPage, (req, res) => {
