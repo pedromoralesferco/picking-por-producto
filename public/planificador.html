@@ -160,19 +160,18 @@
         .rmeta b { color:#333; }
         .rmeta .usebar { margin-left:0; }
         .rdel { border:none; background:none; color:#c0392b; cursor:pointer; font-size:.95rem; padding:0 .1rem; }
-        table.pgrid { width:100%; border-collapse:collapse; font-size:.78rem; }
+        table.pgrid { width:100%; border-collapse:collapse; font-size:.78rem; table-layout:fixed; }
         table.pgrid th { text-align:left; background:#fcfcfc; color:#999; font-size:.64rem; text-transform:uppercase; letter-spacing:.4px; padding:.4rem .55rem; border-bottom:1px solid #eee; white-space:nowrap; }
-        table.pgrid td { padding:.4rem .55rem; border-bottom:1px solid #f4f4f4; vertical-align:top; }
+        table.pgrid td { padding:.4rem .55rem; border-bottom:1px solid #f4f4f4; vertical-align:top; overflow-wrap:anywhere; word-break:break-word; }
         table.pgrid tr:last-child td { border-bottom:none; }
         table.pgrid tbody tr[draggable] { cursor:grab; }
         .pg-cli b { display:block; }
-        .pg-dir { min-width:160px; max-width:240px; color:#555; }
-        .pg-com { min-width:160px; max-width:260px; color:#777; }
+        .pg-dir { color:#555; }
+        .pg-com { color:#777; }
         .pg-pw { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-        .pg-act { white-space:nowrap; }
-        .pg-act button { font-size:.7rem; padding:.2rem .4rem; border:1px solid #ddd; background:#fff; border-radius:5px; cursor:pointer; margin-right:.25rem; }
+        .pg-act button, .pg-act select { display:block; width:100%; box-sizing:border-box; font-size:.7rem; padding:.2rem .3rem; border:1px solid #ddd; border-radius:5px; background:#fff; margin-bottom:.25rem; }
+        .pg-act button { cursor:pointer; }
         .pg-act button:hover { background:#f5f5f5; }
-        .pg-act select { font-size:.7rem; padding:.2rem; border:1px solid #ddd; border-radius:5px; }
 
         .hidden { display: none !important; }
     </style>
@@ -450,7 +449,13 @@ function rutaGrid(r, idx) {
 function pgrid(pts, idx, mode) {
     const showAct = mode !== 'especial';
     const cols = ['Cliente', 'Ubic.', 'OV', 'Dirección', 'Comentarios', 'Vendedor', 'Peso'].concat(showAct ? ['Acciones'] : []);
+    // Anchos FIJOS e idénticos en todas las tablas → columnas alineadas (tipo tabla)
+    const widths = showAct
+        ? ['15%', '7%', '9%', '19%', '18%', '10%', '8%', '14%']
+        : ['17%', '8%', '11%', '22%', '21%', '11%', '10%'];
+    const colgroup = `<colgroup>${widths.map(w => `<col style="width:${w}">`).join('')}</colgroup>`;
     return `<div class="grid-wrap"><table class="pgrid">
+        ${colgroup}
         <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
         <tbody>${pts.map(p => pgridRow(p, idx, mode)).join('')}</tbody>
       </table></div>`;
