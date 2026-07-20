@@ -348,4 +348,74 @@ router.post('/planificar', async (req, res) => {
     }
 });
 
+// Capacidad en toneladas a partir de la etiqueta del camión ("5 T" -> 5, "Flete" -> null)
+function capacidadTon(camion) {
+    if (!camion || camion === 'Flete') return null;
+    const m = String(camion).match(/([\d.]+)/);
+    return m ? parseFloat(m[1]) : null;
+}
+
+// ── POST /guardar — sube el plan a RPA.dbo.RutasLocales (1 fila por OV) ──
+router.post('/guardar', async (req, res) => {
+    try {
+        const pool = getPool();
+        const pais = (req.body && req.body.pais) || req.session?.user?.selectedPais || 'GT';
+        const sapDb = getSapDb(pais);
+        const bodega = ((req.body && req.body.bodega) || '01').toString();
+        const fecha = resolveFecha(req.body && req.body.fecha);
+        const rutas = Array.isArray(req.body && req.body.rutas) ? req.body.rutas : [];
+        if (!rutas.length) return res.status(400).json({ error: 'No hay rutas para guardar.' });
+
+        // Pesos por OV (para la columna Peso)
+        const rows = await fetchRows(pool, sapDb, bodega, fecha);
+        const { documentos } = buildDocumentos(rows, fecha);
+        const pesoPorDoc = {};
+        documentos.forEach(d => { pesoPorDoc[String(d.docNum)] = d.peso; });
+
+        // Filas a insertar
+        const filas = [];
+        for (const r of rutas) {
+            const cap = capacidadTon(r.camion);
+            for (const ov of (r.documentos || [])) {
+                filas.push({
+                    ruta: (r.nombre || '').slice(0, 100),
+                    peso: pesoPorDoc[String(ov)] || 0,
+                    documento: String(ov).slice(0, 100),
+                    tipo: 'OV',
+                    capacidad: cap,
+                    almacen: bodega
+                });
+            }
+        }
+        if (!filas.length) return res.status(400).json({ error: 'El plan no tiene documentos para guardar.' });
+
+        const tx = new sql.Transaction(pool);
+        await tx.begin();
+        try {
+            // Es una cola de procesamiento de cuadros de ruta: se limpia por
+            // completo y se recarga con el plan actual.
+            await new sql.Request(tx).query(`DELETE FROM RPA.dbo.RutasLocales`);
+            for (const f of filas) {
+                await new sql.Request(tx)
+                    .input('ruta', sql.NVarChar(100), f.ruta)
+                    .input('peso', sql.Float, f.peso)
+                    .input('doc', sql.NVarChar(100), f.documento)
+                    .input('tipo', sql.NVarChar(100), f.tipo)
+                    .input('cap', sql.Float, f.capacidad)
+                    .input('alm', sql.NVarChar(20), f.almacen)
+                    .query(`INSERT INTO RPA.dbo.RutasLocales (Ruta, Peso, Documento, Tipo, Capacidad, AlmacenOrigen)
+                            VALUES (@ruta, @peso, @doc, @tipo, @cap, @alm)`);
+            }
+            await tx.commit();
+        } catch (e) {
+            await tx.rollback();
+            throw e;
+        }
+        res.json({ ok: true, rutas: rutas.length, filas: filas.length });
+    } catch (err) {
+        console.error('POST /api/planificador/guardar error:', err);
+        res.status(500).json({ error: err.message || 'Error al guardar en RutasLocales' });
+    }
+});
+
 module.exports = router;

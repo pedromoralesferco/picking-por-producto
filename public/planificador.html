@@ -149,6 +149,8 @@
         .btn-sm { padding:.4rem .7rem; font-size:.78rem; border:1px solid #ddd; background:#fafafa; border-radius:6px; cursor:pointer; display:inline-flex; gap:.3rem; align-items:center; }
         .btn-sm:hover { background:#f0f0f0; }
         .btn-new { border-color:#d4a826; color:#8a6d1f; background:#fdf7e6; }
+        .btn-save { border-color:#2e7d32; color:#2e7d32; background:#eaf5ea; font-weight:700; }
+        .btn-save:hover { background:#dcecdc; }
         .rgrid { margin:0 1rem .7rem; border:1px solid #e9e9e9; border-radius:10px; overflow:hidden; }
         .rgrid.bad { border-color:#f5c6c0; }
         .rgrid-h { display:flex; align-items:center; gap:.6rem; padding:.5rem .7rem; background:#fafafa; flex-wrap:wrap; }
@@ -400,6 +402,7 @@ function drawPlan() {
         </select>
         <span class="tb-l" style="margin-left:auto"><i class="bi bi-calendar3"></i> Entrega: <b>${fechaTxt}</b></span>
         <button class="btn-sm btn-new" onclick="nuevaRuta()"><i class="bi bi-plus-lg"></i> Nueva ruta</button>
+        <button class="btn-sm btn-save" id="btnGuardar" onclick="guardarPlan()"><i class="bi bi-cloud-arrow-up"></i> Guardar</button>
       </div>
       <div class="hint"><i class="bi bi-arrows-move"></i> Reasigna con los botones "Desasignar" / "Cambiar" de cada fila, o arrastrando.</div>`;
 
@@ -530,6 +533,40 @@ function ordenarRutas(key) {
 function renombrarRuta(idx, val) { if (PLAN && PLAN.rutas[idx]) { const v = (val || '').trim(); if (v) PLAN.rutas[idx].nombre = v; } }
 function cambiarCamion(idx, val) { if (PLAN && PLAN.rutas[idx]) { PLAN.rutas[idx].camion = val; drawPlan(); } }
 function nuevaRuta() { if (!PLAN) return; PLAN.rutas.push({ nombre: 'Ruta nueva ' + (PLAN.rutas.length + 1), camion: '5 T', region: '', puntos: [] }); drawPlan(); }
+
+async function guardarPlan() {
+    if (!PLAN) return;
+    const viol = validarPlan();
+    if (viol.length || PLAN.sinAsignar.length) {
+        if (!confirm('Hay rutas por revisar o puntos sin asignar. ¿Guardar de todos modos?')) return;
+    }
+    const rutas = PLAN.rutas.map(r => ({
+        nombre: r.nombre,
+        camion: r.camion,
+        documentos: r.puntos.flatMap(id => (BYID[id] && BYID[id].ovs) || [])
+    })).filter(r => r.documentos.length);
+    if (!rutas.length) { alert('No hay rutas con documentos para guardar.'); return; }
+
+    const totalDocs = rutas.reduce((s, r) => s + r.documentos.length, 0);
+    if (!confirm(`Se limpiará la cola RutasLocales y se cargará el plan actual (${rutas.length} rutas, ${totalDocs} documentos). ¿Continuar?`)) return;
+
+    const btn = document.getElementById('btnGuardar');
+    const fecha = document.getElementById('fecha').value;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando…'; }
+    try {
+        const res = await fetch('/api/planificador/guardar', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fecha, bodega: '01', rutas })
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Error al guardar');
+        alert(`✓ Guardado en RutasLocales: ${d.rutas} rutas, ${d.filas} documentos.`);
+    } catch (err) {
+        alert('Error al guardar: ' + err.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Guardar'; }
+    }
+}
 function eliminarRuta(idx) {
     const r = PLAN && PLAN.rutas[idx]; if (!r) return;
     r.puntos.forEach(id => { if (!PLAN.sinAsignar.includes(id)) PLAN.sinAsignar.push(id); });
