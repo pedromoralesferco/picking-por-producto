@@ -46,14 +46,13 @@
         .chips { display: flex; gap: .7rem; flex-wrap: wrap; padding: 1rem 1.5rem 0; }
         .chip { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: .6rem .9rem; display: flex; align-items: center; gap: .55rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
         .chip i { font-size: 1.3rem; color: var(--primary); }
-        .chip.warn i { color: var(--warn); }
         .chip .n { font-size: 1.15rem; font-weight: 800; line-height: 1; }
         .chip .l { font-size: .7rem; color: #888; text-transform: uppercase; letter-spacing: .5px; }
 
         /* Layout */
-        .layout { display: grid; grid-template-columns: 280px 1fr; gap: 1.2rem; padding: 1.2rem 1.5rem; align-items: start; }
-        @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
-        .card { background: white; border: 1px solid #e9e9e9; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+        .layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.2rem; padding: 1.2rem 1.5rem; align-items: start; }
+        @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+        .card { background: white; border: 1px solid #e9e9e9; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.05); overflow: hidden; }
         .card-h { padding: .8rem 1rem; border-bottom: 1px solid #eee; font-weight: 700; font-size: .9rem; display: flex; align-items: center; gap: .5rem; }
         .card-h i { color: var(--warn); }
         .card-b { padding: 1rem; }
@@ -70,42 +69,31 @@
         .libre { font-size: .72rem; color: #666; display: flex; align-items: center; gap: .3rem; cursor: pointer; }
         .fleet-note { font-size: .72rem; color: #999; margin-top: .7rem; line-height: 1.4; }
 
-        /* Empty / loading state */
+        /* Empty / loading */
         .empty { text-align: center; padding: 4rem 1rem; color: #999; }
         .empty i { font-size: 3rem; color: #ddd; display: block; margin-bottom: 1rem; }
         .empty p { margin-bottom: 1.2rem; }
         .spinner { text-align: center; padding: 3rem; color: #999; }
         .spinner i { font-size: 2rem; animation: spin 1s linear infinite; display: inline-block; color: var(--warn); }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .errbox { background: #fdecea; color: var(--danger); border: 1px solid #f5c6c0; border-radius: 8px; padding: 1rem; font-size: .85rem; }
+        .errbox { background: #fdecea; color: var(--danger); border: 1px solid #f5c6c0; border-radius: 8px; padding: 1rem; font-size: .85rem; margin: 1rem; }
+        .info-banner { background: #fff8f2; border: 1px dashed #f6c6a8; color: var(--warn); border-radius: 8px; padding: .7rem .9rem; font-size: .8rem; margin: 1rem 1rem 0; display: flex; align-items: center; gap: .5rem; }
 
-        /* Result sections */
-        .section-title { font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #888; margin: 1.2rem 0 .6rem; display: flex; align-items: center; gap: .5rem; }
-        .section-title:first-child { margin-top: 0; }
-        .section-title .badge { background: #eee; color: #666; border-radius: 20px; padding: .1rem .5rem; font-size: .7rem; }
+        /* Grid / tabla */
+        .grid-wrap { overflow-x: auto; }
+        table.grid { width: 100%; border-collapse: collapse; font-size: .82rem; }
+        table.grid th { text-align: left; background: #fafafa; color: #777; font-size: .68rem; text-transform: uppercase; letter-spacing: .5px; padding: .55rem .7rem; border-bottom: 2px solid #eee; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+        table.grid td { padding: .5rem .7rem; border-bottom: 1px solid #f2f2f2; vertical-align: top; }
+        table.grid tr:hover td { background: #fcfaf5; }
+        .c-doc b { display: block; font-variant-numeric: tabular-nums; }
+        .c-doc small { color: #999; }
+        .tipo { background: #eef2ff; color: #3949ab; border-radius: 5px; padding: .1rem .45rem; font-size: .7rem; font-weight: 700; }
+        .c-fecha { white-space: nowrap; color: #555; font-variant-numeric: tabular-nums; }
+        .c-dir { min-width: 200px; max-width: 300px; color: #444; }
+        .c-com { min-width: 220px; max-width: 340px; color: #666; font-size: .78rem; }
+        .c-vend { white-space: nowrap; color: #555; }
+        .muted { color: #bbb; }
 
-        .group { border: 1px solid #e9e9e9; border-radius: 10px; margin-bottom: .7rem; overflow: hidden; background: white; }
-        .group-h { display: flex; align-items: center; gap: .8rem; padding: .6rem 1rem; cursor: pointer; background: #fafafa; }
-        .group-h:hover { background: #f3f3f3; }
-        .group-name { font-weight: 700; font-size: .88rem; }
-        .group-meta { margin-left: auto; font-size: .78rem; color: #888; white-space: nowrap; }
-        .group-meta b { color: #333; }
-        .group-pts { padding: .3rem 1rem .5rem; }
-        .pt { display: flex; align-items: center; gap: .6rem; padding: .35rem 0; font-size: .82rem; border-bottom: 1px dashed #f2f2f2; }
-        .pt:last-child { border-bottom: none; }
-        .pt .z { background: #f0f0f0; color: #666; border-radius: 5px; padding: .1rem .4rem; font-size: .68rem; font-weight: 700; min-width: 52px; text-align: center; }
-        .pt .cli { flex: 1; }
-        .pt .cli small { color: #aaa; }
-        .pt .pw { color: #666; font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-        /* Especiales */
-        .group.especial { border-color: #f6c6a8; background: #fff8f2; }
-        .group.especial .group-h { background: #fdf1e7; }
-        .especial-note { font-size: .72rem; color: var(--warn); padding: 0 1rem .6rem; }
-
-        .info-banner { background: #fff8f2; border: 1px dashed #f6c6a8; color: var(--warn); border-radius: 8px; padding: .8rem 1rem; font-size: .82rem; margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
-
-        .foot { display: flex; justify-content: flex-end; gap: .7rem; padding: 1rem 1.5rem 2rem; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -123,7 +111,6 @@
         <button class="btn btn-primary" id="btnImportar" onclick="importar()"><i class="bi bi-download"></i> Importar rutas</button>
     </div>
 
-    <!-- Chips resumen -->
     <div class="chips hidden" id="chips"></div>
 
     <div class="layout">
@@ -138,8 +125,8 @@
 
         <!-- Resultado -->
         <div class="card">
-            <div class="card-h"><i class="bi bi-signpost-split"></i> Puntos pendientes</div>
-            <div class="card-b" id="result">
+            <div class="card-h"><i class="bi bi-table"></i> Documentos pendientes</div>
+            <div id="result">
                 <div class="empty" id="emptyState">
                     <i class="bi bi-inbox"></i>
                     <p>Importa las rutas pendientes para comenzar a planificar.</p>
@@ -158,8 +145,8 @@ const FLOTA = [
     { id: 't10', cap: '10 T',  kg: 10000, disp: 4,  libre: false },
     { id: 't22', cap: '22 T',  kg: 22000, disp: 0,  libre: true  },
 ];
-let PUNTOS = [];   // puntos de entrega importados (datos reales)
-let DATA = null;   // respuesta completa del endpoint
+let DOCS = [];   // documentos importados
+let DATA = null;
 
 (function initFecha(){
     const d = new Date(); d.setDate(d.getDate()+1);
@@ -193,13 +180,13 @@ async function importar() {
         const res = await fetch('/api/planificador/pendientes?fecha=' + encodeURIComponent(fecha));
         if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'Error al importar'); }
         DATA = await res.json();
-        PUNTOS = DATA.puntos || [];
+        DOCS = DATA.documentos || [];
         renderChips(DATA.resumen);
-        renderPreview();
+        renderGrid();
         const fc = document.getElementById('flotaCard');
         fc.style.opacity = '1'; fc.style.pointerEvents = 'auto';
         renderFleet();
-        document.getElementById('btnPlan').disabled = PUNTOS.length === 0;
+        document.getElementById('btnPlan').disabled = DOCS.length === 0;
         document.getElementById('btnImportar').innerHTML = '<i class="bi bi-arrow-repeat"></i> Reimportar';
     } catch (err) {
         document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + err.message + '</div>';
@@ -212,80 +199,55 @@ function renderChips(r) {
     const c = document.getElementById('chips');
     c.classList.remove('hidden');
     c.innerHTML = `
-        <div class="chip"><i class="bi bi-geo-alt"></i><div><div class="n">${r.puntos}</div><div class="l">Puntos de entrega</div></div></div>
+        <div class="chip"><i class="bi bi-file-earmark-text"></i><div><div class="n">${r.documentos}</div><div class="l">Documentos</div></div></div>
         <div class="chip"><i class="bi bi-box-seam"></i><div><div class="n">${r.toneladas} T</div><div class="l">Peso total</div></div></div>
-        <div class="chip"><i class="bi bi-list-ul"></i><div><div class="n">${r.lineas}</div><div class="l">Líneas</div></div></div>
-        <div class="chip warn"><i class="bi bi-exclamation-triangle"></i><div><div class="n">${r.exceden}</div><div class="l">Exceden 22 T</div></div></div>`;
+        <div class="chip"><i class="bi bi-list-ul"></i><div><div class="n">${r.lineas}</div><div class="l">Líneas</div></div></div>`;
 }
 
-function ptRow(p) {
-    const et = p.zona != null ? ('Z' + p.zona) : (p.departamento ? p.departamento.slice(0,7) : '—');
-    const ovTxt = p.nOV > 1 ? ` <small>· ${p.nOV} OV</small>` : '';
-    return `<div class="pt"><span class="z">${et}</span>
-        <span class="cli">${esc(p.cliente)}${ovTxt}</span>
-        <span class="pw">${p.peso.toLocaleString()} kg</span></div>`;
+function fmtFecha(f) {
+    if (!f) return '';
+    const d = new Date(f);
+    if (isNaN(d)) return f;
+    const p = n => String(n).padStart(2,'0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;
 }
 
-function renderPreview() {
-    if (!PUNTOS.length) {
+function renderGrid() {
+    if (!DOCS.length) {
         document.getElementById('result').innerHTML = '<div class="empty"><i class="bi bi-inbox"></i><p>No hay pedidos pendientes para esa fecha.</p></div>';
         return;
     }
-    const especiales = PUNTOS.filter(p => p.excede);
-    const regional   = PUNTOS.filter(p => !p.excede && p.region === 'regional');
-    const metro       = PUNTOS.filter(p => !p.excede && p.region === 'metro');
+    const rows = DOCS.map(d => `
+        <tr>
+            <td class="c-doc"><b>${d.docNum}</b><small>${esc(d.cliente)}</small></td>
+            <td><span class="tipo">${d.tipo}</span></td>
+            <td class="c-fecha">${fmtFecha(d.fechaEntrega)}</td>
+            <td class="c-dir">${esc(d.direccion) || '<span class="muted">—</span>'}</td>
+            <td class="c-com">${esc(d.comentarios) || '<span class="muted">—</span>'}</td>
+            <td class="c-vend">${esc(d.vendedor) || '<span class="muted">—</span>'}</td>
+        </tr>`).join('');
 
-    let html = '<div class="info-banner"><i class="bi bi-info-circle"></i> Datos importados. Ajusta la flota y presiona <b>Planificar</b> para agrupar en rutas (próximamente).</div>';
-
-    if (especiales.length) {
-        html += `<div class="section-title" style="color:var(--warn)"><i class="bi bi-exclamation-triangle-fill"></i> Especiales <span class="badge">${especiales.length}</span></div>`;
-        html += especiales.map(p => `
-            <div class="group especial">
-              <div class="group-h">
-                <div class="group-name">${esc(p.cliente)}</div>
-                <div class="group-meta"><b>${p.peso.toLocaleString()} kg</b> · ${p.departamento||'—'}</div>
-              </div>
-              <div class="especial-note"><i class="bi bi-exclamation-triangle"></i> Supera el camión más grande (22 T) — requiere flete dedicado o viajes múltiples.</div>
-            </div>`).join('');
-    }
-
-    html += sectionByKey('🌎 Regionales', 'bi-globe-americas', regional, p => p.departamento || 'Sin depto.');
-    html += sectionByKey('🏙️ Metropolitanas', 'bi-buildings', metro, p => p.zona != null ? ('Zona ' + p.zona) : 'Sin zona');
-
-    document.getElementById('result').innerHTML = html;
-}
-
-// Agrupa una lista de puntos por una clave (depto o zona) en tarjetas colapsables
-function sectionByKey(title, icon, pts, keyFn) {
-    if (!pts.length) return '';
-    const groups = {};
-    pts.forEach(p => { const k = keyFn(p); (groups[k] = groups[k] || []).push(p); });
-    const keys = Object.keys(groups).sort((a,b) =>
-        groups[b].reduce((s,p)=>s+p.peso,0) - groups[a].reduce((s,p)=>s+p.peso,0));
-    let html = `<div class="section-title"><i class="bi ${icon}"></i> ${title} <span class="badge">${pts.length} pts</span></div>`;
-    html += keys.map(k => {
-        const g = groups[k]; const peso = g.reduce((s,p)=>s+p.peso,0);
-        return `<div class="group">
-            <div class="group-h" onclick="this.parentNode.classList.toggle('open')">
-              <div class="group-name">${esc(k)}</div>
-              <div class="group-meta"><b>${peso.toLocaleString()} kg</b> · ${g.length} pts</div>
-            </div>
-            <div class="group-pts">${g.sort((a,b)=>b.peso-a.peso).map(ptRow).join('')}</div>
-          </div>`;
-    }).join('');
-    return html;
+    document.getElementById('result').innerHTML = `
+        <div class="info-banner"><i class="bi bi-info-circle"></i> Documentos importados. Ajusta la flota y presiona <b>Planificar</b> para agruparlos en rutas (próximamente).</div>
+        <div class="grid-wrap">
+          <table class="grid">
+            <thead><tr>
+                <th>Documento</th><th>Tipo</th><th>DocDueDate</th>
+                <th>Dirección</th><th>Comentarios</th><th>Vendedor</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
 }
 
 function planificar() {
-    // Fase 3: aquí se enviarán los puntos + flota a la API de Anthropic
-    // para obtener las rutas agrupadas y balanceadas.
-    document.getElementById('result').scrollIntoView({behavior:'smooth'});
     const r = document.getElementById('result');
-    const banner = '<div class="info-banner"><i class="bi bi-stars"></i> <b>Planificación con IA (Fase 3)</b> — próximamente: aquí se agruparán los ' + PUNTOS.length + ' puntos en rutas por camión, respetando capacidad, ≤5 puntos y balance de carga.</div>';
+    const banner = '<div class="info-banner"><i class="bi bi-stars"></i> <b>Planificación con IA (Fase 3)</b> — próximamente: aquí se agruparán los ' + DOCS.length + ' documentos en rutas por camión, respetando capacidad, ≤5 puntos y balance de carga.</div>';
     if (!r.innerHTML.includes('Planificación con IA')) r.insertAdjacentHTML('afterbegin', banner);
+    r.scrollIntoView({behavior:'smooth'});
 }
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 </script>
 </body>
 </html>
