@@ -1,5 +1,7 @@
 const express = require('express');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const { getPool, sql } = require('../db');
 const { getSapDb } = require('../config/paises');
 const router = express.Router();
@@ -127,7 +129,7 @@ router.get('/pendientes', async (req, res) => {
 });
 
 // ── Prompt ──────────────────────────────────────────────
-const SYSTEM_PROMPT = `Eres un planificador experto de rutas de reparto para una distribuidora en Guatemala.
+const SYSTEM_PROMPT_DEFAULT = `Eres un planificador experto de rutas de reparto para una distribuidora en Guatemala.
 Recibes una lista de PUNTOS DE ENTREGA pendientes (cada uno = un cliente en una dirección, con su peso total en kg y su ubicación) y una FLOTA de camiones disponibles. Debes agrupar los puntos en rutas.
 
 REGLAS DURAS (obligatorias, no las violes):
@@ -152,6 +154,14 @@ Devuelve ÚNICAMENTE un objeto JSON válido, sin texto adicional ni markdown, co
 - "puntos" son los "id" numéricos de los puntos, tal cual te los di.
 - "camion" debe ser uno de: "1.5 T", "3.5 T", "5 T", "10 T", "22 T".
 - Elige para cada ruta el camión más pequeño en el que quepa su carga.`;
+
+// El prompt se puede ajustar en config/planificador-prompt.txt SIN redeploy:
+// se lee en cada corrida; si el archivo no existe, se usa el default de arriba.
+const PROMPT_PATH = path.join(__dirname, '..', 'config', 'planificador-prompt.txt');
+function getSystemPrompt() {
+    try { const t = fs.readFileSync(PROMPT_PATH, 'utf8'); if (t && t.trim()) return t; } catch (_) { /* usa default */ }
+    return SYSTEM_PROMPT_DEFAULT;
+}
 
 function buildUserMsg(ruteables, flota) {
     const puntosMsg = ruteables.map(p => ({
@@ -298,7 +308,7 @@ router.post('/planificar', async (req, res) => {
             return res.json({ fecha, puntos, rutas: [], especiales, notas: 'No hay puntos ruteables.', validacion: { ok: true, violaciones: [], sinAsignar: [] } });
         }
 
-        const ai = await callAnthropic(SYSTEM_PROMPT, buildUserMsg(ruteables, flota));
+        const ai = await callAnthropic(getSystemPrompt(), buildUserMsg(ruteables, flota));
         let plan;
         try { plan = parsePlan(ai.text); }
         catch (e) {
