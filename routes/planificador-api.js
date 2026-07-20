@@ -161,13 +161,16 @@ function buildUserMsg(ruteables, flota) {
         + `Agrupa TODOS estos puntos en rutas siguiendo las reglas. Devuelve solo el JSON.`;
 }
 
-// Llamada a la API de Anthropic por HTTP directo (sin SDK)
+// Llamada a la API de Anthropic por HTTP directo (sin SDK), en STREAMING.
+// El streaming mantiene el socket activo (llegan eventos y pings continuos),
+// evitando el timeout por inactividad en generaciones largas.
 function callAnthropic(system, userText) {
     return new Promise((resolve, reject) => {
         if (!process.env.ANTHROPIC_API_KEY) return reject(new Error('Falta ANTHROPIC_API_KEY en el .env del servidor.'));
         const payload = JSON.stringify({
             model: 'claude-opus-4-8',
-            max_tokens: 24000,
+            max_tokens: 32000,
+            stream: true,
             thinking: { type: 'adaptive' },
             output_config: { effort: 'high' },
             system,
@@ -182,20 +185,43 @@ function callAnthropic(system, userText) {
                 'content-length': Buffer.byteLength(payload)
             }
         }, resp => {
-            let data = '';
-            resp.on('data', c => data += c);
-            resp.on('end', () => {
-                if (resp.statusCode !== 200) return reject(new Error('Anthropic ' + resp.statusCode + ': ' + data.slice(0, 400)));
-                try {
-                    const j = JSON.parse(data);
-                    if (j.stop_reason === 'refusal') return reject(new Error('La IA rechazó la solicitud.'));
-                    const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-                    resolve({ text, stopReason: j.stop_reason });
-                } catch (e) { reject(new Error('Respuesta no parseable de Anthropic.')); }
+            if (resp.statusCode !== 200) {
+                let errData = '';
+                resp.on('data', c => errData += c);
+                resp.on('end', () => reject(new Error('Anthropic ' + resp.statusCode + ': ' + errData.slice(0, 400))));
+                return;
+            }
+            resp.setEncoding('utf8');
+            let buffer = '', text = '', stopReason = null;
+            resp.on('data', chunk => {
+                buffer += chunk;
+                let nl;
+                while ((nl = buffer.indexOf('\n')) !== -1) {
+                    const line = buffer.slice(0, nl).trim();
+                    buffer = buffer.slice(nl + 1);
+                    if (!line.startsWith('data:')) continue;
+                    const payloadStr = line.slice(5).trim();
+                    if (!payloadStr || payloadStr === '[DONE]') continue;
+                    let ev; try { ev = JSON.parse(payloadStr); } catch { continue; }
+                    if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') {
+                        text += ev.delta.text;
+                    } else if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) {
+                        stopReason = ev.delta.stop_reason;
+                    } else if (ev.type === 'error') {
+                        reject(new Error('Anthropic stream: ' + JSON.stringify(ev.error || ev).slice(0, 300)));
+                    }
+                }
             });
+            resp.on('end', () => {
+                if (stopReason === 'refusal') return reject(new Error('La IA rechazó la solicitud.'));
+                resolve({ text, stopReason });
+            });
+            resp.on('error', reject);
         });
         reqA.on('error', reject);
-        reqA.setTimeout(240000, () => reqA.destroy(new Error('Timeout llamando a Anthropic (240s).')));
+        // Timeout de inactividad: con streaming llegan eventos/pings seguido,
+        // así que solo salta si el socket queda mudo mucho tiempo.
+        reqA.setTimeout(180000, () => reqA.destroy(new Error('Timeout: Anthropic no respondió (socket inactivo 180s).')));
         reqA.write(payload);
         reqA.end();
     });
