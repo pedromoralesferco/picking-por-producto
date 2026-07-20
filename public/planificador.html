@@ -94,6 +94,34 @@
         .c-vend { white-space: nowrap; color: #555; }
         .muted { color: #bbb; }
 
+        /* Plan (rutas sugeridas) */
+        .okbox { background:#eaf5ea; border:1px solid #c3e3c3; color:#2e7d32; border-radius:8px; padding:.6rem .9rem; margin:1rem 1rem 0; font-size:.82rem; }
+        .warnbox { background:#fdf1e7; border:1px solid #f6c6a8; color:var(--warn); border-radius:8px; padding:.6rem .9rem; margin:1rem 1rem 0; font-size:.8rem; }
+        .warnbox ul { margin:.3rem 0 0 1.1rem; }
+        .notas { margin:.6rem 1rem 0; font-size:.78rem; color:#777; font-style:italic; }
+        .plan-section { font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#888; margin:1.1rem 1rem .5rem; }
+        .route { border:1px solid #e9e9e9; border-radius:10px; margin:0 1rem .6rem; overflow:hidden; }
+        .route.especial { border-color:#f6c6a8; background:#fff8f2; }
+        .route.especial.danger { border-color:#f5c6c0; background:#fdecea; }
+        .route-h { display:flex; align-items:center; gap:.7rem; padding:.6rem .9rem; background:#fafafa; cursor:pointer; }
+        .route.especial .route-h { background:#fdf1e7; }
+        .route.especial.danger .route-h { background:#fbe3e0; }
+        .route-name { font-weight:700; font-size:.87rem; }
+        .route-name small { color:#999; font-weight:400; display:block; font-size:.72rem; }
+        .truck { background:#eef2ff; color:#3949ab; border-radius:6px; padding:.15rem .5rem; font-size:.72rem; font-weight:700; white-space:nowrap; }
+        .route.especial .truck { background:#fdecdd; color:var(--warn); }
+        .route-meta { margin-left:auto; text-align:right; font-size:.74rem; color:#888; white-space:nowrap; }
+        .route-meta b { color:#333; }
+        .usebar { height:5px; background:#eee; border-radius:3px; margin-top:.25rem; width:90px; margin-left:auto; overflow:hidden; }
+        .usebar .fill { height:100%; background:var(--success); }
+        .route-pts { max-height:0; overflow:hidden; transition:max-height .2s ease; }
+        .route.open .route-pts { max-height:600px; padding:.4rem .9rem .6rem; border-top:1px solid #f0f0f0; }
+        .rpt { display:flex; gap:.6rem; padding:.32rem 0; font-size:.82rem; border-bottom:1px dashed #f2f2f2; }
+        .rpt:last-child { border-bottom:none; }
+        .rpt .z { background:#f0f0f0; color:#666; border-radius:5px; padding:.1rem .4rem; font-size:.68rem; font-weight:700; min-width:56px; text-align:center; }
+        .rpt .cli { flex:1; }
+        .rpt .pw { color:#666; white-space:nowrap; }
+
         .hidden { display: none !important; }
     </style>
 </head>
@@ -240,11 +268,89 @@ function renderGrid() {
         </div>`;
 }
 
-function planificar() {
-    const r = document.getElementById('result');
-    const banner = '<div class="info-banner"><i class="bi bi-stars"></i> <b>Planificación con IA (Fase 3)</b> — próximamente: aquí se agruparán los ' + DOCS.length + ' documentos en rutas por camión, respetando capacidad, ≤5 puntos y balance de carga.</div>';
-    if (!r.innerHTML.includes('Planificación con IA')) r.insertAdjacentHTML('afterbegin', banner);
-    r.scrollIntoView({behavior:'smooth'});
+async function planificar() {
+    const fecha = document.getElementById('fecha').value;
+    const flota = FLOTA.map(t => ({ tipo: t.cap, kg: t.kg, disponibles: t.libre ? null : t.disp }));
+    document.getElementById('result').innerHTML = '<div class="spinner"><i class="bi bi-stars"></i><p style="margin-top:1rem">Planificando con IA… (puede tardar hasta ~1 min)</p></div>';
+    document.getElementById('btnPlan').disabled = true;
+    try {
+        const res = await fetch('/api/planificador/planificar', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fecha, flota })
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Error al planificar');
+        renderPlan(d);
+    } catch (err) {
+        document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + err.message + '</div>';
+    } finally {
+        document.getElementById('btnPlan').disabled = false;
+    }
+}
+
+function renderPlan(d) {
+    const byId = {}; (d.puntos || []).forEach(p => byId[p.id] = p);
+    const capOf = label => (FLOTA.find(t => t.cap === label) || {}).kg || 0;
+    let html = '';
+
+    const v = d.validacion || { ok: true, violaciones: [], sinAsignar: [] };
+    if (v.ok) {
+        html += '<div class="okbox"><i class="bi bi-check-circle"></i> Plan válido — cumple capacidad, límite de puntos y flota disponible.</div>';
+    } else {
+        html += '<div class="warnbox"><b><i class="bi bi-exclamation-triangle"></i> Revisar el plan:</b><ul>'
+            + (v.violaciones || []).map(x => `<li>${esc(x)}</li>`).join('')
+            + ((v.sinAsignar && v.sinAsignar.length) ? `<li>${v.sinAsignar.length} punto(s) quedaron sin asignar.</li>` : '')
+            + '</ul></div>';
+    }
+    if (d.notas) html += `<div class="notas"><i class="bi bi-chat-left-text"></i> ${esc(d.notas)}</div>`;
+
+    if (d.especiales && d.especiales.length) {
+        html += '<div class="plan-section" style="color:var(--warn)">Especiales — flete dedicado</div>';
+        html += d.especiales.map(id => byId[id] ? routeSpecial(byId[id]) : '').join('');
+    }
+
+    html += `<div class="plan-section">Rutas sugeridas (${(d.rutas || []).length})</div>`;
+    html += (d.rutas || []).map(r => routeCard(r, byId, capOf)).join('');
+
+    if (v.sinAsignar && v.sinAsignar.length) {
+        html += '<div class="plan-section" style="color:var(--danger)">Sin asignar</div>';
+        html += v.sinAsignar.map(id => byId[id] ? routeSpecial(byId[id], true) : '').join('');
+    }
+    document.getElementById('result').innerHTML = html;
+}
+
+function routeCard(r, byId, capOf) {
+    const cap = r.capacidad_kg || capOf(r.camion) || 0;
+    const pts = (r.puntos || []).map(id => byId[id]).filter(Boolean);
+    const peso = pts.reduce((s, p) => s + p.peso, 0);
+    const pct = cap ? Math.round(peso / cap * 100) : 0;
+    return `
+      <div class="route" onclick="this.classList.toggle('open')">
+        <div class="route-h">
+          <span class="truck">${esc(r.camion || '')}</span>
+          <div class="route-name">${esc(r.nombre || 'Ruta')}<small>${pts.length} puntos${r.region ? (' · ' + esc(r.region)) : ''}</small></div>
+          <div class="route-meta"><b>${peso.toLocaleString()} kg</b> · ${pct}%
+            <div class="usebar"><div class="fill" style="width:${Math.min(pct,100)}%"></div></div>
+          </div>
+        </div>
+        <div class="route-pts">${pts.map(ptRow).join('')}</div>
+      </div>`;
+}
+
+function ptRow(p) {
+    const et = p.zona != null ? ('Z' + p.zona) : (p.departamento ? p.departamento.slice(0,8) : '—');
+    const ov = (p.ovs && p.ovs.length > 1) ? ` <small>· ${p.ovs.length} OV</small>` : '';
+    return `<div class="rpt"><span class="z">${esc(et)}</span><span class="cli">${esc(p.cliente)}${ov}</span><span class="pw">${p.peso.toLocaleString()} kg</span></div>`;
+}
+
+function routeSpecial(p, danger) {
+    return `<div class="route especial${danger ? ' danger' : ''}">
+      <div class="route-h">
+        <span class="truck">${danger ? '—' : 'FLETE'}</span>
+        <div class="route-name">${esc(p.cliente)}<small>${esc(p.departamento || p.direccion || '')}</small></div>
+        <div class="route-meta"><b>${p.peso.toLocaleString()} kg</b></div>
+      </div>
+    </div>`;
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
