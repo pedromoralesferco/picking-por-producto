@@ -353,8 +353,8 @@ function renderPlan(d) {
     PLAN = {
         notas: d.notas || '',
         rutas: (d.rutas || []).map(r => ({
-            nombre: r.nombre || 'Ruta', camion: r.camion || '', region: r.region || '',
-            puntos: (r.puntos || []).filter(id => BYID[id] !== undefined)
+            nombre: r.nombre || r.id || 'Ruta', camion: r.camion || '', region: r.region || '',
+            puntos: (r.puntos || []).map(id => Number(id)).filter(id => BYID[id] !== undefined)
         })),
         especiales: (d.especiales || []).filter(id => BYID[id] !== undefined),
         sinAsignar: ((d.validacion && d.validacion.sinAsignar) || []).filter(id => BYID[id] !== undefined)
@@ -369,7 +369,7 @@ function validarPlan() {
         const cap = capOf(r.camion);
         const peso = r.puntos.reduce((s, id) => s + ((BYID[id] || {}).peso || 0), 0);
         const maxPts = cap >= 10000 ? 3 : 5;
-        if (cap && peso > cap) viol.push(`"${r.nombre}": ${peso.toLocaleString()} kg excede ${r.camion} (${cap.toLocaleString()} kg).`);
+        if (cap && peso > cap * 1.05) viol.push(`"${r.nombre}": ${peso.toLocaleString()} kg excede ${r.camion} (${cap.toLocaleString()} kg + 5%).`);
         if (r.puntos.length > maxPts) viol.push(`"${r.nombre}": ${r.puntos.length} puntos (máx ${maxPts} para ${r.camion}).`);
     });
     return viol;
@@ -426,7 +426,7 @@ function rutaGrid(r, idx) {
     const pct = cap ? Math.round(peso / cap * 100) : 0;
     const esFlete = r.camion === 'Flete';
     const maxPts = cap >= 10000 ? 3 : 5;
-    const bad = (!esFlete && cap && peso > cap) || pts.length > maxPts;
+    const bad = (!esFlete && cap && peso > cap * 1.05) || pts.length > maxPts;
     const truckOpts = FLOTA.map(t => `<option ${t.cap === r.camion ? 'selected' : ''}>${t.cap}</option>`).join('');
     const metaInner = esFlete
         ? `<b>${peso.toLocaleString()} kg</b> · flete (sin tope)`

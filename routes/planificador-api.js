@@ -270,22 +270,25 @@ function validar(plan, puntosById, flota) {
     const asignados = new Set();
     const capPorTipo = {}; flota.forEach(f => capPorTipo[f.tipo] = f);
 
+    const TOL = 1.05; // tolerancia del 5% en capacidad (pesos aproximados)
     for (const r of (plan.rutas || [])) {
+        const nombre = r.nombre || r.id || 'ruta';
         const f = capPorTipo[r.camion];
         const esFlete = r.camion === 'Flete';
         const cap = f ? f.kg : (esFlete ? Infinity : 0);   // Flete = sin tope de capacidad
-        if (!f && !esFlete) violaciones.push(`Ruta "${r.nombre}": tipo de camión desconocido "${r.camion}".`);
+        if (!f && !esFlete) violaciones.push(`Ruta "${nombre}": tipo de camión desconocido "${r.camion}".`);
         let peso = 0, n = 0;
-        for (const id of (r.puntos || [])) {
+        for (const raw of (r.puntos || [])) {
+            const id = Number(raw);
             const p = puntosById[id];
-            if (!p) { violaciones.push(`Ruta "${r.nombre}": el punto ${id} no existe.`); continue; }
+            if (!p) { violaciones.push(`Ruta "${nombre}": el punto ${raw} no existe.`); continue; }
             if (asignados.has(id)) violaciones.push(`El punto ${id} (${p.cliente}) está en más de una ruta.`);
             asignados.add(id); peso += p.peso; n++;
         }
         usados[r.camion] = (usados[r.camion] || 0) + 1;
         const maxPts = cap >= 10000 ? 3 : 5;
-        if (cap && peso > cap) violaciones.push(`Ruta "${r.nombre}": ${peso} kg excede la capacidad de ${r.camion} (${cap} kg).`);
-        if (n > maxPts) violaciones.push(`Ruta "${r.nombre}": ${n} puntos (máximo ${maxPts} para ${r.camion}).`);
+        if (cap !== Infinity && peso > cap * TOL) violaciones.push(`Ruta "${nombre}": ${peso} kg excede la capacidad de ${r.camion} (${cap} kg + 5%).`);
+        if (n > maxPts) violaciones.push(`Ruta "${nombre}": ${n} puntos (máximo ${maxPts} para ${r.camion}).`);
     }
     for (const f of flota) {
         if (f.disponibles == null) continue; // ilimitado
