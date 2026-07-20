@@ -30,11 +30,15 @@ function parseGeo(addr) {
 
 // Trae las líneas pendientes (Zona 5 / RUTA) para fecha+bodega
 async function fetchRows(pool, sapDb, bodega, fecha) {
+    // @fecha se compara como TEXTO (CONVERT a date con formato 23 = ISO yyyy-mm-dd)
+    // para evitar que el driver mssql corra el día al enviar un tipo Date de JS.
     const r = await pool.request()
         .input('bodega', sql.NVarChar, bodega)
-        .input('fecha', sql.Date, fecha)
+        .input('fecha', sql.VarChar(10), fecha)
         .query(`
-            SELECT T0.DocNum, T0.CardCode, T0.CardName, T0.DocDueDate, T0.Address2, T0.Comments,
+            SELECT T0.DocNum, T0.CardCode, T0.CardName,
+                   CONVERT(varchar(10), T0.DocDueDate, 23) AS FechaEntregaStr,
+                   T0.Address2, T0.Comments,
                    T7.SlpName, T1.Quantity,
                    CASE WHEN T5.ItmsGrpNam LIKE '%(6)%' THEN 200 ELSE T2.SWeight1 END AS PesoUnit
             FROM [server-sql].${sapDb}.dbo.ORDR T0
@@ -44,7 +48,7 @@ async function fetchRows(pool, sapDb, bodega, fecha) {
             LEFT JOIN  [server-sql].${sapDb}.dbo.OSLP T7 ON T0.SlpCode = T7.SlpCode
             WHERE T0.U_Estado2 = '03' AND T1.WhsCode = @bodega AND T0.TrnspCode = 22
               AND T1.ItemCode NOT IN ('013956','031780')
-              AND CAST(T0.DocDueDate AS DATE) = @fecha
+              AND CAST(T0.DocDueDate AS DATE) = CONVERT(date, @fecha, 23)
         `);
     return r.recordset;
 }
@@ -60,7 +64,7 @@ function buildDocumentos(rows, fecha) {
         if (!docs.has(r.DocNum)) {
             docs.set(r.DocNum, {
                 docNum: r.DocNum, cliente: r.CardName, tipo: 'OV',
-                fechaEntrega: fecha, direccion: normAddr(r.Address2),
+                fechaEntrega: r.FechaEntregaStr || fecha, direccion: normAddr(r.Address2),
                 comentarios: normAddr(r.Comments), vendedor: r.SlpName || null,
                 peso: 0, lineas: 0
             });
@@ -81,7 +85,7 @@ function buildPuntos(rows, fecha) {
     for (const r of rows) {
         const dir = normAddr(r.Address2);
         const key = r.CardCode + '||' + dir;
-        if (!pts.has(key)) pts.set(key, { cliente: r.CardName, direccion: dir, ovs: new Set(), coments: new Set(), vendedor: null, peso: 0, ...parseGeo(r.Address2) });
+        if (!pts.has(key)) pts.set(key, { cliente: r.CardName, direccion: dir, ovs: new Set(), coments: new Set(), vendedor: null, fechaEntrega: r.FechaEntregaStr || fecha, peso: 0, ...parseGeo(r.Address2) });
         const p = pts.get(key);
         p.ovs.add(r.DocNum);
         const com = normAddr(r.Comments); if (com) p.coments.add(com);
@@ -92,7 +96,7 @@ function buildPuntos(rows, fecha) {
         .map(p => ({
             cliente: p.cliente, direccion: p.direccion,
             zona: p.zona, municipio: p.muni, departamento: p.depto, region: p.region,
-            tipo: 'OV', fechaEntrega: fecha, vendedor: p.vendedor || null,
+            tipo: 'OV', fechaEntrega: p.fechaEntrega || fecha, vendedor: p.vendedor || null,
             comentarios: [...p.coments].join('  |  '), ovs: [...p.ovs],
             peso: Math.round(p.peso), excede: p.peso > MAX_TRUCK_KG
         }))
