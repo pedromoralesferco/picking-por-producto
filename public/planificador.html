@@ -70,47 +70,43 @@
         .libre { font-size: .72rem; color: #666; display: flex; align-items: center; gap: .3rem; cursor: pointer; }
         .fleet-note { font-size: .72rem; color: #999; margin-top: .7rem; line-height: 1.4; }
 
-        /* Empty state */
+        /* Empty / loading state */
         .empty { text-align: center; padding: 4rem 1rem; color: #999; }
         .empty i { font-size: 3rem; color: #ddd; display: block; margin-bottom: 1rem; }
         .empty p { margin-bottom: 1.2rem; }
+        .spinner { text-align: center; padding: 3rem; color: #999; }
+        .spinner i { font-size: 2rem; animation: spin 1s linear infinite; display: inline-block; color: var(--warn); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .errbox { background: #fdecea; color: var(--danger); border: 1px solid #f5c6c0; border-radius: 8px; padding: 1rem; font-size: .85rem; }
 
         /* Result sections */
         .section-title { font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #888; margin: 1.2rem 0 .6rem; display: flex; align-items: center; gap: .5rem; }
         .section-title:first-child { margin-top: 0; }
         .section-title .badge { background: #eee; color: #666; border-radius: 20px; padding: .1rem .5rem; font-size: .7rem; }
 
-        .route { border: 1px solid #e9e9e9; border-radius: 10px; margin-bottom: .7rem; overflow: hidden; background: white; }
-        .route-h { display: flex; align-items: center; gap: .8rem; padding: .75rem 1rem; cursor: pointer; }
-        .route-h:hover { background: #fafafa; }
-        .route-name { font-weight: 700; font-size: .9rem; }
-        .route-name small { display: block; color: #999; font-weight: 400; font-size: .72rem; }
-        .truck { background: #eef2ff; color: #3949ab; border-radius: 6px; padding: .2rem .5rem; font-size: .75rem; font-weight: 700; white-space: nowrap; }
-        .route-meta { margin-left: auto; text-align: right; font-size: .75rem; color: #888; white-space: nowrap; }
-        .route-meta b { color: #333; font-size: .85rem; }
-        .usebar { height: 5px; background: #eee; border-radius: 3px; margin-top: .3rem; overflow: hidden; width: 90px; margin-left: auto; }
-        .usebar .fill { height: 100%; background: var(--success); }
-        .usebar .fill.mid { background: var(--primary); }
-        .usebar .fill.low { background: #bbb; }
-        .route-pts { padding: 0 1rem 0 1rem; max-height: 0; overflow: hidden; transition: max-height .2s ease, padding .2s ease; }
-        .route.open .route-pts { max-height: 400px; padding: .5rem 1rem .8rem; border-top: 1px solid #f0f0f0; }
+        .group { border: 1px solid #e9e9e9; border-radius: 10px; margin-bottom: .7rem; overflow: hidden; background: white; }
+        .group-h { display: flex; align-items: center; gap: .8rem; padding: .6rem 1rem; cursor: pointer; background: #fafafa; }
+        .group-h:hover { background: #f3f3f3; }
+        .group-name { font-weight: 700; font-size: .88rem; }
+        .group-meta { margin-left: auto; font-size: .78rem; color: #888; white-space: nowrap; }
+        .group-meta b { color: #333; }
+        .group-pts { padding: .3rem 1rem .5rem; }
         .pt { display: flex; align-items: center; gap: .6rem; padding: .35rem 0; font-size: .82rem; border-bottom: 1px dashed #f2f2f2; }
         .pt:last-child { border-bottom: none; }
-        .pt .z { background: #f0f0f0; color: #666; border-radius: 5px; padding: .1rem .4rem; font-size: .68rem; font-weight: 700; min-width: 46px; text-align: center; }
+        .pt .z { background: #f0f0f0; color: #666; border-radius: 5px; padding: .1rem .4rem; font-size: .68rem; font-weight: 700; min-width: 52px; text-align: center; }
         .pt .cli { flex: 1; }
         .pt .cli small { color: #aaa; }
-        .pt .pw { color: #888; font-variant-numeric: tabular-nums; }
+        .pt .pw { color: #666; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
         /* Especiales */
-        .route.especial { border-color: #f6c6a8; background: #fff8f2; }
-        .route.especial .truck { background: #fdecdd; color: var(--warn); }
-        .especial-note { font-size: .72rem; color: var(--warn); padding: 0 1rem .7rem; }
+        .group.especial { border-color: #f6c6a8; background: #fff8f2; }
+        .group.especial .group-h { background: #fdf1e7; }
+        .especial-note { font-size: .72rem; color: var(--warn); padding: 0 1rem .6rem; }
+
+        .info-banner { background: #fff8f2; border: 1px dashed #f6c6a8; color: var(--warn); border-radius: 8px; padding: .8rem 1rem; font-size: .82rem; margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
 
         .foot { display: flex; justify-content: flex-end; gap: .7rem; padding: 1rem 1.5rem 2rem; }
         .hidden { display: none !important; }
-        .spinner { text-align: center; padding: 3rem; color: #999; }
-        .spinner i { font-size: 2rem; animation: spin 1s linear infinite; display: inline-block; color: var(--warn); }
-        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -142,7 +138,7 @@
 
         <!-- Resultado -->
         <div class="card">
-            <div class="card-h"><i class="bi bi-signpost-split"></i> Rutas sugeridas</div>
+            <div class="card-h"><i class="bi bi-signpost-split"></i> Puntos pendientes</div>
             <div class="card-b" id="result">
                 <div class="empty" id="emptyState">
                     <i class="bi bi-inbox"></i>
@@ -153,47 +149,18 @@
         </div>
     </div>
 
-    <div class="foot hidden" id="foot">
-        <button class="btn" style="background:#eee;color:#555" onclick="location.reload()"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
-        <button class="btn btn-primary" onclick="alert('(Fase 3) Aqui se cargaran las rutas confirmadas como cuadros de ruta.')"><i class="bi bi-check2-circle"></i> Cargar rutas</button>
-    </div>
-
 <script>
-// ==== DATOS MOCK (datos reales de hoy) — Fase 1: solo layout ====
+// ── Flota (defaults editables; se pulirán con el equipo) ──
 const FLOTA = [
-    { id: 't15', cap: '1.5 T', kg: 1500, disp: 10, libre: false },
-    { id: 't35', cap: '3.5 T', kg: 3500, disp: 15, libre: false },
-    { id: 't5',  cap: '5 T',   kg: 5000, disp: 5,  libre: false },
-    { id: 't10', cap: '10 T',  kg: 10000, disp: 0, libre: true },
-    { id: 't22', cap: '22 T',  kg: 22000, disp: 0, libre: true },
+    { id: 't15', cap: '1.5 T', kg: 1500,  disp: 10, libre: false },
+    { id: 't35', cap: '3.5 T', kg: 3500,  disp: 15, libre: false },
+    { id: 't5',  cap: '5 T',   kg: 5000,  disp: 5,  libre: false },
+    { id: 't10', cap: '10 T',  kg: 10000, disp: 4,  libre: false },
+    { id: 't22', cap: '22 T',  kg: 22000, disp: 0,  libre: true  },
 ];
-const RESUMEN = { puntos: 39, toneladas: 87.9, lineas: 254, exceden: 3 };
+let PUNTOS = [];   // puntos de entrega importados (datos reales)
+let DATA = null;   // respuesta completa del endpoint
 
-const PLAN = {
-    especiales: [
-        { name: 'Cáceres & Mazariegos', sub: 'Chimaltenango', peso: 27654, pts: [{z:'Chimalt.', cli:'Constructora Cáceres & Mazariegos', pw:27654}] },
-        { name: 'Constructora Cúspide', sub: 'Zona 10', peso: 17640, pts: [{z:'Z10', cli:'Constructora Cúspide, S.A.', pw:17640}] },
-        { name: 'Yonatan López', sub: 'Malacatán, San Marcos', peso: 11025, pts: [{z:'S.Marcos', cli:'Yonatan Odaíl López Sandoval', pw:11025}] },
-    ],
-    regionales: [
-        { name: 'R1 Chimaltenango', sub: 'Chimaltenango', truck:'1.5 T', pct:52, peso:775, pts:[{z:'Chimalt.',cli:'José F. Meletz Batz',pw:736},{z:'Chimalt.',cli:'Cristopher Harry',pw:39}] },
-        { name: 'R2 Sacatepéquez', sub: 'Sta. Lucía Milpas Altas', truck:'5 T', pct:91, peso:4562, pts:[{z:'Sacatep.',cli:'Walter Rogel',pw:4562}] },
-        { name: 'R3 Altiplano Norte', sub: 'Quiché · A.V. · Sololá', truck:'5 T', pct:91, peso:4533, pts:[{z:'Quiché',cli:'Domingo Lorenzo (Sacapulas)',pw:4413},{z:'A.Verap.',cli:'Edwin España (Cobán)',pw:119},{z:'Sololá',cli:'Andrés Ixcaya',pw:1}] },
-        { name: 'R4 Oriente', sub: 'Jalapa · Jutiapa', truck:'5 T', pct:89, peso:4458, pts:[{z:'Jalapa',cli:'Henry Hernández (S.M. Chaparrón)',pw:3600},{z:'Jutiapa',cli:'Hander Cabrera',pw:858}] },
-        { name: 'R5 Escuintla', sub: 'Escuintla', truck:'1.5 T', pct:49, peso:739, pts:[{z:'Escuint.',cli:'Luis Pineda (San José)',pw:670},{z:'Escuint.',cli:'Rigoberto Orellana',pw:69}] },
-        { name: 'R6 Izabal', sub: 'Morales', truck:'1.5 T', pct:30, peso:443, pts:[{z:'Izabal',cli:'Adonai Villeda (Morales)',pw:443}] },
-    ],
-    metro: [
-        { name: 'M1 Este Z10', sub: 'Zona 10', truck:'5 T', pct:91, peso:4540, pts:[{z:'Z10',cli:'Inversiones VAR',pw:2674},{z:'Z10',cli:'Alex Villeda',pw:1457},{z:'Z10',cli:'Ferretería de la Construcción',pw:405},{z:'Z10',cli:'Lesli Vásquez',pw:4}] },
-        { name: 'M2 Roosevelt', sub: 'Zonas 7 · 6', truck:'3.5 T', pct:84, peso:2947, pts:[{z:'Z7',cli:'Seraph Systems',pw:2584},{z:'Z7',cli:'Láminas Cóndor',pw:300},{z:'Z6',cli:'Jhoshua Ortiz',pw:62},{z:'Z7',cli:'Ferretería (La Floresta)',pw:1}] },
-        { name: 'M3 Vista Hermosa', sub: 'Zonas 16 · 17', truck:'3.5 T', pct:85, peso:2958, pts:[{z:'Z16',cli:'Vara de Almendro',pw:2186},{z:'Z16',cli:'Francisco Unda',pw:451},{z:'Z17',cli:'Teresa Hermosillo',pw:250},{z:'Z16',cli:'Asociación Civil',pw:43},{z:'Z16',cli:'Puente Colonial',pw:28}] },
-        { name: 'M4 Oeste / Mixco', sub: 'Zonas 11 · 12 · 3 · 8', truck:'3.5 T', pct:70, peso:2441, pts:[{z:'Z11',cli:'Delicatessen La Estancia',pw:1435},{z:'Z3',cli:'Cristian Castellanos (Mixco)',pw:744},{z:'Z12',cli:'Disar, S.A.',pw:163},{z:'Z8',cli:'Logística Superior (Mixco)',pw:59},{z:'—',cli:'Ferretería de la Construcción',pw:40}] },
-        { name: 'M5 Sur', sub: 'Zonas 13 · 14 · 21', truck:'1.5 T', pct:96, peso:1440, pts:[{z:'Z14',cli:'María Eugenia García',pw:697},{z:'Z13',cli:'Iglesia Hebrón',pw:600},{z:'Z0',cli:'Javier Recinos',pw:96},{z:'Z21',cli:'Damaris Román',pw:47}] },
-        { name: 'M6 Fraijanes', sub: 'Z0 · Fraijanes', truck:'3.5 T', pct:50, peso:1757, pts:[{z:'Z0',cli:'Grupo ECQ, S.A.',pw:1747},{z:'Fraij.',cli:'Carlos Nájera',pw:10}] },
-    ],
-};
-
-// ==== init ====
 (function initFecha(){
     const d = new Date(); d.setDate(d.getDate()+1);
     document.getElementById('fecha').value = d.toISOString().slice(0,10);
@@ -211,66 +178,114 @@ function renderFleet() {
                      <button onclick="step('${t.id}',1)">+</button>
                    </div>`}
         </div>`).join('') +
-        `<div class="fleet-note"><i class="bi bi-info-circle"></i> Los camiones de 10 T y 22 T son de uso libre (sin tope). El planificador no tiene que usar toda la flota.</div>`;
+        `<div class="fleet-note"><i class="bi bi-info-circle"></i> El camión de 22 T es de uso libre (sin tope). El planificador no tiene que usar toda la flota.</div>`;
 }
 function step(id, d) {
     const t = FLOTA.find(x=>x.id===id); t.disp = Math.max(0, t.disp + d);
     document.getElementById('f_'+id).value = t.disp;
 }
 
-function importar() {
+async function importar() {
+    const fecha = document.getElementById('fecha').value;
+    document.getElementById('result').innerHTML = '<div class="spinner"><i class="bi bi-arrow-repeat"></i><p style="margin-top:1rem">Importando pedidos pendientes…</p></div>';
+    document.getElementById('btnImportar').disabled = true;
+    try {
+        const res = await fetch('/api/planificador/pendientes?fecha=' + encodeURIComponent(fecha));
+        if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'Error al importar'); }
+        DATA = await res.json();
+        PUNTOS = DATA.puntos || [];
+        renderChips(DATA.resumen);
+        renderPreview();
+        const fc = document.getElementById('flotaCard');
+        fc.style.opacity = '1'; fc.style.pointerEvents = 'auto';
+        renderFleet();
+        document.getElementById('btnPlan').disabled = PUNTOS.length === 0;
+        document.getElementById('btnImportar').innerHTML = '<i class="bi bi-arrow-repeat"></i> Reimportar';
+    } catch (err) {
+        document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + err.message + '</div>';
+    } finally {
+        document.getElementById('btnImportar').disabled = false;
+    }
+}
+
+function renderChips(r) {
     const c = document.getElementById('chips');
     c.classList.remove('hidden');
     c.innerHTML = `
-        <div class="chip"><i class="bi bi-geo-alt"></i><div><div class="n">${RESUMEN.puntos}</div><div class="l">Puntos de entrega</div></div></div>
-        <div class="chip"><i class="bi bi-box-seam"></i><div><div class="n">${RESUMEN.toneladas} T</div><div class="l">Peso total</div></div></div>
-        <div class="chip"><i class="bi bi-list-ul"></i><div><div class="n">${RESUMEN.lineas}</div><div class="l">Líneas</div></div></div>
-        <div class="chip warn"><i class="bi bi-exclamation-triangle"></i><div><div class="n">${RESUMEN.exceden}</div><div class="l">Exceden capacidad</div></div></div>`;
-    renderFleet();
-    const fc = document.getElementById('flotaCard');
-    fc.style.opacity = '1'; fc.style.pointerEvents = 'auto';
-    document.getElementById('btnPlan').disabled = false;
-    document.getElementById('emptyState').innerHTML =
-        '<i class="bi bi-stars"></i><p>Ajusta la flota y presiona <b>Planificar</b> para generar las rutas sugeridas.</p>';
-    document.getElementById('btnImportar').innerHTML = '<i class="bi bi-check2"></i> Importado';
+        <div class="chip"><i class="bi bi-geo-alt"></i><div><div class="n">${r.puntos}</div><div class="l">Puntos de entrega</div></div></div>
+        <div class="chip"><i class="bi bi-box-seam"></i><div><div class="n">${r.toneladas} T</div><div class="l">Peso total</div></div></div>
+        <div class="chip"><i class="bi bi-list-ul"></i><div><div class="n">${r.lineas}</div><div class="l">Líneas</div></div></div>
+        <div class="chip warn"><i class="bi bi-exclamation-triangle"></i><div><div class="n">${r.exceden}</div><div class="l">Exceden 22 T</div></div></div>`;
+}
+
+function ptRow(p) {
+    const et = p.zona != null ? ('Z' + p.zona) : (p.departamento ? p.departamento.slice(0,7) : '—');
+    const ovTxt = p.nOV > 1 ? ` <small>· ${p.nOV} OV</small>` : '';
+    return `<div class="pt"><span class="z">${et}</span>
+        <span class="cli">${esc(p.cliente)}${ovTxt}</span>
+        <span class="pw">${p.peso.toLocaleString()} kg</span></div>`;
+}
+
+function renderPreview() {
+    if (!PUNTOS.length) {
+        document.getElementById('result').innerHTML = '<div class="empty"><i class="bi bi-inbox"></i><p>No hay pedidos pendientes para esa fecha.</p></div>';
+        return;
+    }
+    const especiales = PUNTOS.filter(p => p.excede);
+    const regional   = PUNTOS.filter(p => !p.excede && p.region === 'regional');
+    const metro       = PUNTOS.filter(p => !p.excede && p.region === 'metro');
+
+    let html = '<div class="info-banner"><i class="bi bi-info-circle"></i> Datos importados. Ajusta la flota y presiona <b>Planificar</b> para agrupar en rutas (próximamente).</div>';
+
+    if (especiales.length) {
+        html += `<div class="section-title" style="color:var(--warn)"><i class="bi bi-exclamation-triangle-fill"></i> Especiales <span class="badge">${especiales.length}</span></div>`;
+        html += especiales.map(p => `
+            <div class="group especial">
+              <div class="group-h">
+                <div class="group-name">${esc(p.cliente)}</div>
+                <div class="group-meta"><b>${p.peso.toLocaleString()} kg</b> · ${p.departamento||'—'}</div>
+              </div>
+              <div class="especial-note"><i class="bi bi-exclamation-triangle"></i> Supera el camión más grande (22 T) — requiere flete dedicado o viajes múltiples.</div>
+            </div>`).join('');
+    }
+
+    html += sectionByKey('🌎 Regionales', 'bi-globe-americas', regional, p => p.departamento || 'Sin depto.');
+    html += sectionByKey('🏙️ Metropolitanas', 'bi-buildings', metro, p => p.zona != null ? ('Zona ' + p.zona) : 'Sin zona');
+
+    document.getElementById('result').innerHTML = html;
+}
+
+// Agrupa una lista de puntos por una clave (depto o zona) en tarjetas colapsables
+function sectionByKey(title, icon, pts, keyFn) {
+    if (!pts.length) return '';
+    const groups = {};
+    pts.forEach(p => { const k = keyFn(p); (groups[k] = groups[k] || []).push(p); });
+    const keys = Object.keys(groups).sort((a,b) =>
+        groups[b].reduce((s,p)=>s+p.peso,0) - groups[a].reduce((s,p)=>s+p.peso,0));
+    let html = `<div class="section-title"><i class="bi ${icon}"></i> ${title} <span class="badge">${pts.length} pts</span></div>`;
+    html += keys.map(k => {
+        const g = groups[k]; const peso = g.reduce((s,p)=>s+p.peso,0);
+        return `<div class="group">
+            <div class="group-h" onclick="this.parentNode.classList.toggle('open')">
+              <div class="group-name">${esc(k)}</div>
+              <div class="group-meta"><b>${peso.toLocaleString()} kg</b> · ${g.length} pts</div>
+            </div>
+            <div class="group-pts">${g.sort((a,b)=>b.peso-a.peso).map(ptRow).join('')}</div>
+          </div>`;
+    }).join('');
+    return html;
 }
 
 function planificar() {
-    document.getElementById('result').innerHTML = '<div class="spinner"><i class="bi bi-arrow-repeat"></i><p style="margin-top:1rem">Generando planificación…</p></div>';
-    setTimeout(renderPlan, 900); // simula llamada a la API (Fase 3)
+    // Fase 3: aquí se enviarán los puntos + flota a la API de Anthropic
+    // para obtener las rutas agrupadas y balanceadas.
+    document.getElementById('result').scrollIntoView({behavior:'smooth'});
+    const r = document.getElementById('result');
+    const banner = '<div class="info-banner"><i class="bi bi-stars"></i> <b>Planificación con IA (Fase 3)</b> — próximamente: aquí se agruparán los ' + PUNTOS.length + ' puntos en rutas por camión, respetando capacidad, ≤5 puntos y balance de carga.</div>';
+    if (!r.innerHTML.includes('Planificación con IA')) r.insertAdjacentHTML('afterbegin', banner);
 }
 
-function routeCard(r, especial) {
-    const cls = r.pct >= 80 ? '' : (r.pct >= 50 ? 'mid' : 'low');
-    const meta = especial
-        ? `<div class="route-meta"><b>${r.peso.toLocaleString()} kg</b><br>excede 10 T</div>`
-        : `<div class="route-meta"><b>${r.peso.toLocaleString()} kg</b> · ${r.pts.length} pts
-             <div class="usebar"><div class="fill ${cls}" style="width:${r.pct}%"></div></div></div>`;
-    return `
-      <div class="route ${especial?'especial':''}" onclick="this.classList.toggle('open')">
-        <div class="route-h">
-          <span class="truck">${especial ? 'FLETE' : r.truck}</span>
-          <div class="route-name">${r.name}<small>${r.sub}</small></div>
-          ${meta}
-        </div>
-        ${especial ? '<div class="especial-note"><i class="bi bi-exclamation-triangle"></i> Supera el camión más grande — requiere flete dedicado o viajes múltiples.</div>' : ''}
-        <div class="route-pts">
-          ${r.pts.map(p=>`<div class="pt"><span class="z">${p.z}</span><span class="cli">${p.cli}</span><span class="pw">${p.pw.toLocaleString()} kg</span></div>`).join('')}
-        </div>
-      </div>`;
-}
-
-function renderPlan() {
-    let html = '';
-    html += `<div class="section-title" style="color:var(--warn)"><i class="bi bi-exclamation-triangle-fill"></i> Especiales <span class="badge">${PLAN.especiales.length}</span></div>`;
-    html += PLAN.especiales.map(r=>routeCard(r,true)).join('');
-    html += `<div class="section-title"><i class="bi bi-globe-americas"></i> Regionales <span class="badge">${PLAN.regionales.length}</span></div>`;
-    html += PLAN.regionales.map(r=>routeCard(r,false)).join('');
-    html += `<div class="section-title"><i class="bi bi-buildings"></i> Metropolitanas <span class="badge">${PLAN.metro.length}</span></div>`;
-    html += PLAN.metro.map(r=>routeCard(r,false)).join('');
-    document.getElementById('result').innerHTML = html;
-    document.getElementById('foot').classList.remove('hidden');
-}
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 </script>
 </body>
 </html>

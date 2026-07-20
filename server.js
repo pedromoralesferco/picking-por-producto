@@ -10,6 +10,7 @@ const orderApiRoutes = require('./routes/order-api');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const wmsApiRoutes = require('./routes/wms-api');
+const planificadorApiRoutes = require('./routes/planificador-api');
 const { requireAuthPage, requireAdminPage, requirePermisoPage } = require('./middleware/auth');
 
 const app = express();
@@ -52,6 +53,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/order', orderApiRoutes);
 app.use('/api/wms', wmsApiRoutes);
+app.use('/api/planificador', planificadorApiRoutes);
 app.use('/api', apiRoutes);
 
 // Centro selection page
