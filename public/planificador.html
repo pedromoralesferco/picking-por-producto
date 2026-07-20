@@ -176,6 +176,33 @@
         .pg-act button:hover { background:#f5f5f5; }
 
         .hidden { display: none !important; }
+
+        /* Barra de acciones del grid de entrada */
+        .grid-actions { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin:1rem 1rem .2rem; }
+        .grid-actions .ga-l { font-size:.78rem; color:#888; margin-right:auto; }
+        .tipo.tr { background:#e8f5e9; color:#2e7d32; }
+        .tipo.rma { background:#fdecea; color:#c62828; }
+        .tipo.envio { background:#fff3e0; color:#ef6c00; }
+        tr.manual td { background:#fffdf5; }
+        tr.manual:hover td { background:#fdf7e6; }
+        .badge-man { background:#fdf7e6; color:#8a6d1f; border:1px solid #e8d38a; border-radius:5px; padding:.05rem .35rem; font-size:.62rem; font-weight:700; margin-left:.35rem; }
+        .c-del { text-align:center; }
+        .c-del button { border:none; background:none; color:#c0392b; cursor:pointer; font-size:.95rem; }
+
+        /* Modal agregar documento */
+        .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:1rem; }
+        .modal { background:#fff; border-radius:14px; width:100%; max-width:440px; box-shadow:0 12px 40px rgba(0,0,0,.3); overflow:hidden; }
+        .modal-h { padding:.9rem 1.1rem; border-bottom:1px solid #eee; font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:.5rem; }
+        .modal-h i { color:var(--warn); }
+        .modal-b { padding:1.1rem; display:flex; flex-direction:column; gap:.8rem; }
+        .modal-b label { font-size:.75rem; color:#666; font-weight:600; display:block; margin-bottom:.25rem; }
+        .modal-b input, .modal-b select, .modal-b textarea { width:100%; padding:.5rem .6rem; border:1px solid #ccc; border-radius:7px; font-size:.85rem; font-family:inherit; }
+        .modal-b textarea { resize:vertical; min-height:52px; }
+        .mrow { display:flex; gap:.7rem; }
+        .mrow > div { flex:1; }
+        .mhint { font-size:.72rem; color:#999; background:#f7f7f7; border-radius:7px; padding:.5rem .6rem; line-height:1.35; }
+        .modal-f { padding:.8rem 1.1rem; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:.6rem; }
+        .m-err { color:var(--danger); font-size:.78rem; min-height:1rem; }
     </style>
 </head>
 <body>
@@ -217,6 +244,49 @@
         </div>
     </div>
 
+    <!-- Modal: agregar documento manual (reprogramaciones / reenvíos) -->
+    <div class="modal-bg hidden" id="modalDoc">
+      <div class="modal">
+        <div class="modal-h"><i class="bi bi-file-earmark-plus"></i> Agregar documento</div>
+        <div class="modal-b">
+          <div class="mrow">
+            <div>
+              <label>Tipo</label>
+              <select id="mTipo" onchange="onTipoChange()">
+                <option value="OV">OV — Orden de venta</option>
+                <option value="TR">TR — Traslado</option>
+                <option value="RMA">RMA — Devolución</option>
+                <option value="ENVIO">Envío</option>
+              </select>
+            </div>
+            <div>
+              <label>Número de documento</label>
+              <input id="mNum" type="text" inputmode="numeric" placeholder="Ej. 200821499" autocomplete="off">
+            </div>
+          </div>
+
+          <div id="mHintDoc" class="mhint">
+            <i class="bi bi-info-circle"></i> El peso y la ubicación se toman del documento en SAP al planificar. Basta el número.
+          </div>
+
+          <div id="mManual" class="hidden">
+            <div style="margin-bottom:.8rem"><label>Cliente</label><input id="mCliente" type="text" placeholder="Nombre del cliente"></div>
+            <div style="margin-bottom:.8rem"><label>Dirección</label><textarea id="mDir" placeholder="Dirección de entrega (incluye zona/municipio/departamento)"></textarea></div>
+            <div class="mrow">
+              <div><label>Comentarios</label><textarea id="mCom" placeholder="Notas para la ruta"></textarea></div>
+              <div style="max-width:130px"><label>Peso (kg)</label><input id="mPeso" type="number" min="0" step="1" placeholder="0"></div>
+            </div>
+          </div>
+
+          <div class="m-err" id="mErr"></div>
+        </div>
+        <div class="modal-f">
+          <button class="btn-sm" onclick="closeAddDoc()">Cancelar</button>
+          <button class="btn-sm btn-new" onclick="addExtra()"><i class="bi bi-plus-lg"></i> Agregar al grid</button>
+        </div>
+      </div>
+    </div>
+
 <script>
 // ── Flota (defaults editables; se pulirán con el equipo) ──
 const FLOTA = [
@@ -227,7 +297,8 @@ const FLOTA = [
     { id: 't22', cap: '22 T',  kg: 22000, disp: 0,  libre: true  },
     { id: 'tflete', cap: 'Flete', kg: 999999, disp: 0, libre: true }, // >22 T: flete dedicado (sin tope)
 ];
-let DOCS = [];   // documentos importados
+let DOCS = [];     // documentos importados de SAP
+let EXTRAS = [];   // documentos agregados a mano (reprogramaciones / reenvíos)
 let DATA = null;
 
 (function initFecha(){
@@ -268,7 +339,7 @@ async function importar() {
         const fc = document.getElementById('flotaCard');
         fc.style.opacity = '1'; fc.style.pointerEvents = 'auto';
         renderFleet();
-        document.getElementById('btnPlan').disabled = DOCS.length === 0;
+        document.getElementById('btnPlan').disabled = (DOCS.length + EXTRAS.length) === 0;
         document.getElementById('btnImportar').innerHTML = '<i class="bi bi-arrow-repeat"></i> Reimportar';
     } catch (err) {
         document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + err.message + '</div>';
@@ -293,33 +364,109 @@ function fmtFecha(f) {
     return m ? `${m[3]}/${m[2]}/${m[1]}` : String(f);
 }
 
+function tipoBadge(t) {
+    const c = { TR: 'tr', RMA: 'rma', ENVIO: 'envio' }[String(t || '').toUpperCase()] || '';
+    return `<span class="tipo ${c}">${esc(t || 'OV')}</span>`;
+}
+
 function renderGrid() {
-    if (!DOCS.length) {
-        document.getElementById('result').innerHTML = '<div class="empty"><i class="bi bi-inbox"></i><p>No hay pedidos pendientes para esa fecha.</p></div>';
+    const total = DOCS.length + EXTRAS.length;
+    const actions = `
+        <div class="grid-actions">
+          <span class="ga-l"><i class="bi bi-file-earmark-text"></i> ${DOCS.length} de SAP${EXTRAS.length ? ` · ${EXTRAS.length} manual(es)` : ''}</span>
+          <button class="btn-sm btn-new" onclick="openAddDoc()"><i class="bi bi-file-earmark-plus"></i> Agregar documento</button>
+        </div>`;
+
+    if (!total) {
+        document.getElementById('result').innerHTML = actions +
+            '<div class="empty" style="padding:2.5rem 1rem"><i class="bi bi-inbox"></i><p>No hay pedidos pendientes para esa fecha.<br>Puedes <b>agregar documentos</b> manualmente (reprogramaciones / reenvíos).</p></div>';
         return;
     }
-    const rows = DOCS.map(d => `
+
+    const sapRows = DOCS.map(d => `
         <tr>
             <td class="c-doc"><b>${d.docNum}</b><small>${esc(d.cliente)}</small></td>
-            <td><span class="tipo">${d.tipo}</span></td>
+            <td>${tipoBadge(d.tipo)}</td>
             <td class="c-fecha">${fmtFecha(d.fechaEntrega)}</td>
             <td class="c-dir">${esc(d.direccion) || '<span class="muted">—</span>'}</td>
             <td class="c-com">${esc(d.comentarios) || '<span class="muted">—</span>'}</td>
             <td class="c-vend">${esc(d.vendedor) || '<span class="muted">—</span>'}</td>
+            <td class="c-del"></td>
         </tr>`).join('');
 
-    document.getElementById('result').innerHTML = `
-        <div class="info-banner"><i class="bi bi-info-circle"></i> Documentos importados. Ajusta la flota y presiona <b>Planificar</b> para agruparlos en rutas (próximamente).</div>
+    const manualRows = EXTRAS.map((e, i) => {
+        const auto = (e.tipo === 'OV' || e.tipo === 'TR');
+        const cli = auto ? '<span class="muted">se resuelve al planificar</span>' : esc(e.cliente);
+        const dir = auto ? '<span class="muted">—</span>' : (esc(e.direccion) || '<span class="muted">—</span>');
+        const com = auto ? '<span class="muted">—</span>' : (esc(e.comentarios) || '<span class="muted">—</span>');
+        const pw = auto ? '' : `<small>${(Number(e.peso) || 0).toLocaleString()} kg</small>`;
+        return `<tr class="manual">
+            <td class="c-doc"><b>${esc(e.numero)}</b><span class="badge-man">MANUAL</span>${pw}</td>
+            <td>${tipoBadge(e.tipo)}</td>
+            <td class="c-fecha"><span class="muted">—</span></td>
+            <td class="c-dir">${dir}</td>
+            <td class="c-com">${com}</td>
+            <td class="c-vend">${cli}</td>
+            <td class="c-del"><button title="Quitar" onclick="removeExtra(${i})"><i class="bi bi-x-lg"></i></button></td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('result').innerHTML = actions + `
+        <div class="info-banner"><i class="bi bi-info-circle"></i> Ajusta la flota y presiona <b>Planificar</b> para que la IA los agrupe en rutas dentro de las reglas.</div>
         <div class="grid-wrap">
           <table class="grid">
             <thead><tr>
                 <th>Documento</th><th>Tipo</th><th>DocDueDate</th>
-                <th>Dirección</th><th>Comentarios</th><th>Vendedor</th>
+                <th>Dirección</th><th>Comentarios</th><th>Cliente / Vendedor</th><th></th>
             </tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody>${sapRows}${manualRows}</tbody>
           </table>
         </div>`;
 }
+
+// ── Agregar documento manual ──
+function openAddDoc() {
+    document.getElementById('mTipo').value = 'OV';
+    document.getElementById('mNum').value = '';
+    document.getElementById('mCliente').value = '';
+    document.getElementById('mDir').value = '';
+    document.getElementById('mCom').value = '';
+    document.getElementById('mPeso').value = '';
+    document.getElementById('mErr').textContent = '';
+    onTipoChange();
+    document.getElementById('modalDoc').classList.remove('hidden');
+    setTimeout(() => document.getElementById('mNum').focus(), 50);
+}
+function closeAddDoc() { document.getElementById('modalDoc').classList.add('hidden'); }
+function onTipoChange() {
+    const t = document.getElementById('mTipo').value;
+    const manual = (t === 'RMA' || t === 'ENVIO');
+    document.getElementById('mManual').classList.toggle('hidden', !manual);
+    document.getElementById('mHintDoc').classList.toggle('hidden', manual);
+}
+function addExtra() {
+    const tipo = document.getElementById('mTipo').value;
+    const numero = document.getElementById('mNum').value.trim();
+    const err = document.getElementById('mErr');
+    err.textContent = '';
+    if (!numero) { err.textContent = 'Ingresa el número de documento.'; return; }
+    if (EXTRAS.some(e => e.tipo === tipo && e.numero === numero)) { err.textContent = `Ese ${tipo} ya está en la lista.`; return; }
+    const e = { tipo, numero };
+    if (tipo === 'RMA' || tipo === 'ENVIO') {
+        e.cliente = document.getElementById('mCliente').value.trim();
+        e.direccion = document.getElementById('mDir').value.trim();
+        e.comentarios = document.getElementById('mCom').value.trim();
+        e.peso = Math.max(0, Math.round(Number(document.getElementById('mPeso').value) || 0));
+        if (!e.cliente) { err.textContent = 'Ingresa el cliente.'; return; }
+        if (!e.direccion) { err.textContent = 'Ingresa la dirección.'; return; }
+        if (!e.peso) { err.textContent = 'Ingresa el peso (kg) — la IA lo necesita para la capacidad.'; return; }
+    }
+    EXTRAS.push(e);
+    closeAddDoc();
+    renderGrid();
+    document.getElementById('btnPlan').disabled = (DOCS.length + EXTRAS.length) === 0;
+}
+function removeExtra(i) { EXTRAS.splice(i, 1); renderGrid(); document.getElementById('btnPlan').disabled = (DOCS.length + EXTRAS.length) === 0; }
 
 async function planificar() {
     const fecha = document.getElementById('fecha').value;
@@ -329,7 +476,7 @@ async function planificar() {
     try {
         const res = await fetch('/api/planificador/planificar', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fecha, flota })
+            body: JSON.stringify({ fecha, flota, extras: EXTRAS })
         });
         const d = await res.json();
         if (!res.ok) {
@@ -485,7 +632,7 @@ function pgridRow(p, idx, mode) {
     return `<tr ${drag ? `draggable="true" ondragstart="onDragStart(event, ${p.id})"` : ''}>
         <td class="pg-cli"><b>${esc(p.cliente)}</b></td>
         <td><span class="z">${chip}</span></td>
-        <td>${esc((p.ovs || []).join(', '))}</td>
+        <td>${p.tipo && p.tipo !== 'OV' ? tipoBadge(p.tipo) + ' ' : ''}${esc((p.ovs || []).join(', '))}</td>
         <td class="pg-dir">${esc(p.direccion || '—')}</td>
         <td class="pg-com">${esc(p.comentarios || '—')}</td>
         <td>${esc(p.vendedor || '—')}</td>
@@ -543,7 +690,14 @@ async function guardarPlan() {
     const rutas = PLAN.rutas.map(r => ({
         nombre: r.nombre,
         camion: r.camion,
-        documentos: r.puntos.flatMap(id => (BYID[id] && BYID[id].ovs) || [])
+        documentos: r.puntos.flatMap(id => {
+            const p = BYID[id]; if (!p) return [];
+            const tipo = p.tipo || 'OV';
+            const nums = (p.ovs && p.ovs.length) ? p.ovs : [];
+            // Un solo documento en el punto → mandamos su peso (para manuales);
+            // si son varios (OV agrupadas) el backend usa el peso de SAP.
+            return nums.map(n => ({ numero: String(n), tipo, peso: nums.length === 1 ? (p.peso || 0) : null }));
+        })
     })).filter(r => r.documentos.length);
     if (!rutas.length) { alert('No hay rutas con documentos para guardar.'); return; }
 

@@ -114,6 +114,96 @@ function resolveFecha(q) {
     return d.toISOString().slice(0, 10);
 }
 
+// ── Documentos agregados a mano (reprogramaciones / reenvíos) ──────────
+// OV y TR se resuelven contra SAP con solo el número; RMA/ENVIO traen sus
+// datos (cliente/dirección/comentarios/peso) desde el formulario.
+
+// OV → ORDR/RDR1 (peso con la misma regla que la planificación normal).
+async function lookupOV(pool, sapDb, num) {
+    const r = await pool.request()
+        .input('num', sql.NVarChar(50), String(num))
+        .query(`
+            SELECT TOP 1 T0.DocNum, T0.CardName, T0.Address2, T0.Comments,
+                   CONVERT(varchar(10), T0.DocDueDate, 23) AS FechaEntregaStr,
+                   T7.SlpName,
+                   (SELECT SUM((CASE WHEN T5.ItmsGrpNam LIKE '%(6)%' THEN 200 ELSE T2.SWeight1 END) * T1.Quantity)
+                      FROM [server-sql].${sapDb}.dbo.RDR1 T1
+                      INNER JOIN [server-sql].${sapDb}.dbo.OITM T2 ON T1.ItemCode = T2.ItemCode
+                      INNER JOIN [server-sql].${sapDb}.dbo.OITB T5 ON T2.ItmsGrpCod = T5.ItmsGrpCod
+                      WHERE T1.DocEntry = T0.DocEntry AND T1.ItemCode NOT IN ('013956','031780')) AS Peso
+            FROM [server-sql].${sapDb}.dbo.ORDR T0
+            LEFT JOIN [server-sql].${sapDb}.dbo.OSLP T7 ON T0.SlpCode = T7.SlpCode
+            WHERE T0.DocNum = @num
+        `);
+    return r.recordset[0] || null;
+}
+
+// TR (solicitud de traslado) → OWTQ/WTQ1; destino = bodega receptora (OWHS).
+async function lookupTR(pool, sapDb, num) {
+    const r = await pool.request()
+        .input('num', sql.NVarChar(50), String(num))
+        .query(`
+            SELECT TOP 1 T0.DocNum, T0.Comments, W.WhsName AS Destino,
+                   CONVERT(varchar(10), T0.DocDueDate, 23) AS FechaEntregaStr,
+                   (SELECT SUM((CASE WHEN T5.ItmsGrpNam LIKE '%(6)%' THEN 200 ELSE T2.SWeight1 END) * T1.Quantity)
+                      FROM [server-sql].${sapDb}.dbo.WTQ1 T1
+                      INNER JOIN [server-sql].${sapDb}.dbo.OITM T2 ON T1.ItemCode = T2.ItemCode
+                      INNER JOIN [server-sql].${sapDb}.dbo.OITB T5 ON T2.ItmsGrpCod = T5.ItmsGrpCod
+                      WHERE T1.DocEntry = T0.DocEntry) AS Peso
+            FROM [server-sql].${sapDb}.dbo.OWTQ T0
+            LEFT JOIN [server-sql].${sapDb}.dbo.OWHS W ON T0.ToWhsCode = W.WhsCode
+            WHERE T0.DocNum = @num
+        `);
+    return r.recordset[0] || null;
+}
+
+// Convierte los documentos manuales en "puntos" con la misma forma que
+// buildPuntos(), continuando la numeración de id desde startId.
+async function buildExtraPuntos(pool, sapDb, extras, fecha, startId) {
+    const puntos = [], warnings = [];
+    let id = startId;
+    for (const e of (extras || [])) {
+        const tipo = String((e && e.tipo) || 'OV').toUpperCase();
+        const num = String((e && (e.numero != null ? e.numero : e.docNum)) || '').trim();
+        try {
+            let cliente, direccion = '', comentarios = '', vendedor = null, peso = 0, fechaEntrega = fecha;
+            if (tipo === 'OV' || tipo === 'TR') {
+                if (!num) { warnings.push(`${tipo} sin número (omitido).`); continue; }
+                const row = tipo === 'OV' ? await lookupOV(pool, sapDb, num) : await lookupTR(pool, sapDb, num);
+                if (!row) { warnings.push(`${tipo} ${num} no encontrado en SAP (omitido).`); continue; }
+                peso = Math.round(row.Peso || 0);
+                fechaEntrega = row.FechaEntregaStr || fecha;
+                if (tipo === 'OV') {
+                    cliente = row.CardName; direccion = normAddr(row.Address2);
+                    comentarios = normAddr(row.Comments); vendedor = row.SlpName || null;
+                } else {
+                    cliente = 'Traslado → ' + (row.Destino || num);
+                    direccion = normAddr(row.Destino || row.Comments);
+                    comentarios = normAddr(row.Comments);
+                }
+                if (!peso) warnings.push(`${tipo} ${num}: peso 0 en SAP (revisar; la IA lo tratará como sin carga).`);
+            } else if (tipo === 'RMA' || tipo === 'ENVIO') {
+                cliente = String((e && e.cliente) || '').trim();
+                direccion = normAddr(e && e.direccion);
+                comentarios = normAddr(e && e.comentarios);
+                peso = Math.round(Number(e && e.peso) || 0);
+                if (!num || !cliente || !direccion) { warnings.push(`${tipo} ${num || '(sin número)'}: faltan número, cliente o dirección (omitido).`); continue; }
+            } else { warnings.push(`Tipo de documento desconocido "${tipo}" (omitido).`); continue; }
+
+            const geo = parseGeo(direccion);
+            puntos.push({
+                id: id++, cliente, direccion,
+                zona: geo.zona, municipio: geo.muni, departamento: geo.depto, region: geo.region,
+                tipo, fechaEntrega, vendedor, comentarios, ovs: [num],
+                peso, excede: peso > MAX_TRUCK_KG, manual: true
+            });
+        } catch (err) {
+            warnings.push(`${tipo} ${num || ''}: error al resolver (${String(err.message || '').slice(0, 90)}).`);
+        }
+    }
+    return { puntos, warnings };
+}
+
 // ── GET /pendientes — grid de documentos ──
 router.get('/pendientes', async (req, res) => {
     try {
@@ -311,7 +401,11 @@ router.post('/planificar', async (req, res) => {
         if (!flota.length) return res.status(400).json({ error: 'Falta la configuración de flota.' });
 
         const rows = await fetchRows(pool, sapDb, bodega, fecha);
-        const puntos = buildPuntos(rows, fecha);
+        const basePuntos = buildPuntos(rows, fecha);
+        // Documentos agregados a mano (reprogramaciones / reenvíos)
+        const extras = Array.isArray(req.body && req.body.extras) ? req.body.extras : [];
+        const { puntos: extraPuntos, warnings } = await buildExtraPuntos(pool, sapDb, extras, fecha, basePuntos.length);
+        const puntos = basePuntos.concat(extraPuntos);
         const puntosById = {}; puntos.forEach(p => puntosById[p.id] = p);
         const ruteables = puntos.filter(p => !p.excede);
         // Cada punto que excede el camión más grande va a su propia ruta "Flete" (sin tope).
@@ -341,6 +435,9 @@ router.post('/planificar', async (req, res) => {
 
         const rutas = planRutas.concat(fleteRutas);
         const validacion = validar({ rutas }, puntosById, flota);
+        if (warnings && warnings.length) {
+            notas = (notas ? notas + '  |  ' : '') + 'Documentos manuales: ' + warnings.join('  ');
+        }
         res.json({ fecha, puntos, rutas, especiales: [], notas, validacion });
     } catch (err) {
         console.error('POST /api/planificador/planificar error:', err);
@@ -372,16 +469,24 @@ router.post('/guardar', async (req, res) => {
         const pesoPorDoc = {};
         documentos.forEach(d => { pesoPorDoc[String(d.docNum)] = d.peso; });
 
-        // Filas a insertar
+        // Filas a insertar (1 por documento). documentos puede venir como
+        // strings (retrocompat) o como objetos {numero, tipo, peso}.
         const filas = [];
         for (const r of rutas) {
             const cap = capacidadTon(r.camion);
-            for (const ov of (r.documentos || [])) {
+            for (const doc of (r.documentos || [])) {
+                const esObj = doc && typeof doc === 'object';
+                const numero = String(esObj ? doc.numero : doc).trim();
+                if (!numero) continue;
+                const tipo = String((esObj && doc.tipo) || 'OV').toUpperCase();
+                // Peso: para OV pendientes lo toma de SAP; para manuales (TR/RMA/
+                // ENVIO/reprogramaciones) usa el que trae el punto del plan.
+                const peso = pesoPorDoc[numero] != null ? pesoPorDoc[numero] : (Number(esObj && doc.peso) || 0);
                 filas.push({
                     ruta: (r.nombre || '').slice(0, 100),
-                    peso: pesoPorDoc[String(ov)] || 0,
-                    documento: String(ov).slice(0, 100),
-                    tipo: 'OV',
+                    peso,
+                    documento: numero.slice(0, 100),
+                    tipo: tipo.slice(0, 100),
                     capacidad: cap,
                     almacen: bodega
                 });
