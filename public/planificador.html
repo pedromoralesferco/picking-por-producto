@@ -224,6 +224,7 @@ const FLOTA = [
     { id: 't5',  cap: '5 T',   kg: 5000,  disp: 5,  libre: false },
     { id: 't10', cap: '10 T',  kg: 10000, disp: 4,  libre: false },
     { id: 't22', cap: '22 T',  kg: 22000, disp: 0,  libre: true  },
+    { id: 'tflete', cap: 'Flete', kg: 999999, disp: 0, libre: true }, // >22 T: flete dedicado (sin tope)
 ];
 let DOCS = [];   // documentos importados
 let DATA = null;
@@ -236,7 +237,7 @@ let DATA = null;
 function renderFleet() {
     document.getElementById('fleet').innerHTML = FLOTA.map(t => `
         <div class="fleet-row">
-            <div class="cap">${t.cap}<small>${t.kg.toLocaleString()} kg</small></div>
+            <div class="cap">${t.cap}<small>${t.id === 'tflete' ? 'sin tope' : t.kg.toLocaleString() + ' kg'}</small></div>
             ${t.libre
                 ? `<label class="libre"><input type="checkbox" checked disabled> uso libre</label>`
                 : `<div class="stepper">
@@ -424,16 +425,20 @@ function rutaGrid(r, idx) {
     const pts = r.puntos.map(id => BYID[id]).filter(Boolean);
     const peso = pts.reduce((s, p) => s + p.peso, 0);
     const pct = cap ? Math.round(peso / cap * 100) : 0;
+    const esFlete = r.camion === 'Flete';
     const maxPts = cap >= 10000 ? 3 : 5;
-    const bad = (cap && peso > cap) || pts.length > maxPts;
+    const bad = (!esFlete && cap && peso > cap) || pts.length > maxPts;
     const truckOpts = FLOTA.map(t => `<option ${t.cap === r.camion ? 'selected' : ''}>${t.cap}</option>`).join('');
+    const metaInner = esFlete
+        ? `<b>${peso.toLocaleString()} kg</b> · flete (sin tope)`
+        : `<b>${peso.toLocaleString()} kg</b> / ${cap.toLocaleString()} · ${pct}%
+           <div class="usebar"><div class="fill" style="width:${Math.min(pct,100)}%"></div></div>`;
     return `
       <div class="rgrid ${bad ? 'bad' : ''}" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'ruta', idx:${idx}})">
         <div class="rgrid-h">
           <input class="rname" value="${escAttr(r.nombre)}" onchange="renombrarRuta(${idx}, this.value)" title="Editar nombre de la ruta">
           <select class="rtruck" onchange="cambiarCamion(${idx}, this.value)" title="Cambiar camión">${truckOpts}</select>
-          <div class="rmeta"><b>${peso.toLocaleString()} kg</b> / ${cap.toLocaleString()} · ${pct}%
-            <div class="usebar"><div class="fill" style="width:${Math.min(pct,100)}%"></div></div>
+          <div class="rmeta">${metaInner}
             <button class="rdel" title="Eliminar ruta (sus pedidos van a Sin asignar)" onclick="eliminarRuta(${idx})"><i class="bi bi-trash"></i></button>
           </div>
         </div>

@@ -49,6 +49,10 @@ async function fetchRows(pool, sapDb, bodega, fecha) {
             WHERE T0.U_Estado2 = '03' AND T1.WhsCode = @bodega AND T0.TrnspCode = 22
               AND T1.ItemCode NOT IN ('013956','031780')
               AND CAST(T0.DocDueDate AS DATE) = CONVERT(date, @fecha, 23)
+              AND NOT EXISTS (
+                  SELECT 1 FROM [server-sql].${sapDb}.dbo.[@CUADRO_RUTA_D] crd WITH (NOLOCK)
+                  WHERE crd.U_No_OV = CAST(T0.DocNum AS NVARCHAR(50)) COLLATE DATABASE_DEFAULT
+              )
         `);
     return r.recordset;
 }
@@ -268,8 +272,9 @@ function validar(plan, puntosById, flota) {
 
     for (const r of (plan.rutas || [])) {
         const f = capPorTipo[r.camion];
-        const cap = f ? f.kg : 0;
-        if (!f) violaciones.push(`Ruta "${r.nombre}": tipo de camión desconocido "${r.camion}".`);
+        const esFlete = r.camion === 'Flete';
+        const cap = f ? f.kg : (esFlete ? Infinity : 0);   // Flete = sin tope de capacidad
+        if (!f && !esFlete) violaciones.push(`Ruta "${r.nombre}": tipo de camión desconocido "${r.camion}".`);
         let peso = 0, n = 0;
         for (const id of (r.puntos || [])) {
             const p = puntosById[id];
@@ -305,29 +310,34 @@ router.post('/planificar', async (req, res) => {
         const rows = await fetchRows(pool, sapDb, bodega, fecha);
         const puntos = buildPuntos(rows, fecha);
         const puntosById = {}; puntos.forEach(p => puntosById[p.id] = p);
-        const especiales = puntos.filter(p => p.excede).map(p => p.id);
         const ruteables = puntos.filter(p => !p.excede);
+        // Cada punto que excede el camión más grande va a su propia ruta "Flete" (sin tope).
+        const fleteRutas = puntos.filter(p => p.excede).map(p => ({
+            nombre: 'Flete — ' + p.cliente, camion: 'Flete', region: p.region, puntos: [p.id]
+        }));
 
-        if (!ruteables.length) {
-            return res.json({ fecha, puntos, rutas: [], especiales, notas: 'No hay puntos ruteables.', validacion: { ok: true, violaciones: [], sinAsignar: [] } });
+        let planRutas = [], notas = '';
+        if (ruteables.length) {
+            const ai = await callAnthropic(getSystemPrompt(), buildUserMsg(ruteables, flota));
+            let plan;
+            try { plan = parsePlan(ai.text); }
+            catch (e) {
+                console.error('Planificador: respuesta no parseable. stop_reason=%s raw=%s', ai.stopReason, (ai.text || '').slice(0, 2000));
+                return res.status(502).json({
+                    error: ai.stopReason === 'max_tokens'
+                        ? 'La IA devolvió una respuesta truncada (se quedó sin espacio). Reintenta.'
+                        : 'La IA devolvió un formato inesperado.',
+                    stopReason: ai.stopReason,
+                    raw: (ai.text || '').slice(0, 1500)
+                });
+            }
+            planRutas = plan.rutas || [];
+            notas = plan.notas || '';
         }
 
-        const ai = await callAnthropic(getSystemPrompt(), buildUserMsg(ruteables, flota));
-        let plan;
-        try { plan = parsePlan(ai.text); }
-        catch (e) {
-            console.error('Planificador: respuesta no parseable. stop_reason=%s raw=%s', ai.stopReason, (ai.text || '').slice(0, 2000));
-            return res.status(502).json({
-                error: ai.stopReason === 'max_tokens'
-                    ? 'La IA devolvió una respuesta truncada (se quedó sin espacio). Reintenta.'
-                    : 'La IA devolvió un formato inesperado.',
-                stopReason: ai.stopReason,
-                raw: (ai.text || '').slice(0, 1500)
-            });
-        }
-
-        const validacion = validar(plan, puntosById, flota);
-        res.json({ fecha, puntos, rutas: plan.rutas || [], especiales, notas: plan.notas || '', validacion });
+        const rutas = planRutas.concat(fleteRutas);
+        const validacion = validar({ rutas }, puntosById, flota);
+        res.json({ fecha, puntos, rutas, especiales: [], notas, validacion });
     } catch (err) {
         console.error('POST /api/planificador/planificar error:', err);
         res.status(500).json({ error: err.message || 'Error al planificar' });
