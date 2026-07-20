@@ -48,7 +48,9 @@ async function fetchRows(pool, sapDb, bodega, fecha) {
 }
 
 // Documentos (uno por DocNum) — para el grid de "Importar"
-function buildDocumentos(rows) {
+// fecha (YYYY-MM-DD) se usa como fechaEntrega para evitar corrimientos de zona
+// horaria: todos los documentos filtrados tienen DocDueDate == fecha.
+function buildDocumentos(rows, fecha) {
     const docs = new Map();
     let lineas = 0;
     for (const r of rows) {
@@ -56,7 +58,7 @@ function buildDocumentos(rows) {
         if (!docs.has(r.DocNum)) {
             docs.set(r.DocNum, {
                 docNum: r.DocNum, cliente: r.CardName, tipo: 'OV',
-                fechaEntrega: r.DocDueDate, direccion: normAddr(r.Address2),
+                fechaEntrega: fecha, direccion: normAddr(r.Address2),
                 comentarios: normAddr(r.Comments), vendedor: r.SlpName || null,
                 peso: 0, lineas: 0
             });
@@ -70,22 +72,26 @@ function buildDocumentos(rows) {
     return { documentos, lineas };
 }
 
-// Puntos de entrega (cliente+dirección) — para planificar
-function buildPuntos(rows) {
+// Puntos de entrega (cliente+dirección) — para planificar.
+// Incluye los campos de detalle para validar (OVs, vendedor, comentarios, fecha).
+function buildPuntos(rows, fecha) {
     const pts = new Map();
     for (const r of rows) {
         const dir = normAddr(r.Address2);
         const key = r.CardCode + '||' + dir;
-        if (!pts.has(key)) pts.set(key, { cliente: r.CardName, direccion: dir, ovs: new Set(), comentarios: normAddr(r.Comments), peso: 0, ...parseGeo(r.Address2) });
+        if (!pts.has(key)) pts.set(key, { cliente: r.CardName, direccion: dir, ovs: new Set(), coments: new Set(), vendedor: null, peso: 0, ...parseGeo(r.Address2) });
         const p = pts.get(key);
         p.ovs.add(r.DocNum);
+        const com = normAddr(r.Comments); if (com) p.coments.add(com);
+        if (!p.vendedor && r.SlpName) p.vendedor = r.SlpName;
         p.peso += (r.PesoUnit || 0) * (r.Quantity || 0);
     }
     return [...pts.values()]
         .map(p => ({
             cliente: p.cliente, direccion: p.direccion,
             zona: p.zona, municipio: p.muni, departamento: p.depto, region: p.region,
-            comentarios: p.comentarios, ovs: [...p.ovs],
+            tipo: 'OV', fechaEntrega: fecha, vendedor: p.vendedor || null,
+            comentarios: [...p.coments].join('  |  '), ovs: [...p.ovs],
             peso: Math.round(p.peso), excede: p.peso > MAX_TRUCK_KG
         }))
         .sort((a, b) => b.peso - a.peso)
@@ -107,7 +113,7 @@ router.get('/pendientes', async (req, res) => {
         const bodega = (req.query.bodega || '01').toString();
         const fecha = resolveFecha(req.query.fecha);
         const rows = await fetchRows(pool, sapDb, bodega, fecha);
-        const { documentos, lineas } = buildDocumentos(rows);
+        const { documentos, lineas } = buildDocumentos(rows, fecha);
         const kg = documentos.reduce((s, d) => s + d.peso, 0);
         res.json({
             fecha, bodega, pais, maxTruckKg: MAX_TRUCK_KG,
@@ -283,7 +289,7 @@ router.post('/planificar', async (req, res) => {
         if (!flota.length) return res.status(400).json({ error: 'Falta la configuración de flota.' });
 
         const rows = await fetchRows(pool, sapDb, bodega, fecha);
-        const puntos = buildPuntos(rows);
+        const puntos = buildPuntos(rows, fecha);
         const puntosById = {}; puntos.forEach(p => puntosById[p.id] = p);
         const especiales = puntos.filter(p => p.excede).map(p => p.id);
         const ruteables = puntos.filter(p => !p.excede);

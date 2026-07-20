@@ -122,6 +122,26 @@
         .rpt .cli { flex:1; }
         .rpt .pw { color:#666; white-space:nowrap; }
 
+        /* Detalle de punto (todos los campos) + arrastrar/soltar */
+        .route-pts.abierto { max-height:none; overflow:visible; padding:.4rem .9rem .7rem; border-top:1px solid #f0f0f0; }
+        .rpt { cursor:grab; align-items:flex-start; gap:.5rem; }
+        .rpt:active { cursor:grabbing; }
+        .rpt .drag { color:#cfcfcf; padding-top:2px; }
+        .rpt-main { flex:1; min-width:0; }
+        .rpt-l1 { display:flex; gap:.5rem; align-items:baseline; }
+        .rpt-l1 b { font-size:.84rem; }
+        .rpt-l1 .pw { margin-left:auto; color:#555; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .rpt-l2, .rpt-l3, .rpt-l4 { font-size:.72rem; margin-top:.12rem; word-break:break-word; }
+        .rpt-l2 { color:#999; }
+        .rpt-l3 { color:#555; }
+        .rpt-l4 { color:#8a6d3b; }
+        .route.route-bad { border-color:#f5c6c0; }
+        .route.route-bad .route-h { background:#fbe3e0; }
+        .route.dragover, .dropzone.dragover { outline:2px dashed var(--warn); outline-offset:-2px; }
+        .dropzone { min-height:40px; margin:0 1rem .6rem; border:1px dashed #ddd; border-radius:8px; }
+        .empty-drop { color:#bbb; font-size:.78rem; text-align:center; padding:.8rem; }
+        .hint { font-size:.72rem; color:#999; margin:.3rem 1rem .5rem; display:flex; align-items:center; gap:.35rem; }
+
         .hidden { display: none !important; }
     </style>
 </head>
@@ -234,10 +254,9 @@ function renderChips(r) {
 
 function fmtFecha(f) {
     if (!f) return '';
-    const d = new Date(f);
-    if (isNaN(d)) return f;
-    const p = n => String(n).padStart(2,'0');
-    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;
+    // Espera 'YYYY-MM-DD' (texto plano) — sin new Date() para no correr el día por zona horaria
+    const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(f);
 }
 
 function renderGrid() {
@@ -294,69 +313,135 @@ async function planificar() {
     }
 }
 
-function renderPlan(d) {
-    const byId = {}; (d.puntos || []).forEach(p => byId[p.id] = p);
-    const capOf = label => (FLOTA.find(t => t.cap === label) || {}).kg || 0;
-    let html = '';
+let PLAN = null, BYID = {};
+const capOf = label => (FLOTA.find(t => t.cap === label) || {}).kg || 0;
 
-    const v = d.validacion || { ok: true, violaciones: [], sinAsignar: [] };
-    if (v.ok) {
-        html += '<div class="okbox"><i class="bi bi-check-circle"></i> Plan válido — cumple capacidad, límite de puntos y flota disponible.</div>';
+function renderPlan(d) {
+    BYID = {}; (d.puntos || []).forEach(p => BYID[p.id] = p);
+    PLAN = {
+        notas: d.notas || '',
+        rutas: (d.rutas || []).map(r => ({
+            nombre: r.nombre || 'Ruta', camion: r.camion || '', region: r.region || '',
+            puntos: (r.puntos || []).filter(id => BYID[id] !== undefined)
+        })),
+        especiales: (d.especiales || []).filter(id => BYID[id] !== undefined),
+        sinAsignar: ((d.validacion && d.validacion.sinAsignar) || []).filter(id => BYID[id] !== undefined)
+    };
+    drawPlan();
+}
+
+// Revalida el plan (en vivo, tras cada arrastre) contra las reglas duras
+function validarPlan() {
+    const viol = [];
+    PLAN.rutas.forEach(r => {
+        const cap = capOf(r.camion);
+        const peso = r.puntos.reduce((s, id) => s + ((BYID[id] || {}).peso || 0), 0);
+        const maxPts = cap >= 10000 ? 3 : 5;
+        if (cap && peso > cap) viol.push(`"${r.nombre}": ${peso.toLocaleString()} kg excede ${r.camion} (${cap.toLocaleString()} kg).`);
+        if (r.puntos.length > maxPts) viol.push(`"${r.nombre}": ${r.puntos.length} puntos (máx ${maxPts} para ${r.camion}).`);
+    });
+    return viol;
+}
+
+function drawPlan() {
+    const viol = validarPlan();
+    let html = '';
+    if (!viol.length && !PLAN.sinAsignar.length) {
+        html += '<div class="okbox"><i class="bi bi-check-circle"></i> Plan válido — cumple capacidad, límite de puntos y sin pendientes.</div>';
     } else {
-        html += '<div class="warnbox"><b><i class="bi bi-exclamation-triangle"></i> Revisar el plan:</b><ul>'
-            + (v.violaciones || []).map(x => `<li>${esc(x)}</li>`).join('')
-            + ((v.sinAsignar && v.sinAsignar.length) ? `<li>${v.sinAsignar.length} punto(s) quedaron sin asignar.</li>` : '')
+        html += '<div class="warnbox"><b><i class="bi bi-exclamation-triangle"></i> Revisar:</b><ul>'
+            + viol.map(x => `<li>${esc(x)}</li>`).join('')
+            + (PLAN.sinAsignar.length ? `<li>${PLAN.sinAsignar.length} punto(s) sin asignar.</li>` : '')
             + '</ul></div>';
     }
-    if (d.notas) html += `<div class="notas"><i class="bi bi-chat-left-text"></i> ${esc(d.notas)}</div>`;
+    if (PLAN.notas) html += `<div class="notas"><i class="bi bi-chat-left-text"></i> ${esc(PLAN.notas)}</div>`;
+    html += '<div class="hint"><i class="bi bi-arrows-move"></i> Arrastra un pedido de una ruta a otra (o a "Sin asignar") para reasignarlo.</div>';
 
-    if (d.especiales && d.especiales.length) {
+    if (PLAN.especiales.length) {
         html += '<div class="plan-section" style="color:var(--warn)">Especiales — flete dedicado</div>';
-        html += d.especiales.map(id => byId[id] ? routeSpecial(byId[id]) : '').join('');
+        html += PLAN.especiales.map(id => routeSpecial(BYID[id])).join('');
     }
 
-    html += `<div class="plan-section">Rutas sugeridas (${(d.rutas || []).length})</div>`;
-    html += (d.rutas || []).map(r => routeCard(r, byId, capOf)).join('');
+    html += `<div class="plan-section">Rutas sugeridas (${PLAN.rutas.length})</div>`;
+    html += PLAN.rutas.map((r, idx) => routeCard(r, idx)).join('');
 
-    if (v.sinAsignar && v.sinAsignar.length) {
-        html += '<div class="plan-section" style="color:var(--danger)">Sin asignar</div>';
-        html += v.sinAsignar.map(id => byId[id] ? routeSpecial(byId[id], true) : '').join('');
-    }
+    html += `<div class="plan-section" style="color:${PLAN.sinAsignar.length ? 'var(--danger)' : '#999'}">Sin asignar (${PLAN.sinAsignar.length})</div>`;
+    html += `<div class="dropzone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'sin'})">`
+        + (PLAN.sinAsignar.length ? PLAN.sinAsignar.map(id => ptRowFull(BYID[id])).join('') : '<div class="empty-drop">Arrastra aquí para desasignar un pedido.</div>')
+        + `</div>`;
+
     document.getElementById('result').innerHTML = html;
 }
 
-function routeCard(r, byId, capOf) {
-    const cap = r.capacidad_kg || capOf(r.camion) || 0;
-    const pts = (r.puntos || []).map(id => byId[id]).filter(Boolean);
+function routeCard(r, idx) {
+    const cap = capOf(r.camion);
+    const pts = r.puntos.map(id => BYID[id]).filter(Boolean);
     const peso = pts.reduce((s, p) => s + p.peso, 0);
     const pct = cap ? Math.round(peso / cap * 100) : 0;
+    const maxPts = cap >= 10000 ? 3 : 5;
+    const bad = (cap && peso > cap) || pts.length > maxPts;
     return `
-      <div class="route" onclick="this.classList.toggle('open')">
+      <div class="route ${bad ? 'route-bad' : ''}" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'ruta', idx:${idx}})">
         <div class="route-h">
-          <span class="truck">${esc(r.camion || '')}</span>
-          <div class="route-name">${esc(r.nombre || 'Ruta')}<small>${pts.length} puntos${r.region ? (' · ' + esc(r.region)) : ''}</small></div>
-          <div class="route-meta"><b>${peso.toLocaleString()} kg</b> · ${pct}%
+          <span class="truck">${esc(r.camion)}</span>
+          <div class="route-name">${esc(r.nombre)}<small>${pts.length} puntos${r.region ? (' · ' + esc(r.region)) : ''}</small></div>
+          <div class="route-meta"><b>${peso.toLocaleString()} kg</b> / ${cap.toLocaleString()} · ${pct}%
             <div class="usebar"><div class="fill" style="width:${Math.min(pct,100)}%"></div></div>
           </div>
         </div>
-        <div class="route-pts">${pts.map(ptRow).join('')}</div>
+        <div class="route-pts abierto">${pts.length ? pts.map(p => ptRowFull(p)).join('') : '<div class="empty-drop">Ruta vacía</div>'}</div>
       </div>`;
 }
 
-function ptRow(p) {
-    const et = p.zona != null ? ('Z' + p.zona) : (p.departamento ? p.departamento.slice(0,8) : '—');
-    const ov = (p.ovs && p.ovs.length > 1) ? ` <small>· ${p.ovs.length} OV</small>` : '';
-    return `<div class="rpt"><span class="z">${esc(et)}</span><span class="cli">${esc(p.cliente)}${ov}</span><span class="pw">${p.peso.toLocaleString()} kg</span></div>`;
+// Fila de punto con TODO el detalle (para validar) y arrastrable
+function ptRowFull(p, drag) {
+    if (!p) return '';
+    drag = drag !== false;
+    const chip = p.zona != null ? ('Z' + p.zona) : (p.departamento ? esc(p.departamento.slice(0, 10)) : '—');
+    const ov = (p.ovs || []).join(', ');
+    return `
+      <div class="rpt" ${drag ? `draggable="true" ondragstart="onDragStart(event, ${p.id})"` : 'style="cursor:default"'}>
+        ${drag ? '<span class="drag"><i class="bi bi-grip-vertical"></i></span>' : ''}
+        <div class="rpt-main">
+          <div class="rpt-l1"><b>${esc(p.cliente)}</b> <span class="z">${chip}</span> <span class="pw">${p.peso.toLocaleString()} kg</span></div>
+          <div class="rpt-l2">${esc(p.tipo || 'OV')} ${esc(ov)} · Entrega ${fmtFecha(p.fechaEntrega)} · Vend: ${esc(p.vendedor || '—')}</div>
+          <div class="rpt-l3"><i class="bi bi-geo-alt"></i> ${esc(p.direccion || '—')}</div>
+          ${p.comentarios ? `<div class="rpt-l4"><i class="bi bi-chat-left-text"></i> ${esc(p.comentarios)}</div>` : ''}
+        </div>
+      </div>`;
 }
 
-function routeSpecial(p, danger) {
-    return `<div class="route especial${danger ? ' danger' : ''}">
+function routeSpecial(p) {
+    if (!p) return '';
+    return `<div class="route especial">
       <div class="route-h">
-        <span class="truck">${danger ? '—' : 'FLETE'}</span>
-        <div class="route-name">${esc(p.cliente)}<small>${esc(p.departamento || p.direccion || '')}</small></div>
-        <div class="route-meta"><b>${p.peso.toLocaleString()} kg</b></div>
+        <span class="truck">FLETE</span>
+        <div class="route-name">${esc(p.cliente)}<small>${esc(p.departamento || '')}</small></div>
+        <div class="route-meta"><b>${p.peso.toLocaleString()} kg</b> · excede 22 T</div>
       </div>
+      <div class="route-pts abierto">${ptRowFull(p, false)}</div>
     </div>`;
+}
+
+// ── Arrastrar y soltar (reasignar pedidos entre rutas) ──
+function onDragStart(ev, pid) { ev.dataTransfer.setData('text/plain', String(pid)); ev.dataTransfer.effectAllowed = 'move'; }
+function onDragOver(ev) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; ev.currentTarget.classList.add('dragover'); }
+function onDragLeave(ev) { ev.currentTarget.classList.remove('dragover'); }
+function onDrop(ev, target) {
+    ev.preventDefault();
+    ev.currentTarget.classList.remove('dragover');
+    const pid = parseInt(ev.dataTransfer.getData('text/plain'), 10);
+    if (isNaN(pid) || !PLAN) return;
+    // quitar de donde esté (rutas o sin asignar; los especiales no se mueven)
+    PLAN.rutas.forEach(r => { const i = r.puntos.indexOf(pid); if (i >= 0) r.puntos.splice(i, 1); });
+    const si = PLAN.sinAsignar.indexOf(pid); if (si >= 0) PLAN.sinAsignar.splice(si, 1);
+    // agregar al destino
+    if (target.tipo === 'ruta' && PLAN.rutas[target.idx]) {
+        if (!PLAN.rutas[target.idx].puntos.includes(pid)) PLAN.rutas[target.idx].puntos.push(pid);
+    } else {
+        if (!PLAN.sinAsignar.includes(pid)) PLAN.sinAsignar.push(pid);
+    }
+    drawPlan();
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
