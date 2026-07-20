@@ -316,7 +316,8 @@ router.post('/planificar', async (req, res) => {
         const ruteables = puntos.filter(p => !p.excede);
         // Cada punto que excede el camión más grande va a su propia ruta "Flete" (sin tope).
         const fleteRutas = puntos.filter(p => p.excede).map(p => ({
-            nombre: 'Flete — ' + p.cliente, camion: 'Flete', region: p.region, puntos: [p.id]
+            nombre: 'Flete - ' + (p.municipio || p.departamento || p.cliente),
+            camion: 'Flete', region: p.region, puntos: [p.id]
         }));
 
         let planRutas = [], notas = '';

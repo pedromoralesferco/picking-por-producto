@@ -55,6 +55,19 @@ Verifica internamente que:
 Si algo falla, corrige antes de responder.
 
 ====================
+NOMBRE DE LA RUTA
+====================
+
+El "nombre" de cada ruta debe seguir el formato:  <capacidad>T - <ubicación>
+
+- <capacidad>T: el tonelaje del camión asignado (ej. 1.5T, 3.5T, 5T, 10T, 22T). Para una ruta de flete usa "Flete".
+- <ubicación>: describe DÓNDE va la ruta (esto lo usa bodega para ubicarla rápido):
+   • Rutas metro: las zonas que cubre, separadas por "/". Ej: "Zona 14/15", "Zona 10", "Zona 7/11".
+   • Rutas regionales: el municipio o departamento de destino. Ej: "Chimaltenango", "San Juan Sac", "Escuintla".
+
+Ejemplos: "3.5T - Zona 14/15", "10T - Chimaltenango", "5T - San Juan Sac".
+
+====================
 FORMATO DE SALIDA
 ====================
 
@@ -63,7 +76,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown, sin texto fuera del J
 {
   "rutas": [
     {
-      "id": "R1",
+      "nombre": "10T - Chimaltenango",
       "camion": "10 T",
       "capacidad_kg": 10000,
       "peso_total_kg": 0,
