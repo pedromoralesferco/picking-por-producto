@@ -341,9 +341,11 @@ function callAnthropic(system, userText) {
     });
 }
 
-// Errores transitorios de la API (saturación / cortes de red) → reintentar.
+// Errores transitorios de la API (saturación, fallo interno, cortes de red) →
+// reintentar. Cubre los tipos de error retryables de Anthropic (overloaded_error,
+// api_error, rate_limit_error) + códigos 429/5xx + cortes de socket.
 function esErrorTransitorio(err) {
-    return /overloaded|\b429\b|\b500\b|\b502\b|\b503\b|\b529\b|socket inactivo|ECONNRESET|ETIMEDOUT|EPIPE/i.test(String((err && err.message) || ''));
+    return /overloaded|api_error|rate_limit|internal server error|service_unavailable|timeout|\b429\b|\b5\d\d\b|socket inactivo|ECONNRESET|ETIMEDOUT|EPIPE|ECONNREFUSED|EAI_AGAIN/i.test(String((err && err.message) || ''));
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -463,8 +465,8 @@ router.post('/planificar', async (req, res) => {
         res.json({ fecha, puntos, rutas, especiales: [], notas, validacion });
     } catch (err) {
         console.error('POST /api/planificador/planificar error:', err);
-        if (/overloaded/i.test(String(err.message || ''))) {
-            return res.status(503).json({ error: 'El servicio de IA está saturado en este momento (overloaded). Reintenté varias veces sin éxito — espera unos segundos y vuelve a presionar Planificar.' });
+        if (esErrorTransitorio(err)) {
+            return res.status(503).json({ error: 'El servicio de IA tuvo un problema temporal (saturación o error interno). Reintenté varias veces sin éxito — espera unos segundos y vuelve a presionar Planificar.' });
         }
         res.status(500).json({ error: err.message || 'Error al planificar' });
     }
