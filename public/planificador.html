@@ -504,6 +504,16 @@ const capOf = label => (FLOTA.find(t => t.cap === label) || {}).kg || 0;
 // Capacidad efectiva para validar: el 22 T (uso libre) llega a 27 t.
 const capEff = label => label === '22 T' ? MAX_TRUCK_KG : capOf(label);
 
+// Resumen corto del estado de una ruta (para el desplegable "Asignar/Cambiar a…")
+function rutaStatus(rr) {
+    const cap = capEff(rr.camion);
+    const peso = (rr.puntos || []).reduce((s, id) => s + ((BYID[id] || {}).peso || 0), 0);
+    const pts = (rr.puntos || []).length;
+    if (rr.camion === 'Flete' || !cap) return `${peso.toLocaleString()} kg · ${pts} pt · flete`;
+    return `${peso.toLocaleString()}/${cap.toLocaleString()} kg · ${pts} pt · ${Math.round(peso / cap * 100)}%`;
+}
+const optLabel = rr => `${rr.nombre} — ${rutaStatus(rr)}`;
+
 function renderPlan(d) {
     BYID = {}; (d.puntos || []).forEach(p => BYID[p.id] = p);
     PLAN = {
@@ -627,13 +637,13 @@ function pgridRow(p, idx, mode) {
             <button onclick="desasignar(${p.id})">Desasignar</button>
             <select onchange="if(this.value!==''){moverPunto(${p.id}, this.value)}else{this.selectedIndex=0}">
               <option value="">Cambiar a…</option>
-              ${PLAN.rutas.map((rr, ri) => ri === idx ? '' : `<option value="${ri}">${escAttr(rr.nombre)}</option>`).join('')}
+              ${PLAN.rutas.map((rr, ri) => ri === idx ? '' : `<option value="${ri}">${esc(optLabel(rr))}</option>`).join('')}
             </select></td>`;
     } else if (mode === 'sin') {
         act = `<td class="pg-act">
             <select onchange="if(this.value!==''){moverPunto(${p.id}, this.value)}else{this.selectedIndex=0}">
               <option value="">Asignar a…</option>
-              ${PLAN.rutas.map((rr, ri) => `<option value="${ri}">${escAttr(rr.nombre)}</option>`).join('')}
+              ${PLAN.rutas.map((rr, ri) => `<option value="${ri}">${esc(optLabel(rr))}</option>`).join('')}
             </select></td>`;
     }
     return `<tr ${drag ? `draggable="true" ondragstart="onDragStart(event, ${p.id})"` : ''}>
