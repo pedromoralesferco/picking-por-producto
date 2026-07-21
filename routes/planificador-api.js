@@ -283,7 +283,10 @@ function callAnthropic(system, userText) {
         if (!process.env.ANTHROPIC_API_KEY) return reject(new Error('Falta ANTHROPIC_API_KEY en el .env del servidor.'));
         const payload = JSON.stringify({
             model: 'claude-opus-4-8',
-            max_tokens: 32000,
+            // 64k: el "thinking" (effort:high) consume del mismo max_tokens; con
+            // 32k un ruteo grande se truncaba antes de cerrar el JSON. Streaming,
+            // así que no hay riesgo de timeout HTTP. Se factura por tokens usados.
+            max_tokens: 64000,
             stream: true,
             thinking: { type: 'adaptive' },
             output_config: { effort: 'high' },
