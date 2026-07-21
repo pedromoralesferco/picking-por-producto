@@ -6,9 +6,10 @@ const { getPool, sql } = require('../db');
 const { getSapDb } = require('../config/paises');
 const router = express.Router();
 
-// Camión más grande de la flota (kg). Un punto por encima de esto no cabe
-// en ninguna unidad → "especial" (flete dedicado / viajes múltiples).
-const MAX_TRUCK_KG = 22000;
+// Tope operativo de la flota (kg). El 22 T es de uso libre y puede cargarse
+// hasta 27 t; SOLO por encima de 27 t un punto necesita flete dedicado.
+// Los puntos que superan esto se separan como "Flete" (viaje dedicado).
+const MAX_TRUCK_KG = 27000;
 
 // ── Helpers ──────────────────────────────────────────────
 function normAddr(s) { return (s || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -266,10 +267,16 @@ function buildUserMsg(ruteables, flota) {
         id: p.id, cliente: p.cliente, region: p.region,
         zona: p.zona, municipio: p.municipio, departamento: p.departamento, peso_kg: p.peso
     }));
-    const flotaMsg = flota.map(f => ({
-        tipo: f.tipo, capacidad_kg: f.kg,
-        disponibles: (f.disponibles == null ? 'ilimitado' : f.disponibles)
-    }));
+    // La IA NO recibe "Flete": el sistema separa por su cuenta los puntos que
+    // superan 27 t, así que todo lo que la IA rutea cabe en un camión real.
+    // El 22 T es de uso libre con tope operativo de 27 t.
+    const flotaMsg = flota
+        .filter(f => f.tipo !== 'Flete')
+        .map(f => ({
+            tipo: f.tipo,
+            capacidad_kg: (f.tipo === '22 T' ? MAX_TRUCK_KG : f.kg),
+            disponibles: (f.disponibles == null ? 'ilimitado' : f.disponibles)
+        }));
     return `FLOTA disponible:\n${JSON.stringify(flotaMsg, null, 1)}\n\n`
         + `PUNTOS DE ENTREGA a rutear (${ruteables.length}):\n${JSON.stringify(puntosMsg, null, 1)}\n\n`
         + `Agrupa TODOS estos puntos en rutas siguiendo las reglas. Devuelve solo el JSON.`;
@@ -289,7 +296,7 @@ function callAnthropic(system, userText) {
             max_tokens: 64000,
             stream: true,
             thinking: { type: 'adaptive' },
-            output_config: { effort: 'medium' },
+            output_config: { effort: 'high' },
             system,
             messages: [{ role: 'user', content: userText }]
         });
@@ -392,7 +399,8 @@ function validar(plan, puntosById, flota) {
         const nombre = r.nombre || r.id || 'ruta';
         const f = capPorTipo[r.camion];
         const esFlete = r.camion === 'Flete';
-        const cap = f ? f.kg : (esFlete ? Infinity : 0);   // Flete = sin tope de capacidad
+        // 22 T = uso libre con tope operativo de 27 t; Flete = sin tope.
+        const cap = f ? (f.tipo === '22 T' ? MAX_TRUCK_KG : f.kg) : (esFlete ? Infinity : 0);
         if (!f && !esFlete) violaciones.push(`Ruta "${nombre}": tipo de camión desconocido "${r.camion}".`);
         let peso = 0, n = 0;
         for (const raw of (r.puntos || [])) {

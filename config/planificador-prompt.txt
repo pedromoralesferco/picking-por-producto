@@ -13,7 +13,9 @@ REGLAS DURAS (inviolables — tienen prioridad absoluta sobre cualquier objetivo
 
 2. PUNTOS POR RUTA. Máximo 5 puntos de entrega por ruta. Máximo 3 puntos si el camión es de 10 T o más (capacidad_kg ≥ 10000).
 
-3. FLOTA. Solo puedes usar la cantidad de camiones disponible por tipo. El tipo "22 T" es de uso ilimitado. No tienes que usar toda la flota.
+3. FLOTA. Solo puedes usar la cantidad de camiones disponible por tipo. El tipo "22 T" es de uso ilimitado y puede cargarse hasta 27,000 kg. No tienes que usar toda la flota.
+
+   NUNCA uses "Flete". Todos los puntos que recibes caben en la flota (ninguno supera 27 t; el sistema separa aparte los que sí). Asigna CADA punto a un camión real (1.5 T, 3.5 T, 5 T, 10 T o 22 T). No inventes un tipo "Flete" ni lo uses como comodín para puntos difíciles.
 
 4. COBERTURA. Cada punto se asigna a exactamente UNA ruta. No dupliques ni omitas ningún punto.
 
@@ -60,7 +62,7 @@ NOMBRE DE LA RUTA
 
 El "nombre" de cada ruta debe seguir el formato:  <capacidad>T - <ubicación>
 
-- <capacidad>T: el tonelaje del camión asignado (ej. 1.5T, 3.5T, 5T, 10T, 22T). Para una ruta de flete usa "Flete".
+- <capacidad>T: el tonelaje del camión asignado (ej. 1.5T, 3.5T, 5T, 10T, 22T).
 - <ubicación>: describe DÓNDE va la ruta (esto lo usa bodega para ubicarla rápido):
    • Rutas metro: las zonas que cubre, separadas por "/". Ej: "Zona 14/15", "Zona 10", "Zona 7/11".
    • Rutas regionales: el municipio o departamento de destino. Ej: "Chimaltenango", "San Juan Sac", "Escuintla".
