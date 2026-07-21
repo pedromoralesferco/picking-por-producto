@@ -341,6 +341,28 @@ function callAnthropic(system, userText) {
     });
 }
 
+// Errores transitorios de la API (saturación / cortes de red) → reintentar.
+function esErrorTransitorio(err) {
+    return /overloaded|\b429\b|\b500\b|\b502\b|\b503\b|\b529\b|socket inactivo|ECONNRESET|ETIMEDOUT|EPIPE/i.test(String((err && err.message) || ''));
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Reintenta callAnthropic ante saturación (overloaded) con backoff 2s,4s,8s,16s.
+async function callAnthropicRetry(system, userText, tries = 5) {
+    let last;
+    for (let i = 0; i < tries; i++) {
+        try { return await callAnthropic(system, userText); }
+        catch (e) {
+            last = e;
+            if (!esErrorTransitorio(e) || i === tries - 1) throw e;
+            const wait = Math.min(16000, 2000 * Math.pow(2, i));
+            console.warn('Planificador: reintento %d/%d tras "%s" (espera %dms)', i + 1, tries - 1, e.message, wait);
+            await sleep(wait);
+        }
+    }
+    throw last;
+}
+
 function parsePlan(text) {
     let t = (text || '').trim();
     // 1) si viene en un bloque markdown ```json ... ```, tomar su contenido
@@ -416,7 +438,7 @@ router.post('/planificar', async (req, res) => {
 
         let planRutas = [], notas = '';
         if (ruteables.length) {
-            const ai = await callAnthropic(getSystemPrompt(), buildUserMsg(ruteables, flota));
+            const ai = await callAnthropicRetry(getSystemPrompt(), buildUserMsg(ruteables, flota));
             let plan;
             try { plan = parsePlan(ai.text); }
             catch (e) {
@@ -441,6 +463,9 @@ router.post('/planificar', async (req, res) => {
         res.json({ fecha, puntos, rutas, especiales: [], notas, validacion });
     } catch (err) {
         console.error('POST /api/planificador/planificar error:', err);
+        if (/overloaded/i.test(String(err.message || ''))) {
+            return res.status(503).json({ error: 'El servicio de IA está saturado en este momento (overloaded). Reintenté varias veces sin éxito — espera unos segundos y vuelve a presionar Planificar.' });
+        }
         res.status(500).json({ error: err.message || 'Error al planificar' });
     }
 });
