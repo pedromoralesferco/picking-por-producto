@@ -289,7 +289,7 @@ function callAnthropic(system, userText) {
             max_tokens: 64000,
             stream: true,
             thinking: { type: 'adaptive' },
-            output_config: { effort: 'high' },
+            output_config: { effort: 'medium' },
             system,
             messages: [{ role: 'user', content: userText }]
         });
