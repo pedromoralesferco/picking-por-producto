@@ -438,23 +438,34 @@ router.post('/planificar', async (req, res) => {
             camion: 'Flete', region: p.region, puntos: [p.id]
         }));
 
-        let planRutas = [], notas = '';
+        let planRutas = [], notas = '', aiError = false;
         if (ruteables.length) {
-            const ai = await callAnthropicRetry(getSystemPrompt(), buildUserMsg(ruteables, flota));
-            let plan;
-            try { plan = parsePlan(ai.text); }
-            catch (e) {
-                console.error('Planificador: respuesta no parseable. stop_reason=%s raw=%s', ai.stopReason, (ai.text || '').slice(0, 2000));
-                return res.status(502).json({
-                    error: ai.stopReason === 'max_tokens'
-                        ? 'La IA devolvió una respuesta truncada (se quedó sin espacio). Reintenta.'
-                        : 'La IA devolvió un formato inesperado.',
-                    stopReason: ai.stopReason,
-                    raw: (ai.text || '').slice(0, 1500)
-                });
+            try {
+                const ai = await callAnthropicRetry(getSystemPrompt(), buildUserMsg(ruteables, flota));
+                let plan;
+                try { plan = parsePlan(ai.text); }
+                catch (e) {
+                    console.error('Planificador: respuesta no parseable. stop_reason=%s raw=%s', ai.stopReason, (ai.text || '').slice(0, 2000));
+                    return res.status(502).json({
+                        error: ai.stopReason === 'max_tokens'
+                            ? 'La IA devolvió una respuesta truncada (se quedó sin espacio). Reintenta.'
+                            : 'La IA devolvió un formato inesperado.',
+                        stopReason: ai.stopReason,
+                        raw: (ai.text || '').slice(0, 1500)
+                    });
+                }
+                planRutas = plan.rutas || [];
+                notas = plan.notas || '';
+            } catch (e) {
+                // Errores no transitorios (falta API key, etc.) → error duro.
+                if (!esErrorTransitorio(e)) throw e;
+                // La IA está caída/saturada: NO bloqueamos al usuario. Devolvemos
+                // los documentos SIN ASIGNAR para que arme las rutas a mano (o
+                // reintente el agrupado automático luego).
+                console.error('Planificador: IA no disponible tras reintentos: %s', e.message);
+                aiError = true;
+                notas = '⚠ La IA no está disponible ahorita (saturación o error temporal de Anthropic). Los documentos quedaron SIN ASIGNAR: puedes armarlos a mano (botón "Nueva ruta" + arrastrar/asignar) y Guardar, o esperar unos segundos y volver a presionar Planificar para el agrupado automático.';
             }
-            planRutas = plan.rutas || [];
-            notas = plan.notas || '';
         }
 
         const rutas = planRutas.concat(fleteRutas);
@@ -462,7 +473,7 @@ router.post('/planificar', async (req, res) => {
         if (warnings && warnings.length) {
             notas = (notas ? notas + '  |  ' : '') + 'Documentos manuales: ' + warnings.join('  ');
         }
-        res.json({ fecha, puntos, rutas, especiales: [], notas, validacion });
+        res.json({ fecha, puntos, rutas, especiales: [], notas, validacion, aiError });
     } catch (err) {
         console.error('POST /api/planificador/planificar error:', err);
         if (esErrorTransitorio(err)) {

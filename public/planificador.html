@@ -487,6 +487,10 @@ async function planificar() {
             return;
         }
         renderPlan(d);
+        if (d.aiError) {
+            document.getElementById('result').insertAdjacentHTML('afterbegin',
+                '<div class="errbox" style="margin:1rem 1rem 0"><i class="bi bi-robot"></i> La IA no está disponible en este momento (problema temporal de Anthropic). Los documentos quedaron <b>sin asignar</b>: ármalos a mano con <b>Nueva ruta</b> + arrastrar, o vuelve a presionar <b>Planificar</b> en unos segundos para el agrupado automático.</div>');
+        }
     } catch (err) {
         document.getElementById('result').innerHTML = '<div class="errbox"><i class="bi bi-exclamation-octagon"></i> ' + esc(err.message) + '</div>';
     } finally {
