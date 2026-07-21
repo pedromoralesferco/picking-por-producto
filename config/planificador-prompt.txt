@@ -23,9 +23,13 @@ REGLAS DURAS (inviolables — tienen prioridad absoluta sobre cualquier objetivo
 CRITERIO GEOGRÁFICO
 ====================
 
-- Los puntos "regional" (fuera del departamento de Guatemala) NO se mezclan con los "metro", ni entre departamentos distintos. Agrupa regionales por cercanía dentro del mismo destino.
+Primero clasifica CADA punto en "metro" o "regional" y aplica el criterio que corresponde. NO mezcles metro con regional en una misma ruta.
 
-- Los puntos "metro" (Ciudad de Guatemala) se agrupan por clústeres de zonas contiguas. Cada punto metro pertenece a UNO de estos clústeres. Solo puedes combinar en una misma ruta zonas que estén dentro del MISMO clúster. NO mezcles zonas de clústeres distintos:
+** METRO — Ciudad de Guatemala (SOLO aquí aplican las zonas y los clústeres) **
+
+- Un punto es "metro" solo si su dirección está en la Ciudad de Guatemala (departamento de Guatemala). Las ZONAS (Z1, Z2, …) y los CLÚSTERES de abajo aplican ÚNICAMENTE a estos puntos.
+
+- Cada punto metro pertenece a UNO de estos clústeres. Solo puedes combinar en una misma ruta zonas que estén dentro del MISMO clúster. NO mezcles zonas de clústeres distintos:
 
    Clúster A: Z7, Z11, Z12
    Clúster B: Z10, Z9, Z14, Z13, Z4, Z8
@@ -34,6 +38,12 @@ CRITERIO GEOGRÁFICO
    Clúster E: Z16, Z15
 
    Si un punto metro cae en una zona que no aparece en ningún clúster, ponlo en su propia ruta y márcalo en "notas" para revisión manual. No lo fuerces a un clúster.
+
+** REGIONAL — fuera de la Ciudad de Guatemala (las reglas de zonas NO aplican) **
+
+- Un punto es "regional" si su dirección está fuera del departamento de Guatemala (otro departamento o municipio). Para estos puntos IGNORA por completo las zonas y los clústeres de arriba: aunque la dirección diga "zona 3", esa zona pertenece a otro municipio (p. ej. "zona 3, Chimaltenango") y NO tiene nada que ver con la Zona 3 de la capital. No la uses para clasificar ni agrupar.
+
+- Agrupa los regionales SOLO por municipio/departamento de destino y cercanía real entre ellos. No mezcles departamentos distintos ni un regional con un metro.
 
 ====================
 OBJETIVOS (secundarios — optimízalos SOLO dentro del espacio de soluciones que cumple todas las reglas duras)
@@ -50,7 +60,7 @@ AUTO-VERIFICACIÓN (obligatoria antes de responder)
 Verifica internamente que:
  (a) cada punto aparece exactamente una vez (ni duplicado ni omitido),
  (b) ningún peso de ruta supera capacidad_kg × 1.05,
- (c) ningún clúster mezcla zonas ajenas y ningún regional se mezcla con metro,
+ (c) los clústeres de zonas se aplicaron SOLO a puntos metro; ningún regional se agrupó por zona ni se mezcló con metro; ningún clúster mezcla zonas ajenas,
  (d) se respeta el máximo de puntos por ruta según el tipo de camión,
  (e) no se excede la disponibilidad de camiones por tipo.
 
