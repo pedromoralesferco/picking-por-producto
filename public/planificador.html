@@ -137,7 +137,7 @@
         .rpt-l4 { color:#8a6d3b; }
         .route.route-bad { border-color:#f5c6c0; }
         .route.route-bad .route-h { background:#fbe3e0; }
-        .route.dragover, .dropzone.dragover { outline:2px dashed var(--warn); outline-offset:-2px; }
+        .route.dragover, .dropzone.dragover, .rcard.dragover, .col-body.dragover { outline:2px dashed var(--warn); outline-offset:-2px; border-radius:8px; }
         .dropzone { min-height:40px; margin:0 1rem .6rem; border:1px dashed #ddd; border-radius:8px; }
         .empty-drop { color:#bbb; font-size:.78rem; text-align:center; padding:.8rem; }
         .hint { font-size:.72rem; color:#999; margin:.3rem 1rem .5rem; display:flex; align-items:center; gap:.35rem; }
@@ -203,6 +203,47 @@
         .mhint { font-size:.72rem; color:#999; background:#f7f7f7; border-radius:7px; padding:.5rem .6rem; line-height:1.35; }
         .modal-f { padding:.8rem 1.1rem; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:.6rem; }
         .m-err { color:var(--danger); font-size:.78rem; min-height:1rem; }
+
+        /* Plan en 2 columnas (pendientes | rutas) */
+        .plan-cols { display:grid; grid-template-columns:1fr 1fr; gap:1rem; padding:.2rem 1rem 1rem; align-items:start; }
+        @media (max-width:1100px){ .plan-cols{ grid-template-columns:1fr; } }
+        .col { border:1px solid #e9e9e9; border-radius:12px; background:#fff; overflow:hidden; display:flex; flex-direction:column; }
+        .col-head { display:flex; align-items:center; gap:.5rem; padding:.55rem .7rem; background:#fafafa; border-bottom:1px solid #eee; flex-wrap:wrap; }
+        .col-title { font-weight:800; font-size:.8rem; text-transform:uppercase; letter-spacing:.5px; color:#555; display:flex; align-items:center; gap:.4rem; }
+        .col-title i { color:var(--warn); }
+        .col-sub { font-weight:600; font-size:.72rem; color:#999; text-transform:none; letter-spacing:0; }
+        .badge-n { background:#eee; color:#666; border-radius:20px; padding:.05rem .5rem; font-size:.72rem; font-weight:700; }
+        .col-sort { margin-left:auto; padding:.3rem .45rem; border:1px solid #ccc; border-radius:6px; font-size:.76rem; background:#fff; }
+        .col-body { padding:.55rem; overflow-y:auto; max-height:calc(100vh - 300px); min-height:90px; }
+
+        /* Fila compacta de un pedido */
+        .prow { display:flex; align-items:center; gap:.55rem; padding:.4rem .5rem; border:1px solid #eee; border-radius:9px; background:#fff; margin-bottom:.4rem; cursor:grab; }
+        .prow:last-child { margin-bottom:0; }
+        .prow:active { cursor:grabbing; }
+        .prow:hover { border-color:#e0d29a; background:#fcfaf5; }
+        .prow .z { background:#f0f0f0; color:#555; border-radius:5px; padding:.15rem .4rem; font-size:.67rem; font-weight:700; min-width:46px; text-align:center; flex-shrink:0; }
+        .prow-main { flex:1; min-width:0; }
+        .prow-l1 { display:flex; align-items:baseline; gap:.5rem; }
+        .prow-l1 b { font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .prow-l1 .pw { margin-left:auto; color:#555; font-size:.75rem; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .prow-l2 { font-size:.7rem; color:#999; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .row-act { display:flex; align-items:center; gap:.3rem; flex-shrink:0; }
+        .row-sel { max-width:118px; padding:.28rem .35rem; border:1px solid #ddd; border-radius:6px; font-size:.72rem; background:#fff; cursor:pointer; }
+        .btn-x { border:1px solid #f1c9c4; background:#fdecea; color:#c0392b; border-radius:6px; width:28px; height:28px; padding:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.75rem; }
+        .btn-x:hover { background:#f7d7d2; }
+
+        /* Tarjeta de ruta */
+        .rcard { border:1px solid #e9e9e9; border-radius:10px; margin-bottom:.7rem; overflow:hidden; }
+        .rcard:last-child { margin-bottom:0; }
+        .rcard.bad { border-color:#f5c6c0; }
+        .rcard-h { display:flex; align-items:center; gap:.4rem; padding:.4rem .5rem; background:#fafafa; }
+        .rcard.bad .rcard-h { background:#fbe3e0; }
+        .rcard-h .rname { flex:1; min-width:0; }
+        .rcard-meta { padding:.35rem .6rem; font-size:.74rem; color:#666; border-bottom:1px solid #f0f0f0; }
+        .rcard-meta.bad { color:var(--danger); }
+        .rcard-meta b { color:#333; }
+        .rcard-meta .usebar { width:100%; margin:.25rem 0 0; }
+        .rcard-body { padding:.45rem; }
     </style>
 </head>
 <body>
@@ -498,7 +539,7 @@ async function planificar() {
     }
 }
 
-let PLAN = null, BYID = {}, SORTKEY = 'nombre';
+let PLAN = null, BYID = {}, SORTKEY = 'nombre', SORTPEND = 'peso_desc';
 const MAX_TRUCK_KG = 27000; // tope operativo del 22 T (uso libre); arriba = Flete
 const capOf = label => (FLOTA.find(t => t.cap === label) || {}).kg || 0;
 // Capacidad efectiva para validar: el 22 T (uso libre) llega a 27 t.
@@ -545,48 +586,71 @@ function drawPlan() {
     const viol = validarPlan();
     let html = '';
     if (!viol.length && !PLAN.sinAsignar.length) {
-        html += '<div class="okbox"><i class="bi bi-check-circle"></i> Plan válido — cumple capacidad, límite de puntos y sin pendientes.</div>';
+        html += '<div class="okbox"><i class="bi bi-check-circle"></i> Plan válido — todo asignado y dentro de las reglas.</div>';
     } else {
         html += '<div class="warnbox"><b><i class="bi bi-exclamation-triangle"></i> Revisar:</b><ul>'
             + viol.map(x => `<li>${esc(x)}</li>`).join('')
-            + (PLAN.sinAsignar.length ? `<li>${PLAN.sinAsignar.length} punto(s) sin asignar.</li>` : '')
+            + (PLAN.sinAsignar.length ? `<li>${PLAN.sinAsignar.length} pedido(s) sin asignar.</li>` : '')
             + '</ul></div>';
     }
     if (PLAN.notas) html += `<div class="notas"><i class="bi bi-chat-left-text"></i> ${esc(PLAN.notas)}</div>`;
 
     const fechaTxt = fmtFecha(document.getElementById('fecha').value);
     html += `<div class="plan-toolbar">
-        <span class="tb-l">Ordenar:</span>
-        <select onchange="ordenarRutas(this.value)">
-          <option value="nombre"${SORTKEY==='nombre'?' selected':''}>Nombre (A–Z)</option>
-          <option value="cap_desc"${SORTKEY==='cap_desc'?' selected':''}>Capacidad (mayor)</option>
-          <option value="ocu_desc"${SORTKEY==='ocu_desc'?' selected':''}>Ocupación (mayor)</option>
-          <option value="ocu_asc"${SORTKEY==='ocu_asc'?' selected':''}>Ocupación (menor)</option>
-          <option value="pts_desc"${SORTKEY==='pts_desc'?' selected':''}># puntos</option>
-        </select>
-        <span class="tb-l" style="margin-left:auto"><i class="bi bi-calendar3"></i> Entrega: <b>${fechaTxt}</b></span>
-        <button class="btn-sm btn-new" onclick="nuevaRuta()"><i class="bi bi-plus-lg"></i> Nueva ruta</button>
+        <span class="tb-l"><i class="bi bi-calendar3"></i> Entrega: <b>${fechaTxt}</b></span>
+        <span class="tb-l" style="margin-left:auto"><i class="bi bi-arrows-move"></i> Arrastra entre columnas, o usa “Asignar” / ✕.</span>
         <button class="btn-sm btn-save" id="btnGuardar" onclick="guardarPlan()"><i class="bi bi-cloud-arrow-up"></i> Guardar</button>
-      </div>
-      <div class="hint"><i class="bi bi-arrows-move"></i> Reasigna con los botones "Desasignar" / "Cambiar" de cada fila, o arrastrando.</div>`;
+      </div>`;
 
-    if (PLAN.especiales.length) {
-        html += `<div class="plan-section" style="color:var(--warn)">Especiales — flete dedicado (${PLAN.especiales.length})</div>`;
-        html += pgrid(PLAN.especiales.map(id => BYID[id]).filter(Boolean), -1, 'especial');
-    }
+    // ── Columna izquierda: pendientes por asignar ──
+    const pend = PLAN.sinAsignar.slice().sort(cmpPend(SORTPEND));
+    const pesoPend = pend.reduce((s, id) => s + ((BYID[id] || {}).peso || 0), 0);
+    const left = `
+      <section class="col">
+        <div class="col-head">
+          <div class="col-title"><i class="bi bi-inbox"></i> Pendientes <span class="badge-n">${PLAN.sinAsignar.length}</span>
+            ${pend.length ? `<span class="col-sub">${pesoPend.toLocaleString()} kg</span>` : ''}</div>
+          <select class="col-sort" title="Ordenar pendientes" onchange="ordenarPendientes(this.value)">
+            <option value="peso_desc"${SORTPEND==='peso_desc'?' selected':''}>Peso (mayor)</option>
+            <option value="peso_asc"${SORTPEND==='peso_asc'?' selected':''}>Peso (menor)</option>
+            <option value="cliente"${SORTPEND==='cliente'?' selected':''}>Cliente (A–Z)</option>
+            <option value="zona"${SORTPEND==='zona'?' selected':''}>Zona / destino</option>
+          </select>
+        </div>
+        <div class="col-body dropzone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'sin'})">
+          ${pend.length
+            ? pend.map(id => pRow(BYID[id], 'pend')).join('')
+            : '<div class="empty-drop"><i class="bi bi-check2-circle"></i> Todo asignado. Arrastra un pedido aquí para desasignarlo.</div>'}
+        </div>
+      </section>`;
 
-    html += `<div class="plan-section">Rutas (${PLAN.rutas.length})</div>`;
-    html += PLAN.rutas.map((r, idx) => rutaGrid(r, idx)).join('');
+    // ── Columna derecha: rutas agrupadas ──
+    const right = `
+      <section class="col">
+        <div class="col-head">
+          <div class="col-title"><i class="bi bi-truck"></i> Rutas <span class="badge-n">${PLAN.rutas.length}</span></div>
+          <select class="col-sort" title="Ordenar rutas" onchange="ordenarRutas(this.value)">
+            <option value="nombre"${SORTKEY==='nombre'?' selected':''}>Nombre (A–Z)</option>
+            <option value="cap_desc"${SORTKEY==='cap_desc'?' selected':''}>Capacidad (mayor)</option>
+            <option value="ocu_desc"${SORTKEY==='ocu_desc'?' selected':''}>Ocupación (mayor)</option>
+            <option value="ocu_asc"${SORTKEY==='ocu_asc'?' selected':''}>Ocupación (menor)</option>
+            <option value="pts_desc"${SORTKEY==='pts_desc'?' selected':''}># puntos</option>
+          </select>
+          <button class="btn-sm btn-new" onclick="nuevaRuta()"><i class="bi bi-plus-lg"></i> Nueva ruta</button>
+        </div>
+        <div class="col-body">
+          ${PLAN.rutas.length
+            ? PLAN.rutas.map((r, idx) => rutaCard(r, idx)).join('')
+            : '<div class="empty-drop">Aún no hay rutas. Crea una con “Nueva ruta” y arrástrale pedidos.</div>'}
+        </div>
+      </section>`;
 
-    html += `<div class="plan-section" style="color:${PLAN.sinAsignar.length ? 'var(--danger)' : '#999'}">Sin asignar (${PLAN.sinAsignar.length})</div>`;
-    html += `<div class="dropzone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'sin'})">`
-        + (PLAN.sinAsignar.length ? pgrid(PLAN.sinAsignar.map(id => BYID[id]).filter(Boolean), -1, 'sin') : '<div class="empty-drop">Nada sin asignar. Arrastra aquí o usa "Desasignar".</div>')
-        + `</div>`;
-
+    html += `<div class="plan-cols">${left}${right}</div>`;
     document.getElementById('result').innerHTML = html;
 }
 
-function rutaGrid(r, idx) {
+// Tarjeta de una ruta (columna derecha)
+function rutaCard(r, idx) {
     const cap = capEff(r.camion);
     const pts = r.puntos.map(id => BYID[id]).filter(Boolean);
     const peso = pts.reduce((s, p) => s + p.peso, 0);
@@ -596,66 +660,53 @@ function rutaGrid(r, idx) {
     const bad = (!esFlete && cap && peso > cap * 1.05) || pts.length > maxPts;
     const truckOpts = FLOTA.map(t => `<option ${t.cap === r.camion ? 'selected' : ''}>${t.cap}</option>`).join('');
     const metaInner = esFlete
-        ? `<b>${peso.toLocaleString()} kg</b> · flete (sin tope)`
-        : `<b>${peso.toLocaleString()} kg</b> / ${cap.toLocaleString()} · ${pct}%
+        ? `<b>${peso.toLocaleString()} kg</b> · ${pts.length} pt · flete`
+        : `<b>${peso.toLocaleString()}</b>/${cap.toLocaleString()} kg · ${pts.length} pt · ${pct}%
            <div class="usebar"><div class="fill" style="width:${Math.min(pct,100)}%"></div></div>`;
     return `
-      <div class="rgrid ${bad ? 'bad' : ''}" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'ruta', idx:${idx}})">
-        <div class="rgrid-h">
+      <div class="rcard ${bad ? 'bad' : ''}" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, {tipo:'ruta', idx:${idx}})">
+        <div class="rcard-h">
           <input class="rname" value="${escAttr(r.nombre)}" onchange="renombrarRuta(${idx}, this.value)" title="Editar nombre de la ruta">
           <select class="rtruck" onchange="cambiarCamion(${idx}, this.value)" title="Cambiar camión">${truckOpts}</select>
-          <div class="rmeta">${metaInner}
-            <button class="rdel" title="Eliminar ruta (sus pedidos van a Sin asignar)" onclick="eliminarRuta(${idx})"><i class="bi bi-trash"></i></button>
-          </div>
+          <button class="rdel" title="Eliminar ruta (sus pedidos vuelven a Pendientes)" onclick="eliminarRuta(${idx})"><i class="bi bi-trash"></i></button>
         </div>
-        ${pts.length ? pgrid(pts, idx, 'ruta') : '<div class="empty-drop">Sin pedidos — arrástralos aquí o usa "Cambiar / Asignar" desde otra sección.</div>'}
+        <div class="rcard-meta ${bad ? 'bad' : ''}">${metaInner}</div>
+        <div class="rcard-body">
+          ${pts.length ? pts.map(p => pRow(p, idx)).join('') : '<div class="empty-drop">Arrastra pedidos aquí o usa “Asignar a…”.</div>'}
+        </div>
       </div>`;
 }
 
-// Grid de puntos con columnas alineadas (revisión rápida) + acciones
-function pgrid(pts, idx, mode) {
-    const showAct = mode !== 'especial';
-    const cols = ['Cliente', 'Ubic.', 'OV', 'Dirección', 'Comentarios', 'Vendedor', 'Peso'].concat(showAct ? ['Acciones'] : []);
-    // Anchos FIJOS e idénticos en todas las tablas → columnas alineadas (tipo tabla)
-    const widths = showAct
-        ? ['15%', '7%', '9%', '19%', '18%', '10%', '8%', '14%']
-        : ['17%', '8%', '11%', '22%', '21%', '11%', '10%'];
-    const colgroup = `<colgroup>${widths.map(w => `<col style="width:${w}">`).join('')}</colgroup>`;
-    return `<div class="grid-wrap"><table class="pgrid">
-        ${colgroup}
-        <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
-        <tbody>${pts.map(p => pgridRow(p, idx, mode)).join('')}</tbody>
-      </table></div>`;
-}
-
-function pgridRow(p, idx, mode) {
-    const chip = p.zona != null ? ('Z' + p.zona) : (p.departamento ? esc(p.departamento.slice(0, 12)) : '—');
-    const drag = mode !== 'especial';
-    let act = '';
-    if (mode === 'ruta') {
-        act = `<td class="pg-act">
-            <button onclick="desasignar(${p.id})">Desasignar</button>
-            <select onchange="if(this.value!==''){moverPunto(${p.id}, this.value)}else{this.selectedIndex=0}">
-              <option value="">Cambiar a…</option>
-              ${PLAN.rutas.map((rr, ri) => ri === idx ? '' : `<option value="${ri}">${esc(optLabel(rr))}</option>`).join('')}
-            </select></td>`;
-    } else if (mode === 'sin') {
-        act = `<td class="pg-act">
-            <select onchange="if(this.value!==''){moverPunto(${p.id}, this.value)}else{this.selectedIndex=0}">
-              <option value="">Asignar a…</option>
-              ${PLAN.rutas.map((rr, ri) => `<option value="${ri}">${esc(optLabel(rr))}</option>`).join('')}
-            </select></td>`;
+// Fila compacta de un pedido. ctx = 'pend' (izquierda) o índice de ruta (derecha)
+function pRow(p, ctx) {
+    if (!p) return '';
+    const chip = p.zona != null ? ('Z' + p.zona) : (p.departamento ? esc(String(p.departamento).slice(0, 10)) : '—');
+    const tb = p.tipo && p.tipo !== 'OV' ? tipoBadge(p.tipo) + ' ' : '';
+    const l2 = [tb + esc((p.ovs || []).join(', ')), esc(p.direccion || '')].filter(x => x && x !== '').join(' · ');
+    let act;
+    if (ctx === 'pend') {
+        act = `<select class="row-sel" title="Asignar a una ruta" onchange="if(this.value!==''){moverPunto(${p.id}, this.value)}else{this.selectedIndex=0}">
+                 <option value="">Asignar a…</option>
+                 ${PLAN.rutas.map((rr, ri) => `<option value="${ri}">${esc(optLabel(rr))}</option>`).join('')}
+               </select>`;
+    } else {
+        const idx = ctx;
+        act = `<div class="row-act">
+                 <select class="row-sel" title="Mover a otra ruta" onchange="if(this.value!==''){moverPunto(${p.id}, this.value)}else{this.selectedIndex=0}">
+                   <option value="">Cambiar a…</option>
+                   ${PLAN.rutas.map((rr, ri) => ri === idx ? '' : `<option value="${ri}">${esc(optLabel(rr))}</option>`).join('')}
+                 </select>
+                 <button class="btn-x" title="Quitar (regresa a Pendientes)" onclick="desasignar(${p.id})"><i class="bi bi-x-lg"></i></button>
+               </div>`;
     }
-    return `<tr ${drag ? `draggable="true" ondragstart="onDragStart(event, ${p.id})"` : ''}>
-        <td class="pg-cli"><b>${esc(p.cliente)}</b></td>
-        <td><span class="z">${chip}</span></td>
-        <td>${p.tipo && p.tipo !== 'OV' ? tipoBadge(p.tipo) + ' ' : ''}${esc((p.ovs || []).join(', '))}</td>
-        <td class="pg-dir">${esc(p.direccion || '—')}</td>
-        <td class="pg-com">${esc(p.comentarios || '—')}</td>
-        <td>${esc(p.vendedor || '—')}</td>
-        <td class="pg-pw">${p.peso.toLocaleString()} kg</td>
+    return `<div class="prow" draggable="true" ondragstart="onDragStart(event, ${p.id})" title="${escAttr(p.comentarios || '')}">
+        <span class="z">${chip}</span>
+        <div class="prow-main">
+          <div class="prow-l1"><b>${esc(p.cliente)}</b><span class="pw">${(p.peso || 0).toLocaleString()} kg</span></div>
+          <div class="prow-l2">${l2 || '—'}</div>
+        </div>
         ${act}
-      </tr>`;
+      </div>`;
 }
 
 // ── Arrastrar y soltar (reasignar pedidos entre rutas) ──
@@ -694,6 +745,18 @@ function ordenarRutas(key) {
     if (cmp && PLAN) PLAN.rutas.sort(cmp);
     drawPlan();
 }
+// Comparador para ordenar los pendientes (la columna izquierda)
+function cmpPend(key) {
+    const P = id => BYID[id] || {};
+    const zk = id => { const p = P(id); return p.zona != null ? String(p.zona) : (p.departamento || 'zzz'); };
+    return {
+        peso_desc: (a, b) => (P(b).peso || 0) - (P(a).peso || 0),
+        peso_asc: (a, b) => (P(a).peso || 0) - (P(b).peso || 0),
+        cliente: (a, b) => String(P(a).cliente || '').localeCompare(String(P(b).cliente || ''), 'es'),
+        zona: (a, b) => zk(a).localeCompare(zk(b), 'es', { numeric: true })
+    }[key] || (() => 0);
+}
+function ordenarPendientes(key) { SORTPEND = key; drawPlan(); }
 function renombrarRuta(idx, val) { if (PLAN && PLAN.rutas[idx]) { const v = (val || '').trim(); if (v) PLAN.rutas[idx].nombre = v; } }
 function cambiarCamion(idx, val) { if (PLAN && PLAN.rutas[idx]) { PLAN.rutas[idx].camion = val; drawPlan(); } }
 function nuevaRuta() { if (!PLAN) return; PLAN.rutas.push({ nombre: 'Ruta nueva ' + (PLAN.rutas.length + 1), camion: '5 T', region: '', puntos: [] }); drawPlan(); }
