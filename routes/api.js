@@ -415,7 +415,7 @@ router.get('/centros', async (req, res) => {
             where = ` WHERE ID_Centro IN (${params})`;
         }
         const result = await request.query(`
-            SELECT ID_Centro, Nombre, Pais FROM CentroDistribucion${where} ORDER BY Pais, Nombre
+            SELECT ID_Centro, Nombre, Pais, Modo FROM CentroDistribucion${where} ORDER BY Pais, Nombre
         `);
         res.json(result.recordset);
     } catch (err) {
@@ -427,14 +427,15 @@ router.get('/centros', async (req, res) => {
 router.get('/centros/:id/pickers', async (req, res) => {
     try {
         const pool = getPool();
-        // Detect country of this centro to query the right tables
+        // Detectar la MODALIDAD del centro (por centro; fallback por país)
         const centroRes = await pool.request()
             .input('idCentro', sql.Int, req.params.id)
-            .query(`SELECT Pais FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
+            .query(`SELECT Pais, Modo FROM CentroDistribucion WHERE ID_Centro = @idCentro`);
         const pais = centroRes.recordset[0]?.Pais || 'GT';
+        const modo = centroRes.recordset[0]?.Modo || (esOrderMode(pais) ? 'order' : 'product');
 
         let query;
-        if (esOrderMode(pais)) {
+        if (modo === 'order') {
             // Order mode: count from OrderPickingManagement / OrderPickingTask
             query = `
                 SELECT o.ID_Operario, o.Nombre,

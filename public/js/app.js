@@ -26,10 +26,10 @@ async function detectMode() {
         if (!res.ok) return;
         const user = await res.json();
 
-        // Mode is determined by the selected centro's country
+        // Modalidad determinada por el CENTRO seleccionado (fallback: por país)
         const pais = user.selectedPais || 'GT';
-        // Países en modalidad "por pedido" (order): El Salvador, Honduras
-        pickingMode = ['SV', 'HN'].includes(pais) ? 'order' : 'product';
+        const modo = user.selectedModo || (['SV', 'HN'].includes(pais) ? 'order' : 'product');
+        pickingMode = modo === 'order' ? 'order' : 'product';
 
         // Show centro name in navbar
         if (user.selectedCentroNombre) {

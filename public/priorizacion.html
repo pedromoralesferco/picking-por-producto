@@ -372,7 +372,8 @@
                 const userRes = await fetch('/api/auth/me');
                 if (!userRes.ok) return;
                 const user = await userRes.json();
-                pickingMode = ['SV', 'HN'].includes(user.selectedPais) ? 'order' : 'product';
+                const modo = user.selectedModo || (['SV', 'HN'].includes(user.selectedPais) ? 'order' : 'product');
+                pickingMode = modo === 'order' ? 'order' : 'product';
             } catch (err) { console.error('Mode detection error:', err); }
         }
 

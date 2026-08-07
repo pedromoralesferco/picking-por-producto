@@ -210,7 +210,7 @@
                 const res = await fetch('/api/centros');
                 const centros = await res.json();
                 document.getElementById('centrosList').innerHTML = centros.map(c => `
-                    <div class="select-item" onclick="chooseCentro(${c.ID_Centro}, '${esc(c.Nombre)}', '${c.Pais}')">
+                    <div class="select-item" onclick="chooseCentro(${c.ID_Centro}, '${esc(c.Nombre)}', '${c.Pais}', '${c.Modo || ''}')">
                         <div class="item-name"><i class="bi bi-building"></i> ${c.Nombre}</div>
                         <div class="item-sub">${c.Pais === 'GT' ? 'Guatemala' : c.Pais === 'SV' ? 'El Salvador' : c.Pais === 'HN' ? 'Honduras' : c.Pais}</div>
                     </div>
@@ -218,9 +218,10 @@
             } catch (err) { console.error(err); }
         }
 
-        async function chooseCentro(id, nombre, pais) {
-            selectedCentro = { id, nombre, pais };
-            pickingMode = ['SV', 'HN'].includes(pais) ? 'order' : 'product';
+        async function chooseCentro(id, nombre, pais, modo) {
+            selectedCentro = { id, nombre, pais, modo };
+            const m = modo || (['SV', 'HN'].includes(pais) ? 'order' : 'product');
+            pickingMode = m === 'order' ? 'order' : 'product';
 
             // Update header based on mode
             document.getElementById('headerTitle').textContent =
