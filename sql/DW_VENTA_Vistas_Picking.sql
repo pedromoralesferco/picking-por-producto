@@ -1,81 +1,33 @@
 -- ============================================================
--- Vistas analíticas de Picking para el DW (base DW_VENTA)
--- Se ejecutan EN DW_VENTA; leen de Picking_Management (mismo server).
+-- Vista analítica ÚNICA de Picking para el DW (base DW_VENTA)
+-- Se ejecuta EN DW_VENTA; lee de Picking_Management (mismo server).
 --
--- Diseño al GRANO (no totales), para medir dispersión en Tableau:
---   v_Picking_CicloRuta : 1 fila por ruta  -> ciclo por ruta/día
---   v_Picking_Tarea     : 1 fila por tarea -> tiempo asignación->fin
---                                              por tarea / persona
+--   dbo.v_Picking  -> 1 fila por TAREA (grano más fino).
+--   Trae también los datos de la RUTA (denormalizados) para que
+--   Tableau calcule todo desde un solo origen.
 --
--- Definición de tiempo por tarea:
---   DuracionAsigFin = FechaAsignacion (del pedido/producto, momento en
---   que se asignó al operario) -> UltimaActualizacion (fin de la tarea).
---   Todo dentro de Picking_Management (no depende de Lisa). Es NULL
---   cuando el pedido se cerró sin pasar por asignación a un operario.
+-- CÓMO USARLA EN TABLEAU:
+--   • Métricas por TAREA / persona : usa TODAS las filas.
+--       - DuracionAsigFinMin = tiempo asignación -> fin de la tarea.
+--   • Métricas por RUTA            : filtra EsRepresentanteRuta = 1
+--       (1 fila por ruta) para no multiplicar.
+--       - CicloLeadMin   = "Iniciar Ruta" -> cierre de ruta (lead time).
+--       - CicloActivoMin = 1ª asignación -> última tarea (trabajo real).
 --
--- Notas de colación: DW_VENTA=CP1, Picking_Management=CP850.
---   - JOIN entre bases por claves NUMÉRICAS (o TRY_CAST).
---   - Columnas de texto de salida normalizadas a CP1 con COLLATE.
+-- Tiempos: FechaAsignacion (momento en que se asigna el pedido/producto
+--   al operario) y FechaFinTarea (UltimaActualizacion al completarse).
+--   Todo dentro de Picking_Management (no depende de Lisa).
+--
+-- Colación: DW_VENTA=CP1, Picking_Management=CP850 -> joins numéricos y
+--   COLLATE CP1 en columnas de texto de salida.
 -- ============================================================
-
--- ══════════════════════════════════════════════════════════
--- 1) CICLO POR RUTA  (grano: ruta con inicio y fin de picking)
--- ══════════════════════════════════════════════════════════
-CREATE OR ALTER VIEW dbo.v_Picking_CicloRuta AS
--- ---- Modo PEDIDO (order) ----
-SELECT
-    orp.Pais            COLLATE SQL_Latin1_General_CP1_CI_AS               AS Pais,
-    CAST(cd.Nombre AS NVARCHAR(120)) COLLATE SQL_Latin1_General_CP1_CI_AS AS CEDI,
-    CAST('Pedido' AS NVARCHAR(12))                                        AS Modo,
-    orp.ID_Centro,
-    CAST(orp.FechaInicio AS DATE)                                         AS Fecha,
-    orp.RouteNumber,
-    orp.FechaInicio,
-    orp.FechaFin,
-    DATEDIFF(MINUTE, orp.FechaInicio, orp.FechaFin)                       AS CicloMin,
-    CAST(DATEDIFF(SECOND, orp.FechaInicio, orp.FechaFin)/3600.0 AS DECIMAL(10,2)) AS CicloHoras,
-    (SELECT COUNT(*)              FROM Picking_Management.dbo.OrderPickingTask t
-       WHERE t.RouteNumber = orp.RouteNumber AND t.ID_Centro = orp.ID_Centro)      AS NumTareas,
-    (SELECT ISNULL(SUM(t.Cantidad),0) FROM Picking_Management.dbo.OrderPickingTask t
-       WHERE t.RouteNumber = orp.RouteNumber AND t.ID_Centro = orp.ID_Centro)      AS Unidades
-FROM Picking_Management.dbo.OrderRoutePlan orp
-LEFT JOIN Picking_Management.dbo.CentroDistribucion cd ON cd.ID_Centro = orp.ID_Centro
-WHERE orp.FechaInicio IS NOT NULL AND orp.FechaFin IS NOT NULL
-
-UNION ALL
-
--- ---- Modo PRODUCTO (Zona 5) ----
-SELECT
-    CAST('GT' AS NVARCHAR(10))                                            AS Pais,
-    CAST(COALESCE(cd.Nombre, 'Almacén ' + rp.AlmacenOrigen) AS NVARCHAR(120))
-        COLLATE SQL_Latin1_General_CP1_CI_AS                             AS CEDI,
-    CAST('Producto' AS NVARCHAR(12))                                     AS Modo,
-    cd.ID_Centro,
-    CAST(rp.FechaInicio AS DATE)                                         AS Fecha,
-    rp.RouteNumber,
-    rp.FechaInicio,
-    rp.FechaFin,
-    DATEDIFF(MINUTE, rp.FechaInicio, rp.FechaFin)                        AS CicloMin,
-    CAST(DATEDIFF(SECOND, rp.FechaInicio, rp.FechaFin)/3600.0 AS DECIMAL(10,2)) AS CicloHoras,
-    (SELECT COUNT(*)              FROM Picking_Management.dbo.RoutePickingTask t
-       WHERE TRY_CAST(t.Route_Number AS INT) = rp.RouteNumber)          AS NumTareas,
-    (SELECT ISNULL(SUM(t.Cantidad),0) FROM Picking_Management.dbo.RoutePickingTask t
-       WHERE TRY_CAST(t.Route_Number AS INT) = rp.RouteNumber)          AS Unidades
-FROM Picking_Management.dbo.RoutePlan rp
-LEFT JOIN Picking_Management.dbo.CentroDistribucion cd
-       ON cd.Codigo = rp.AlmacenOrigen AND cd.Modo = 'product'
-WHERE rp.FechaInicio IS NOT NULL AND rp.FechaFin IS NOT NULL;
+IF OBJECT_ID('dbo.v_Picking_CicloRuta') IS NOT NULL DROP VIEW dbo.v_Picking_CicloRuta;
+IF OBJECT_ID('dbo.v_Picking_Tarea')     IS NOT NULL DROP VIEW dbo.v_Picking_Tarea;
 GO
 
--- ══════════════════════════════════════════════════════════
--- 2) TIEMPO POR TAREA  (grano: tarea finalizada)
---    DuracionAsigFin = desde que se ASIGNA el pedido/producto al
---    operario (FechaAsignacion) hasta que la tarea termina
---    (UltimaActualizacion). NULL si nunca se asignó.
--- ══════════════════════════════════════════════════════════
-CREATE OR ALTER VIEW dbo.v_Picking_Tarea AS
-WITH tareas AS (
-    -- ---- Modo PEDIDO ----
+CREATE OR ALTER VIEW dbo.v_Picking AS
+WITH base AS (
+    -- ═══ Modo PEDIDO (order) ═══
     SELECT
         t.ID_Task,
         t.Pais       COLLATE SQL_Latin1_General_CP1_CI_AS AS Pais,
@@ -86,15 +38,19 @@ WITH tareas AS (
         CAST(t.DocType AS NVARCHAR(10)) COLLATE SQL_Latin1_General_CP1_CI_AS AS DocType,
         t.Cantidad,
         opm.FechaAsignacion,
-        t.UltimaActualizacion AS FechaFinTarea
+        t.UltimaActualizacion AS FechaFinTarea,
+        orp.FechaInicio       AS RutaInicio,
+        orp.FechaFin          AS RutaFin
     FROM Picking_Management.dbo.OrderPickingTask t
     INNER JOIN Picking_Management.dbo.OrderPickingManagement opm
             ON opm.ID_OrderPicking = t.ID_OrderPicking
+    INNER JOIN Picking_Management.dbo.OrderRoutePlan orp
+            ON orp.ID_RoutePlan = opm.ID_RoutePlan
     WHERE t.Estado = 'Finalizado' AND t.UltimaActualizacion IS NOT NULL
 
     UNION ALL
 
-    -- ---- Modo PRODUCTO ----
+    -- ═══ Modo PRODUCTO (Zona 5) ═══
     SELECT
         t.ID_Task,
         CAST('GT' AS NVARCHAR(10))                        AS Pais,
@@ -105,7 +61,9 @@ WITH tareas AS (
         CAST(t.DocType AS NVARCHAR(10)) COLLATE SQL_Latin1_General_CP1_CI_AS AS DocType,
         t.Cantidad,
         rpm.FechaAsignacion,
-        t.UltimaActualizacion AS FechaFinTarea
+        t.UltimaActualizacion AS FechaFinTarea,
+        rp.FechaInicio        AS RutaInicio,
+        rp.FechaFin           AS RutaFin
     FROM Picking_Management.dbo.RoutePickingTask t
     LEFT JOIN Picking_Management.dbo.RoutePickingManagement rpm
            ON rpm.RouteNumber = TRY_CAST(t.Route_Number AS INT)
@@ -117,21 +75,34 @@ WITH tareas AS (
     WHERE t.Estado = 'Finalizado' AND t.UltimaActualizacion IS NOT NULL
 )
 SELECT
-    ta.Pais,
+    -- ── Dimensiones ──
+    b.Pais,
     CAST(cd.Nombre AS NVARCHAR(120)) COLLATE SQL_Latin1_General_CP1_CI_AS AS CEDI,
-    ta.Modo,
-    ta.ID_Centro,
-    CAST(ta.FechaFinTarea AS DATE)                                        AS Fecha,
-    ta.RouteNumber,
-    ta.ID_Operario,
+    b.Modo,
+    b.ID_Centro,
+    CAST(b.FechaFinTarea AS DATE)                                         AS Fecha,
+    b.RouteNumber,
+    -- ── Tarea ──
+    b.ID_Task,
+    b.ID_Operario,
     CAST(op.Nombre AS NVARCHAR(120)) COLLATE SQL_Latin1_General_CP1_CI_AS AS Operario,
-    ta.DocType,
-    ta.Cantidad,
-    ta.FechaAsignacion,
-    ta.FechaFinTarea,
-    DATEDIFF(SECOND, ta.FechaAsignacion, ta.FechaFinTarea)                AS DuracionAsigFinSeg,
-    CAST(DATEDIFF(SECOND, ta.FechaAsignacion, ta.FechaFinTarea)/60.0 AS DECIMAL(10,2)) AS DuracionAsigFinMin
-FROM tareas ta
-LEFT JOIN Picking_Management.dbo.Operario op ON op.ID_Operario = ta.ID_Operario
-LEFT JOIN Picking_Management.dbo.CentroDistribucion cd ON cd.ID_Centro = ta.ID_Centro;
+    b.DocType,
+    b.Cantidad,
+    b.FechaAsignacion,
+    b.FechaFinTarea,
+    DATEDIFF(SECOND, b.FechaAsignacion, b.FechaFinTarea)                  AS DuracionAsigFinSeg,
+    CAST(DATEDIFF(SECOND, b.FechaAsignacion, b.FechaFinTarea)/60.0 AS DECIMAL(10,2)) AS DuracionAsigFinMin,
+    -- ── Ruta (denormalizada; usar con EsRepresentanteRuta = 1) ──
+    b.RutaInicio,
+    b.RutaFin,
+    DATEDIFF(MINUTE, b.RutaInicio, b.RutaFin)                             AS CicloLeadMin,
+    DATEDIFF(MINUTE,
+        MIN(b.FechaAsignacion) OVER (PARTITION BY b.Modo, b.ID_Centro, b.RouteNumber),
+        MAX(b.FechaFinTarea)   OVER (PARTITION BY b.Modo, b.ID_Centro, b.RouteNumber)) AS CicloActivoMin,
+    CASE WHEN ROW_NUMBER() OVER (
+            PARTITION BY b.Modo, b.ID_Centro, b.RouteNumber
+            ORDER BY b.ID_Task) = 1 THEN 1 ELSE 0 END                    AS EsRepresentanteRuta
+FROM base b
+LEFT JOIN Picking_Management.dbo.Operario op ON op.ID_Operario = b.ID_Operario
+LEFT JOIN Picking_Management.dbo.CentroDistribucion cd ON cd.ID_Centro = b.ID_Centro;
 GO
