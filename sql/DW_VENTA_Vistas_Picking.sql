@@ -4,13 +4,18 @@
 --
 -- Diseño al GRANO (no totales), para medir dispersión en Tableau:
 --   v_Picking_CicloRuta : 1 fila por ruta  -> ciclo por ruta/día
---   v_Picking_Tarea     : 1 fila por tarea -> tiempo por tarea / persona
+--   v_Picking_Tarea     : 1 fila por tarea -> tiempo asignación->fin
+--                                              por tarea / persona
+--
+-- Definición de tiempo por tarea:
+--   DuracionAsigFin = FechaAsignacion (del pedido/producto, momento en
+--   que se asignó al operario) -> UltimaActualizacion (fin de la tarea).
+--   Todo dentro de Picking_Management (no depende de Lisa). Es NULL
+--   cuando el pedido se cerró sin pasar por asignación a un operario.
 --
 -- Notas de colación: DW_VENTA=CP1, Picking_Management=CP850.
---   - Los JOIN entre bases son por claves NUMÉRICAS (o TRY_CAST) para
---     evitar conflictos de colación.
---   - Las columnas de texto de salida se normalizan a CP1 con COLLATE
---     para que integren nativo en el DW.
+--   - JOIN entre bases por claves NUMÉRICAS (o TRY_CAST).
+--   - Columnas de texto de salida normalizadas a CP1 con COLLATE.
 -- ============================================================
 
 -- ══════════════════════════════════════════════════════════
@@ -64,11 +69,9 @@ GO
 
 -- ══════════════════════════════════════════════════════════
 -- 2) TIEMPO POR TAREA  (grano: tarea finalizada)
---    DuracionTareaSeg = gap entre completados consecutivos del
---    MISMO operario en el MISMO día (proxy de ritmo por tarea).
---    La 1ª tarea del día por operario queda NULL (sin referencia).
---    OJO: incluye pausas/recorridos -> en Tableau usar MEDIANA y
---    percentiles, y filtrar outliers (p.ej. > 60 min).
+--    DuracionAsigFin = desde que se ASIGNA el pedido/producto al
+--    operario (FechaAsignacion) hasta que la tarea termina
+--    (UltimaActualizacion). NULL si nunca se asignó.
 -- ══════════════════════════════════════════════════════════
 CREATE OR ALTER VIEW dbo.v_Picking_Tarea AS
 WITH tareas AS (
@@ -82,9 +85,11 @@ WITH tareas AS (
         t.ID_Operario,
         CAST(t.DocType AS NVARCHAR(10)) COLLATE SQL_Latin1_General_CP1_CI_AS AS DocType,
         t.Cantidad,
-        t.FechaLiberacion,
+        opm.FechaAsignacion,
         t.UltimaActualizacion AS FechaFinTarea
     FROM Picking_Management.dbo.OrderPickingTask t
+    INNER JOIN Picking_Management.dbo.OrderPickingManagement opm
+            ON opm.ID_OrderPicking = t.ID_OrderPicking
     WHERE t.Estado = 'Finalizado' AND t.UltimaActualizacion IS NOT NULL
 
     UNION ALL
@@ -99,9 +104,12 @@ WITH tareas AS (
         t.ID_Operario,
         CAST(t.DocType AS NVARCHAR(10)) COLLATE SQL_Latin1_General_CP1_CI_AS AS DocType,
         t.Cantidad,
-        t.FechaLiberacion,
+        rpm.FechaAsignacion,
         t.UltimaActualizacion AS FechaFinTarea
     FROM Picking_Management.dbo.RoutePickingTask t
+    LEFT JOIN Picking_Management.dbo.RoutePickingManagement rpm
+           ON rpm.RouteNumber = TRY_CAST(t.Route_Number AS INT)
+          AND rpm.Product = t.InternIdProduct
     LEFT JOIN Picking_Management.dbo.RoutePlan rp
            ON rp.RouteNumber = TRY_CAST(t.Route_Number AS INT)
     LEFT JOIN Picking_Management.dbo.CentroDistribucion c
@@ -119,18 +127,10 @@ SELECT
     CAST(op.Nombre AS NVARCHAR(120)) COLLATE SQL_Latin1_General_CP1_CI_AS AS Operario,
     ta.DocType,
     ta.Cantidad,
-    ta.FechaLiberacion,
+    ta.FechaAsignacion,
     ta.FechaFinTarea,
-    DATEDIFF(SECOND,
-        LAG(ta.FechaFinTarea) OVER (
-            PARTITION BY ta.ID_Operario, CAST(ta.FechaFinTarea AS DATE)
-            ORDER BY ta.FechaFinTarea),
-        ta.FechaFinTarea)                                                 AS DuracionTareaSeg,
-    CAST(DATEDIFF(SECOND,
-        LAG(ta.FechaFinTarea) OVER (
-            PARTITION BY ta.ID_Operario, CAST(ta.FechaFinTarea AS DATE)
-            ORDER BY ta.FechaFinTarea),
-        ta.FechaFinTarea)/60.0 AS DECIMAL(10,2))                          AS DuracionTareaMin
+    DATEDIFF(SECOND, ta.FechaAsignacion, ta.FechaFinTarea)                AS DuracionAsigFinSeg,
+    CAST(DATEDIFF(SECOND, ta.FechaAsignacion, ta.FechaFinTarea)/60.0 AS DECIMAL(10,2)) AS DuracionAsigFinMin
 FROM tareas ta
 LEFT JOIN Picking_Management.dbo.Operario op ON op.ID_Operario = ta.ID_Operario
 LEFT JOIN Picking_Management.dbo.CentroDistribucion cd ON cd.ID_Centro = ta.ID_Centro;
