@@ -14,7 +14,9 @@ BEGIN
     DECLARE @msg VARCHAR(200), @retry INT, @done BIT;
 
     IF OBJECT_ID('tempdb..#RoutesProcessed') IS NOT NULL DROP TABLE #RoutesProcessed;
-    CREATE TABLE #RoutesProcessed (RouteNumber INT, Pais NVARCHAR(10));
+    -- COLLATE DATABASE_DEFAULT: la tabla temp toma la colación de la BD (CP850),
+    -- no la de tempdb (CP1); evita el conflicto al comparar rp.Pais = t0.Pais.
+    CREATE TABLE #RoutesProcessed (RouteNumber INT, Pais NVARCHAR(10) COLLATE DATABASE_DEFAULT);
 
     -- ── Refresco por país (modalidad order). Agregar países aquí. ──
     EXEC dbo.SP_UpdateOrderPickingLisa_PorPais @Pais = 'SV', @LisaDb = 'lisa_sbointergres', @SapDb = 'sbointergres';
