@@ -271,8 +271,10 @@
                     fetch(`/api/pickers/${selectedPicker.id}/resumen`)
                 ]);
 
-                const productos = await productosRes.json();
+                const productosAll = await productosRes.json();
                 const resumen = await resumenRes.json();
+                // Vista de picker: mostrar solo productos con trabajo pendiente (ocultar finalizados)
+                const productos = productosAll.filter(p => p.Estado !== 'Finalizado');
 
                 document.getElementById('kpiStrip').innerHTML = `
                     <div class="kpi-mini">
@@ -313,6 +315,8 @@
                     const done = tareas.filter(t => t.Estado === 'Finalizado').length;
                     const total = tareas.length;
                     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    // Solo líneas abiertas (pendientes) en la lista del picker
+                    const tareasAbiertas = tareas.filter(t => t.Estado !== 'Finalizado');
                     const estadoClass = p.Estado === 'Finalizado' ? 'finalizado'
                         : (p.Estado === 'En Proceso' ? 'en-proceso' : 'asignado');
 
@@ -331,7 +335,7 @@
                             </div>
                             <div class="pm-progress"><div class="fill" style="width:${pct}%"></div></div>
                             <div class="tareas-mobile" style="display:block">
-                                ${tareas.map(t => {
+                                ${tareasAbiertas.map(t => {
                                     const isDone = t.Estado === 'Finalizado';
                                     return `
                                         <div class="tarea-mobile ${isDone ? 'is-done' : ''}">
@@ -363,8 +367,10 @@
                     fetch(`/api/order/pickers/${selectedPicker.id}/resumen`)
                 ]);
 
-                const pedidos = await pedidosRes.json();
+                const pedidosAll = await pedidosRes.json();
                 const resumen = await resumenRes.json();
+                // Vista de picker: mostrar solo pedidos con trabajo pendiente (ocultar finalizados)
+                const pedidos = pedidosAll.filter(p => p.Estado !== 'Finalizado');
 
                 document.getElementById('kpiStrip').innerHTML = `
                     <div class="kpi-mini">
@@ -405,6 +411,8 @@
                     const done = tareas.filter(t => t.Estado === 'Finalizado').length;
                     const total = tareas.length;
                     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    // Solo líneas abiertas (pendientes) en la lista del picker
+                    const tareasAbiertas = tareas.filter(t => t.Estado !== 'Finalizado');
                     const estadoClass = p.Estado === 'Finalizado' ? 'finalizado'
                         : (p.Estado === 'En Proceso' ? 'en-proceso' : 'asignado');
 
@@ -424,7 +432,7 @@
                             </div>
                             <div class="pm-progress"><div class="fill" style="width:${pct}%"></div></div>
                             <div class="tareas-mobile" id="tareas-${p.ID_OrderPicking}">
-                                ${tareas.map(t => {
+                                ${tareasAbiertas.map(t => {
                                     const isDone = t.Estado === 'Finalizado';
                                     const pendiente = t.CantidadPendiente ?? 0;
                                     return `
