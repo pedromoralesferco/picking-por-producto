@@ -257,6 +257,15 @@
         .btn-print-cuadro i { margin-right: 0.3rem; }
 
         .route-header-print { display: flex; flex-direction: column; gap: 0.4rem; }
+        .route-header-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
+        .btn-completar {
+            background: #2e7d32; color: #fff; border: 1px solid #2e7d32;
+            padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; white-space: nowrap; transition: all 0.15s;
+        }
+        .btn-completar:hover:not(:disabled) { background: #1b5e20; border-color: #1b5e20; }
+        .btn-completar:disabled { background: #9ccc9f; border-color: #9ccc9f; cursor: default; }
+        .btn-completar i { margin-right: 0.3rem; }
         .btn-print-packing {
             background: #2e7d32;
             color: #fff;
@@ -719,22 +728,7 @@
 
             let pickingPillClass = pickingComplete ? 'picking-finalizado' : 'picking-iniciado';
 
-            let actionsHtml = '';
-            if (estadoDespacho === 'Pendiente') {
-                actionsHtml = `
-                    <button class="btn-estado btn-listo" ${pickingComplete ? '' : 'disabled title="Picking no finalizado"'} onclick="cambiarEstado(${ruta.RouteNumber}, 'Listo para Carga')">
-                        <i class="bi bi-check2-square"></i> Marcar Listo para Carga
-                    </button>`;
-            } else if (estadoDespacho === 'Listo para Carga') {
-                actionsHtml = `
-                    <button class="btn-estado btn-finalizar-despacho" onclick="cambiarEstado(${ruta.RouteNumber}, 'Finalizado')">
-                        <i class="bi bi-truck"></i> Finalizar Despacho
-                    </button>
-                    <button class="btn-estado btn-revertir" onclick="cambiarEstado(${ruta.RouteNumber}, 'Pendiente')">
-                        <i class="bi bi-arrow-counterclockwise"></i> Revertir
-                    </button>`;
-            }
-
+            const yaCompletado = estadoDespacho === 'Finalizado';
             const docsFinalizados = docs.filter(d => d.Estado === 'Finalizado').length;
 
             panel.innerHTML = `
@@ -744,12 +738,15 @@
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')}</div>
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
-                        <div class="route-header-print">
-                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
-                                <i class="bi bi-printer"></i> Cuadro de Ruta
+                        <div class="route-header-btns">
+                            <button class="btn-completar" ${yaCompletado ? 'disabled' : ''} onclick="marcarCompletado(null, ${ruta.RouteNumber}, false)" title="Marcar la ruta como completada">
+                                <i class="bi bi-check2-circle"></i> ${yaCompletado ? 'Completado' : 'Marcar como Completado'}
                             </button>
-                            <button class="btn-print-packing" onclick="printPackingAllProducto(${ruta.RouteNumber})" title="Imprimir todos los packing lists de la ruta">
-                                <i class="bi bi-file-earmark-check"></i> Packing Lists
+                            <button class="btn-print-cuadro" onclick="printPackingAllProducto(${ruta.RouteNumber})" title="Imprimir todos los packing lists de la ruta">
+                                <i class="bi bi-file-earmark-check"></i> Packing List
+                            </button>
+                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta (marca la ruta como completada)">
+                                <i class="bi bi-printer"></i> Cuadro de Ruta
                             </button>
                         </div>
                     </div>
@@ -774,7 +771,6 @@
                     <div class="picking-bar-lg">
                         <div class="fill ${pickingComplete ? 'complete' : 'in-progress'}" style="width:${pickingPct}%"></div>
                     </div>
-                    <div class="route-header-actions">${actionsHtml}</div>
                 </div>
 
                 <div class="docs-header">
@@ -929,22 +925,7 @@
 
             let pickingPillClass = pickingComplete ? 'picking-finalizado' : 'picking-iniciado';
 
-            let actionsHtml = '';
-            if (estadoDespacho === 'Pendiente') {
-                actionsHtml = `
-                    <button class="btn-estado btn-listo" ${pickingComplete ? '' : 'disabled title="Picking no finalizado"'} onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Listo para Carga')">
-                        <i class="bi bi-check2-square"></i> Marcar Listo para Carga
-                    </button>`;
-            } else if (estadoDespacho === 'Listo para Carga') {
-                actionsHtml = `
-                    <button class="btn-estado btn-finalizar-despacho" onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Finalizado')">
-                        <i class="bi bi-truck"></i> Finalizar Despacho
-                    </button>
-                    <button class="btn-estado btn-revertir" onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Pendiente')">
-                        <i class="bi bi-arrow-counterclockwise"></i> Revertir
-                    </button>`;
-            }
-
+            const yaCompletado = estadoDespacho === 'Finalizado';
             const docsFinalizados = docs.filter(d => d.Estado === 'Finalizado').length;
 
             panel.innerHTML = `
@@ -954,12 +935,15 @@
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')} ${ruta.Pais ? '<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem">' + ruta.Pais + '</span>' : ''}</div>
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
-                        <div class="route-header-print">
-                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
-                                <i class="bi bi-printer"></i> Cuadro de Ruta
+                        <div class="route-header-btns">
+                            <button class="btn-completar" ${yaCompletado ? 'disabled' : ''} onclick="marcarCompletado(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, false)" title="Marcar la ruta como completada">
+                                <i class="bi bi-check2-circle"></i> ${yaCompletado ? 'Completado' : 'Marcar como Completado'}
                             </button>
-                            <button class="btn-print-packing" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
-                                <i class="bi bi-file-earmark-check"></i> Packing Lists
+                            <button class="btn-print-cuadro" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
+                                <i class="bi bi-file-earmark-check"></i> Packing List
+                            </button>
+                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta (marca la ruta como completada)">
+                                <i class="bi bi-printer"></i> Cuadro de Ruta
                             </button>
                         </div>
                     </div>
@@ -984,7 +968,6 @@
                     <div class="picking-bar-lg">
                         <div class="fill ${pickingComplete ? 'complete' : 'in-progress'}" style="width:${pickingPct}%"></div>
                     </div>
-                    <div class="route-header-actions">${actionsHtml}</div>
                 </div>
 
                 <div class="docs-header">
@@ -1102,6 +1085,27 @@
 
         function printCuadroRuta(routeNumber) {
             window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
+            // Al imprimir el cuadro de ruta, la ruta se marca como completada (sale de pendientes)
+            marcarCompletado(selectedRoutePlanId, routeNumber, true);
+        }
+
+        async function marcarCompletado(idRoutePlan, routeNumber, silent) {
+            if (!silent && !confirm(`Marcar la ruta #${routeNumber} como completada?\n\nSaldrá del listado de despachos pendientes.`)) return;
+            const url = pickingMode === 'order' ? '/api/order/despacho/estado' : '/api/despacho/estado';
+            const body = pickingMode === 'order'
+                ? { idRoutePlan, estado: 'Finalizado' }
+                : { routeNumber, estado: 'Finalizado' };
+            try {
+                const res = await fetch(url, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) { if (!silent) alert('Error al completar la ruta'); return; }
+                await loadDespacho();
+                selectedRoutePlanId = null; selectedRoute = null;
+                document.getElementById('panelDetail').innerHTML =
+                    '<div class="empty-detail"><i class="bi bi-check-circle" style="color:var(--success)"></i><p>Ruta completada — despacho finalizado</p></div>';
+            } catch { if (!silent) alert('Error de conexión'); }
         }
 
         // ── Verificación de calidad (QC) ──
