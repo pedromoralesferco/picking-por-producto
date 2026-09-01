@@ -25,7 +25,15 @@
         .pl-brand { font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; color: var(--gold); }
         .pl-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
         .pl-title small { display:block; font-size: 0.72rem; font-weight: 600; color:#888; letter-spacing: 1px; }
-        .pl-meta { text-align: right; font-size: 0.74rem; color: #555; line-height: 1.5; }
+        .pl-submeta { font-size: 0.68rem; color: #888; margin-top: 0.45rem; }
+        .pl-route-box {
+            border: 2.5px solid var(--ink); border-radius: 10px;
+            padding: 0.55rem 1.1rem; text-align: right; min-width: 190px;
+            background: #faf8f2; flex: none;
+        }
+        .prb-num { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+        .prb-name { font-size: 1.05rem; font-weight: 700; color: var(--gold); margin-top: 0.2rem;
+            text-transform: uppercase; letter-spacing: 0.02em; }
 
         .pl-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem 1rem; margin-bottom: 1rem;
             background: #faf8f2; border: 1px solid #eee; border-radius: 8px; padding: 0.8rem 1rem; }
@@ -146,11 +154,11 @@
                             <div>
                                 <div class="pl-brand">FERCO · DESPACHO</div>
                                 <div class="pl-title">PACKING LIST<small>Verificación de salida de mercadería</small></div>
+                                <div class="pl-submeta">Impreso: ${esc(fechaImp)} · ${esc(carril)}${centro ? ' · ' + esc(centro) : ''}</div>
                             </div>
-                            <div class="pl-meta">
-                                Impreso: ${esc(fechaImp)}<br>
-                                Ruta #${esc(rutaNum)}${rutaName ? ' — ' + esc(rutaName) : ''}<br>
-                                ${esc(carril)}${centro ? ' · ' + esc(centro) : ''}
+                            <div class="pl-route-box">
+                                <div class="prb-num">Ruta #${esc(rutaNum)}</div>
+                                ${rutaName ? '<div class="prb-name">' + esc(rutaName) + '</div>' : ''}
                             </div>
                         </div>
 
