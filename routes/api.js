@@ -794,7 +794,10 @@ router.get('/despacho/rutas/:routeNumber/documentos/:ovNumber/productos', async 
                     MAX(Cantidad) AS Cantidad,
                     MAX(CantidadPendiente) AS CantidadPendiente,
                     MAX(UnitWeight) AS UnitWeight,
-                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado
+                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado,
+                    CAST(MIN(CAST(Verificado AS INT)) AS BIT) AS Verificado,
+                    MAX(FechaVerificacion) AS FechaVerificacion,
+                    MAX(VerificadoPor) AS VerificadoPor
                 FROM RoutePickingTask
                 WHERE Route_Number = @routeNumber AND OV_Number = @ovNumber
                 GROUP BY InternIdProduct
@@ -806,6 +809,91 @@ router.get('/despacho/rutas/:routeNumber/documentos/:ovNumber/productos', async 
     } catch (err) {
         console.error('GET documentos productos error:', err);
         res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// POST /api/despacho/verificar — QC de una línea (producto de una OV en una ruta), modo producto
+router.post('/despacho/verificar', async (req, res) => {
+    try {
+        const { routeNumber, ovNumber, product, verificado } = req.body || {};
+        if (!routeNumber || !ovNumber || product === undefined) {
+            return res.status(400).json({ error: 'routeNumber, ovNumber y product requeridos' });
+        }
+        const usuario = req.session?.user?.nombre || 'Sistema';
+        const marcar = verificado ? 1 : 0;
+        const pool = getPool();
+        await pool.request()
+            .input('routeNumber', sql.Int, parseInt(routeNumber))
+            .input('ovNumber', sql.NVarChar, String(ovNumber))
+            .input('product', sql.NVarChar, String(product))
+            .input('verificado', sql.Bit, marcar)
+            .input('usuario', sql.NVarChar, usuario)
+            .query(`
+                UPDATE RoutePickingTask
+                SET Verificado = @verificado,
+                    FechaVerificacion = CASE WHEN @verificado = 1 THEN GETDATE() ELSE NULL END,
+                    VerificadoPor = CASE WHEN @verificado = 1 THEN @usuario ELSE NULL END
+                WHERE Route_Number = @routeNumber AND OV_Number = @ovNumber AND InternIdProduct = @product
+            `);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('POST /api/despacho/verificar error:', err);
+        res.status(500).json({ error: 'Error al verificar' });
+    }
+});
+
+// GET /api/despacho/packing/:routeNumber — datos de packing list modo producto (ruta + OVs + líneas)
+router.get('/despacho/packing/:routeNumber', async (req, res) => {
+    try {
+        const pool = getPool();
+        const routeNumber = parseInt(req.params.routeNumber);
+
+        const rutaRes = await pool.request()
+            .input('routeNumber', sql.Int, routeNumber)
+            .query(`
+                SELECT rp.RouteNumber, rp.RouteName, rp.AlmacenOrigen,
+                       c.Nombre AS CarrilNombre
+                FROM RoutePlan rp
+                LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
+                WHERE rp.RouteNumber = @routeNumber
+            `);
+        if (rutaRes.recordset.length === 0) return res.status(404).json({ error: 'Ruta no encontrada' });
+        const ruta = rutaRes.recordset[0];
+
+        const lineasRes = await pool.request()
+            .input('routeNumber', sql.Int, routeNumber)
+            .query(`
+                SELECT t.OV_Number, MAX(t.DocType) AS DocType, MAX(t.IDCustomerORder) AS IDCustomerOrder,
+                       t.InternIdProduct AS Product, MAX(t.Descripcion) AS ProductName,
+                       MAX(t.Cantidad) AS Cantidad, MAX(t.UnitWeight) AS UnitWeight,
+                       MAX(o.Nombre) AS OperarioNombre,
+                       CAST(MIN(CAST(t.Verificado AS INT)) AS BIT) AS Verificado,
+                       MAX(t.FechaVerificacion) AS FechaVerificacion, MAX(t.VerificadoPor) AS VerificadoPor
+                FROM RoutePickingTask t
+                LEFT JOIN Operario o ON o.ID_Operario = t.ID_Operario
+                WHERE t.Route_Number = @routeNumber
+                GROUP BY t.OV_Number, t.InternIdProduct
+                ORDER BY t.OV_Number, t.InternIdProduct
+            `);
+
+        const pedidosMap = new Map();
+        for (const r of lineasRes.recordset) {
+            if (!pedidosMap.has(r.OV_Number)) {
+                pedidosMap.set(r.OV_Number, {
+                    OV_Number: r.OV_Number, DocType: r.DocType, IDCustomerOrder: r.IDCustomerOrder,
+                    OperarioNombre: r.OperarioNombre, lineas: []
+                });
+            }
+            pedidosMap.get(r.OV_Number).lineas.push({
+                Product: r.Product, ProductName: r.ProductName, Cantidad: r.Cantidad,
+                UnitWeight: r.UnitWeight, Verificado: r.Verificado,
+                FechaVerificacion: r.FechaVerificacion, VerificadoPor: r.VerificadoPor
+            });
+        }
+        res.json({ ruta, pedidos: Array.from(pedidosMap.values()) });
+    } catch (err) {
+        console.error('GET /api/despacho/packing error:', err);
+        res.status(500).json({ error: 'Error al obtener packing list' });
     }
 });
 

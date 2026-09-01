@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packing List</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --ink:#222; --gold:#b8891a; --line:#ccc; --ok:#2e7d32; }
+        body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--ink); background: #f0f0f0; padding: 1rem; }
+        .toolbar { max-width: 800px; margin: 0 auto 1rem; display: flex; gap: 0.6rem; justify-content: flex-end; }
+        .toolbar button {
+            background: #222; color: #d4a826; border: 1px solid #d4a826;
+            padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem;
+        }
+        .toolbar button:hover { background: #d4a826; color: #222; }
+
+        .sheet {
+            max-width: 800px; margin: 0 auto 1rem; background: #fff; padding: 1.6rem 1.8rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .pl-head { display: flex; justify-content: space-between; align-items: flex-start;
+            border-bottom: 3px solid var(--ink); padding-bottom: 0.7rem; margin-bottom: 0.9rem; }
+        .pl-brand { font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; color: var(--gold); }
+        .pl-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+        .pl-title small { display:block; font-size: 0.72rem; font-weight: 600; color:#888; letter-spacing: 1px; }
+        .pl-meta { text-align: right; font-size: 0.74rem; color: #555; line-height: 1.5; }
+
+        .pl-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem 1rem; margin-bottom: 1rem;
+            background: #faf8f2; border: 1px solid #eee; border-radius: 8px; padding: 0.8rem 1rem; }
+        .pl-info .f label { display:block; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color:#999; font-weight:600; }
+        .pl-info .f .v { font-size: 0.9rem; font-weight: 700; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+        thead th { background: #222; color: #fff; text-align: left; padding: 0.45rem 0.55rem; font-size: 0.66rem;
+            text-transform: uppercase; letter-spacing: 0.04em; }
+        thead th.c { text-align: center; } thead th.r { text-align: right; }
+        tbody td { padding: 0.42rem 0.55rem; border-bottom: 1px solid #eee; vertical-align: top; }
+        tbody td.c { text-align: center; } tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+        tbody tr:nth-child(even) { background: #fafafa; }
+        .chk { display:inline-block; width: 15px; height: 15px; border:1.5px solid #999; border-radius:3px; vertical-align:middle; }
+        .chk.on { background: var(--ok); border-color: var(--ok); position: relative; }
+        .chk.on::after { content:'\2713'; color:#fff; font-size:0.7rem; position:absolute; top:-3px; left:1px; }
+        .ver-by { font-size: 0.64rem; color:#888; }
+
+        .pl-summary { display:flex; justify-content: space-between; align-items:center; margin-top: 0.9rem;
+            padding-top: 0.7rem; border-top: 2px solid var(--ink); font-size: 0.8rem; }
+        .pl-summary b { font-size: 0.95rem; }
+        .verok { color: var(--ok); font-weight: 700; }
+
+        .pl-sign { display:grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; margin-top: 2.2rem; }
+        .pl-sign .s { text-align:center; }
+        .pl-sign .line { border-top: 1px solid #333; padding-top: 0.3rem; font-size: 0.72rem; color:#666; }
+
+        .loading, .error { max-width: 800px; margin: 3rem auto; text-align: center; color:#888; font-size: 0.95rem; }
+        .error { color: #c62828; }
+
+        @media print {
+            body { background: #fff; padding: 0; }
+            .toolbar { display: none; }
+            .sheet { box-shadow: none; margin: 0; max-width: none; padding: 0.5cm 0.8cm;
+                page-break-after: always; }
+            .sheet:last-child { page-break-after: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+        <button onclick="window.close()"><i class="bi bi-x-lg"></i> Cerrar</button>
+    </div>
+    <div id="content"><div class="loading"><i class="bi bi-hourglass-split"></i> Cargando packing list...</div></div>
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        const mode = params.get('mode') || 'order';
+        const soloPedido = params.get('pedido');           // order: ID_OrderPicking
+        const soloOv = params.get('ov');                   // product: OV_Number
+
+        const esc = s => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
+        const num = n => (Number(n) || 0).toLocaleString('es-GT');
+        function fhora(dt) {
+            if (!dt) return '';
+            const d = new Date(dt);
+            return d.toLocaleString('es-GT', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+        }
+
+        async function load() {
+            let url;
+            if (mode === 'product') {
+                url = '/api/despacho/packing/' + params.get('routeNumber');
+            } else {
+                url = '/api/order/despacho/packing/' + params.get('idRoutePlan');
+            }
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('No se pudo cargar (' + res.status + ')');
+                const data = await res.json();
+                render(data);
+                setTimeout(() => window.print(), 400);
+            } catch (err) {
+                document.getElementById('content').innerHTML =
+                    '<div class="error"><i class="bi bi-exclamation-triangle"></i> ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function render(data) {
+            const ruta = data.ruta || {};
+            let pedidos = data.pedidos || [];
+            // Filtrar a un solo pedido/OV si se pidió
+            if (soloPedido) pedidos = pedidos.filter(p => String(p.ID_OrderPicking) === String(soloPedido));
+            if (soloOv) pedidos = pedidos.filter(p => String(p.OV_Number) === String(soloOv));
+
+            if (pedidos.length === 0) {
+                document.getElementById('content').innerHTML = '<div class="error">Sin pedidos para imprimir.</div>';
+                return;
+            }
+
+            const rutaNum = ruta.RouteNumber || '';
+            const rutaName = ruta.RouteName || '';
+            const carril = ruta.CarrilNombre || 'Sin carril';
+            const centro = ruta.CentroNombre || ruta.AlmacenOrigen || '';
+            const fechaImp = new Date().toLocaleString('es-GT', { dateStyle:'medium', timeStyle:'short' });
+
+            document.getElementById('content').innerHTML = pedidos.map(p => {
+                const lineas = p.lineas || [];
+                const verificadas = lineas.filter(l => l.Verificado).length;
+                const pesoTotal = lineas.reduce((s,l) => s + (Number(l.Cantidad)||0)*(Number(l.UnitWeight)||0), 0);
+                const cliente = p.IDCustomerOrder ? ('Cliente/Doc: ' + esc(p.IDCustomerOrder)) : '';
+
+                const filas = lineas.map((l, i) => `
+                    <tr>
+                        <td class="r">${i+1}</td>
+                        <td>${esc(l.Product)}</td>
+                        <td>${esc(l.ProductName || '')}</td>
+                        <td class="r">${num(l.Cantidad)}</td>
+                        <td class="c"><span class="chk ${l.Verificado ? 'on' : ''}"></span></td>
+                        <td class="ver-by">${l.Verificado ? esc(l.VerificadoPor || '') + '<br>' + fhora(l.FechaVerificacion) : ''}</td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="sheet">
+                        <div class="pl-head">
+                            <div>
+                                <div class="pl-brand">FERCO · DESPACHO</div>
+                                <div class="pl-title">PACKING LIST<small>Verificación de salida de mercadería</small></div>
+                            </div>
+                            <div class="pl-meta">
+                                Impreso: ${esc(fechaImp)}<br>
+                                Ruta #${esc(rutaNum)}${rutaName ? ' — ' + esc(rutaName) : ''}<br>
+                                ${esc(carril)}${centro ? ' · ' + esc(centro) : ''}
+                            </div>
+                        </div>
+
+                        <div class="pl-info">
+                            <div class="f"><label>Pedido / OV</label><div class="v">${esc(p.OV_Number)} (${esc(p.DocType || '')})</div></div>
+                            <div class="f"><label>Operario</label><div class="v">${esc(p.OperarioNombre || '—')}</div></div>
+                            <div class="f"><label>Referencia</label><div class="v">${cliente || '—'}</div></div>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="r" style="width:34px">#</th>
+                                    <th style="width:90px">Código</th>
+                                    <th>Descripción</th>
+                                    <th class="r" style="width:70px">Cant.</th>
+                                    <th class="c" style="width:60px">Verif.</th>
+                                    <th style="width:120px">Verificado por</th>
+                                </tr>
+                            </thead>
+                            <tbody>${filas}</tbody>
+                        </table>
+
+                        <div class="pl-summary">
+                            <div>Líneas verificadas: <span class="verok">${verificadas}/${lineas.length}</span></div>
+                            <div>Peso total: <b>${num(Math.round(pesoTotal))} kg</b></div>
+                        </div>
+
+                        <div class="pl-sign">
+                            <div class="s"><div class="line">Revisado por (calidad)</div></div>
+                            <div class="s"><div class="line">Recibido / Piloto</div></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        load();
+    </script>
+</body>
+</html>

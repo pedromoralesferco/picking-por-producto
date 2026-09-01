@@ -554,7 +554,10 @@ router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (re
                     MAX(Cantidad) AS Cantidad,
                     MAX(CantidadPendiente) AS CantidadPendiente,
                     MAX(UnitWeight) AS UnitWeight,
-                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado
+                    CASE WHEN MAX(CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(Estado) END AS Estado,
+                    CAST(MIN(CAST(Verificado AS INT)) AS BIT) AS Verificado,
+                    MAX(FechaVerificacion) AS FechaVerificacion,
+                    MAX(VerificadoPor) AS VerificadoPor
                 FROM OrderPickingTask
                 WHERE ID_OrderPicking = @idOrderPicking
                 GROUP BY InternIdProduct
@@ -566,6 +569,95 @@ router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (re
     } catch (err) {
         console.error('GET despacho order productos error:', err);
         res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// POST /api/order/despacho/verificar — marcar/desmarcar verificación QC de una línea (producto de un pedido)
+router.post('/despacho/verificar', async (req, res) => {
+    try {
+        const { idOrderPicking, product, verificado } = req.body || {};
+        if (!idOrderPicking || product === undefined) {
+            return res.status(400).json({ error: 'idOrderPicking y product requeridos' });
+        }
+        const usuario = req.session?.user?.nombre || 'Sistema';
+        const marcar = verificado ? 1 : 0;
+        const pool = getPool();
+        await pool.request()
+            .input('idOrderPicking', sql.Int, parseInt(idOrderPicking))
+            .input('product', sql.NVarChar, String(product))
+            .input('verificado', sql.Bit, marcar)
+            .input('usuario', sql.NVarChar, usuario)
+            .query(`
+                UPDATE OrderPickingTask
+                SET Verificado = @verificado,
+                    FechaVerificacion = CASE WHEN @verificado = 1 THEN GETDATE() ELSE NULL END,
+                    VerificadoPor = CASE WHEN @verificado = 1 THEN @usuario ELSE NULL END
+                WHERE ID_OrderPicking = @idOrderPicking AND InternIdProduct = @product
+            `);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('POST /api/order/despacho/verificar error:', err);
+        res.status(500).json({ error: 'Error al verificar' });
+    }
+});
+
+// GET /api/order/despacho/packing/:idRoutePlan — datos de packing list (ruta + pedidos + líneas con verificación)
+router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
+    try {
+        const pool = getPool();
+        const idRoutePlan = parseInt(req.params.idRoutePlan);
+
+        const rutaRes = await pool.request()
+            .input('idRoutePlan', sql.Int, idRoutePlan)
+            .query(`
+                SELECT orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Pais,
+                       c.Nombre AS CarrilNombre, cd.Nombre AS CentroNombre
+                FROM OrderRoutePlan orp
+                LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
+                LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = orp.ID_Centro
+                WHERE orp.ID_RoutePlan = @idRoutePlan
+            `);
+        if (rutaRes.recordset.length === 0) return res.status(404).json({ error: 'Ruta no encontrada' });
+        const ruta = rutaRes.recordset[0];
+
+        const lineasRes = await pool.request()
+            .input('idRoutePlan', sql.Int, idRoutePlan)
+            .query(`
+                SELECT opm.ID_OrderPicking, opm.OV_Number, opm.DocType, opm.IDCustomerOrder,
+                       opm.PesoTotal, o.Nombre AS OperarioNombre,
+                       t.InternIdProduct AS Product, MAX(t.Descripcion) AS ProductName,
+                       MAX(t.Cantidad) AS Cantidad, MAX(t.UnitWeight) AS UnitWeight,
+                       CAST(MIN(CAST(t.Verificado AS INT)) AS BIT) AS Verificado,
+                       MAX(t.FechaVerificacion) AS FechaVerificacion, MAX(t.VerificadoPor) AS VerificadoPor
+                FROM OrderPickingManagement opm
+                INNER JOIN OrderPickingTask t ON t.ID_OrderPicking = opm.ID_OrderPicking
+                LEFT JOIN Operario o ON o.ID_Operario = opm.ID_Operario
+                WHERE opm.ID_RoutePlan = @idRoutePlan
+                GROUP BY opm.ID_OrderPicking, opm.OV_Number, opm.DocType, opm.IDCustomerOrder,
+                         opm.PesoTotal, o.Nombre, t.InternIdProduct
+                ORDER BY opm.OV_Number, t.InternIdProduct
+            `);
+
+        // Agrupar líneas por pedido
+        const pedidosMap = new Map();
+        for (const r of lineasRes.recordset) {
+            if (!pedidosMap.has(r.ID_OrderPicking)) {
+                pedidosMap.set(r.ID_OrderPicking, {
+                    ID_OrderPicking: r.ID_OrderPicking, OV_Number: r.OV_Number, DocType: r.DocType,
+                    IDCustomerOrder: r.IDCustomerOrder, PesoTotal: r.PesoTotal,
+                    OperarioNombre: r.OperarioNombre, lineas: []
+                });
+            }
+            pedidosMap.get(r.ID_OrderPicking).lineas.push({
+                Product: r.Product, ProductName: r.ProductName, Cantidad: r.Cantidad,
+                UnitWeight: r.UnitWeight, Verificado: r.Verificado,
+                FechaVerificacion: r.FechaVerificacion, VerificadoPor: r.VerificadoPor
+            });
+        }
+        res.json({ ruta, pedidos: Array.from(pedidosMap.values()) });
+    } catch (err) {
+        console.error('GET /api/order/despacho/packing error:', err);
+        res.status(500).json({ error: 'Error al obtener packing list' });
     }
 });
 

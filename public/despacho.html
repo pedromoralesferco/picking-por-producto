@@ -256,6 +256,55 @@
         }
         .btn-print-cuadro i { margin-right: 0.3rem; }
 
+        .route-header-print { display: flex; flex-direction: column; gap: 0.4rem; }
+        .btn-print-packing {
+            background: #2e7d32;
+            color: #fff;
+            border: 1px solid #2e7d32;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .btn-print-packing:hover { background: #1b5e20; border-color: #1b5e20; }
+        .btn-print-packing i { margin-right: 0.3rem; }
+
+        /* Botón pequeño de impresión por pedido */
+        .btn-print-pedido {
+            background: transparent;
+            color: #2e7d32;
+            border: 1px solid #cfe0cf;
+            width: 30px; height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex: none;
+            transition: all 0.15s;
+        }
+        .btn-print-pedido:hover { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+
+        /* Checkbox de verificación QC */
+        .qc-check { position: relative; display: inline-flex; align-items: center; cursor: pointer; flex: none; margin-left: 0.5rem; }
+        .qc-check input { position: absolute; opacity: 0; width: 22px; height: 22px; margin: 0; cursor: pointer; }
+        .qc-check span {
+            width: 22px; height: 22px; border-radius: 5px;
+            border: 2px solid #bbb; background: #fff;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.12s;
+        }
+        .qc-check span::after {
+            content: '\2713'; color: #fff; font-size: 0.85rem; font-weight: 700; opacity: 0;
+        }
+        .qc-check input:checked + span { background: #2e7d32; border-color: #2e7d32; }
+        .qc-check input:checked + span::after { opacity: 1; }
+        .qc-check input:disabled + span { opacity: 0.5; }
+        .prod-row.verificado { background: rgba(46,125,50,0.07); }
+        .prod-row.verificado .prod-name { color: #1b5e20; }
+
         .route-header-title {
             font-size: 1.15rem;
             font-weight: 800;
@@ -695,9 +744,14 @@
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')}</div>
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
-                        <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
-                            <i class="bi bi-printer"></i> Cuadro de Ruta
-                        </button>
+                        <div class="route-header-print">
+                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
+                                <i class="bi bi-printer"></i> Cuadro de Ruta
+                            </button>
+                            <button class="btn-print-packing" onclick="printPackingAllProducto(${ruta.RouteNumber})" title="Imprimir todos los packing lists de la ruta">
+                                <i class="bi bi-file-earmark-check"></i> Packing Lists
+                            </button>
+                        </div>
                     </div>
                     <div class="route-header-grid">
                         <div class="rh-field">
@@ -753,6 +807,9 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado}</span></div>
                         </div>
+                        <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingProducto('${routeNumber}', '${esc(d.OV_Number)}')">
+                            <i class="bi bi-printer"></i>
+                        </button>
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
                     <div class="doc-products ${isOpen ? 'open' : ''}" id="doc-${d.OV_Number}"></div>
@@ -783,12 +840,16 @@
                     const pDone = p.Estado === 'Finalizado';
                     const qty = pDone ? '✓' : p.CantidadPendiente + '/' + p.Cantidad;
                     return `
-                        <div class="prod-row">
+                        <div class="prod-row ${p.Verificado ? 'verificado' : ''}">
                             <div class="prod-icon ${pDone ? 'done' : 'pending'}">
                                 <i class="bi bi-${pDone ? 'check-circle-fill' : 'circle'}"></i>
                             </div>
                             <div class="prod-name" title="${esc(p.ProductName || '')}">${esc(p.Product)} — ${esc(p.ProductName || '')}</div>
                             <div class="prod-qty ${pDone ? 'done' : ''}">${qty}</div>
+                            <label class="qc-check" title="Verificar (control de calidad)">
+                                <input type="checkbox" ${p.Verificado ? 'checked' : ''} data-rn="${routeNumber}" data-ov="${esc(ovNumber)}" data-prod="${esc(p.Product)}" onchange="verificarLineaProducto(this)">
+                                <span></span>
+                            </label>
                         </div>
                     `;
                 }).join('');
@@ -893,9 +954,14 @@
                             <div class="route-header-title">#${ruta.RouteNumber} — ${esc(ruta.RouteName || '')} ${ruta.Pais ? '<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.4rem">' + ruta.Pais + '</span>' : ''}</div>
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
-                        <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
-                            <i class="bi bi-printer"></i> Cuadro de Ruta
-                        </button>
+                        <div class="route-header-print">
+                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
+                                <i class="bi bi-printer"></i> Cuadro de Ruta
+                            </button>
+                            <button class="btn-print-packing" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
+                                <i class="bi bi-file-earmark-check"></i> Packing Lists
+                            </button>
+                        </div>
                     </div>
                     <div class="route-header-grid">
                         <div class="rh-field">
@@ -953,6 +1019,9 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span></div>
                         </div>
+                        <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingOrder(${d.ID_OrderPicking})">
+                            <i class="bi bi-printer"></i>
+                        </button>
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
                     <div class="doc-products ${isOpen ? 'open' : ''}" id="doc-order-${d.ID_OrderPicking}"></div>
@@ -985,12 +1054,16 @@
                     const pDone = p.Estado === 'Finalizado';
                     const qty = pDone ? '✓' : p.CantidadPendiente + '/' + p.Cantidad;
                     return `
-                        <div class="prod-row">
+                        <div class="prod-row ${p.Verificado ? 'verificado' : ''}">
                             <div class="prod-icon ${pDone ? 'done' : 'pending'}">
                                 <i class="bi bi-${pDone ? 'check-circle-fill' : 'circle'}"></i>
                             </div>
                             <div class="prod-name" title="${esc(p.ProductName || '')}">${esc(p.Product)} — ${esc(p.ProductName || '')}</div>
                             <div class="prod-qty ${pDone ? 'done' : ''}">${qty}</div>
+                            <label class="qc-check" title="Verificar (control de calidad)">
+                                <input type="checkbox" ${p.Verificado ? 'checked' : ''} data-op="${idOrderPicking}" data-prod="${esc(p.Product)}" onchange="verificarLineaOrder(this)">
+                                <span></span>
+                            </label>
                         </div>
                     `;
                 }).join('');
@@ -1029,6 +1102,48 @@
 
         function printCuadroRuta(routeNumber) {
             window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
+        }
+
+        // ── Verificación de calidad (QC) ──
+        async function verificarLineaOrder(el) {
+            const verificado = el.checked;
+            el.disabled = true;
+            try {
+                const res = await fetch('/api/order/despacho/verificar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idOrderPicking: parseInt(el.dataset.op), product: el.dataset.prod, verificado })
+                });
+                if (!res.ok) throw new Error();
+                el.closest('.prod-row').classList.toggle('verificado', verificado);
+            } catch { el.checked = !verificado; alert('Error al guardar la verificación'); }
+            finally { el.disabled = false; }
+        }
+        async function verificarLineaProducto(el) {
+            const verificado = el.checked;
+            el.disabled = true;
+            try {
+                const res = await fetch('/api/despacho/verificar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ routeNumber: parseInt(el.dataset.rn), ovNumber: el.dataset.ov, product: el.dataset.prod, verificado })
+                });
+                if (!res.ok) throw new Error();
+                el.closest('.prod-row').classList.toggle('verificado', verificado);
+            } catch { el.checked = !verificado; alert('Error al guardar la verificación'); }
+            finally { el.disabled = false; }
+        }
+
+        // ── Packing lists ──
+        function printPackingOrder(idOrderPicking) {
+            window.open('/packing-list-print.html?mode=order&idRoutePlan=' + selectedRoutePlanId + '&pedido=' + idOrderPicking, '_blank');
+        }
+        function printPackingAllOrder(idRoutePlan) {
+            window.open('/packing-list-print.html?mode=order&idRoutePlan=' + idRoutePlan, '_blank');
+        }
+        function printPackingProducto(routeNumber, ovNumber) {
+            window.open('/packing-list-print.html?mode=product&routeNumber=' + routeNumber + '&ov=' + encodeURIComponent(ovNumber), '_blank');
+        }
+        function printPackingAllProducto(routeNumber) {
+            window.open('/packing-list-print.html?mode=product&routeNumber=' + routeNumber, '_blank');
         }
 
         function esc(str) {
