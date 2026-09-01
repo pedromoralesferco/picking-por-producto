@@ -135,7 +135,7 @@
                 const lineas = p.lineas || [];
                 const verificadas = lineas.filter(l => l.Verificado).length;
                 const pesoTotal = lineas.reduce((s,l) => s + (Number(l.Cantidad)||0)*(Number(l.UnitWeight)||0), 0);
-                const cliente = p.IDCustomerOrder ? ('Cliente/Doc: ' + esc(p.IDCustomerOrder)) : '';
+                const cliente = p.ClienteNombre ? esc(p.ClienteNombre) : (p.DocType === 'TR' ? 'Traslado interno' : '—');
 
                 const filas = lineas.map((l, i) => `
                     <tr>
@@ -165,7 +165,7 @@
                         <div class="pl-info">
                             <div class="f"><label>Pedido / OV</label><div class="v">${esc(p.OV_Number)} (${esc(p.DocType || '')})</div></div>
                             <div class="f"><label>Operario</label><div class="v">${esc(p.OperarioNombre || '—')}</div></div>
-                            <div class="f"><label>Referencia</label><div class="v">${cliente || '—'}</div></div>
+                            <div class="f"><label>Cliente</label><div class="v">${cliente}</div></div>
                         </div>
 
                         <table>

@@ -1,6 +1,27 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
+const { getSapDb } = require('../config/paises');
 const router = express.Router();
+
+// Trae { OV_Number: CardName } desde SAP para un conjunto de OVs (por país)
+async function getClientesSAP(pool, pais, ovNumbers) {
+    const map = {};
+    const ovInts = [...new Set(ovNumbers.map(v => parseInt(v)).filter(v => !isNaN(v)))];
+    if (ovInts.length === 0) return map;
+    const sapDb = getSapDb(pais);
+    const req = pool.request();
+    const inParams = ovInts.map((v, i) => { req.input('ov' + i, sql.Int, v); return '@ov' + i; }).join(',');
+    try {
+        const r = await req.query(`
+            SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName
+            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+            LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
+            WHERE o.DocNum IN (${inParams})
+            GROUP BY o.DocNum`);
+        r.recordset.forEach(row => { map[String(row.OV)] = row.CardName; });
+    } catch (e) { console.error('getClientesSAP error:', e.message); }
+    return map;
+}
 
 // Helper: get user's active centro(s) from session
 // If a centro is selected, return only that one; otherwise return all assigned
@@ -638,13 +659,17 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
                 ORDER BY opm.OV_Number, t.InternIdProduct
             `);
 
+        // Nombre de cliente desde SAP (solo OVs)
+        const ovsOV = lineasRes.recordset.filter(r => r.DocType === 'OV').map(r => r.OV_Number);
+        const clientes = await getClientesSAP(pool, ruta.Pais, ovsOV);
+
         // Agrupar líneas por pedido
         const pedidosMap = new Map();
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.ID_OrderPicking)) {
                 pedidosMap.set(r.ID_OrderPicking, {
                     ID_OrderPicking: r.ID_OrderPicking, OV_Number: r.OV_Number, DocType: r.DocType,
-                    IDCustomerOrder: r.IDCustomerOrder, PesoTotal: r.PesoTotal,
+                    ClienteNombre: clientes[String(r.OV_Number)] || null, PesoTotal: r.PesoTotal,
                     OperarioNombre: r.OperarioNombre, lineas: []
                 });
             }
