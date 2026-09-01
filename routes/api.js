@@ -916,6 +916,30 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
     }
 });
 
+// GET /api/despacho/cuadro-ruta/:routeNumber/info — datos de la unidad (placa) para cabecera/validación
+router.get('/despacho/cuadro-ruta/:routeNumber/info', async (req, res) => {
+    try {
+        const pool = getPool();
+        const routeNumber = parseInt(req.params.routeNumber);
+        const pais = req.query.pais || req.session?.user?.selectedPais || 'GT';
+        const db = getSapDb(pais);
+        const result = await pool.request()
+            .input('routeNumber', sql.Int, routeNumber)
+            .query(`
+                SELECT TOP 1
+                    LTRIM(RTRIM(ISNULL(U_Placa, ''))) AS Placa,
+                    ISNULL(U_ID_Camion, '') AS Camion,
+                    ISNULL(U_Chofer, '') AS Chofer
+                FROM [server-sql].[${db}].[dbo].[@CUADRO_RUTA_E] WITH (NOLOCK)
+                WHERE DocNum = @routeNumber
+            `);
+        res.json(result.recordset[0] || { Placa: '', Camion: '', Chofer: '' });
+    } catch (err) {
+        console.error('GET cuadro-ruta info error:', err);
+        res.status(500).json({ error: 'Error al consultar la unidad' });
+    }
+});
+
 // ── Cuadro de Ruta (print data) ──
 
 router.get('/despacho/cuadro-ruta/:routeNumber', async (req, res) => {

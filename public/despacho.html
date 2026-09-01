@@ -266,6 +266,7 @@
         .btn-completar:hover:not(:disabled) { background: #1b5e20; border-color: #1b5e20; }
         .btn-completar:disabled { background: #9ccc9f; border-color: #9ccc9f; cursor: default; }
         .btn-completar i { margin-right: 0.3rem; }
+        .placa-pendiente { color: #c62828; font-weight: 700; }
         .btn-print-packing {
             background: #2e7d32;
             color: #fff;
@@ -709,6 +710,7 @@
                 }
                 const docs = await res.json();
                 renderDetail(ruta, docs);
+                cargarPlaca(routeNumber);
             } catch (err) {
                 console.error('Error cargando documentos:', err);
                 panel.innerHTML = '<div class="loading-detail" style="color:#c62828"><i class="bi bi-exclamation-triangle"></i> Error al cargar documentos: ' + esc(err.message) + '</div>';
@@ -766,6 +768,10 @@
                         <div class="rh-field">
                             <label>Documentos</label>
                             <div class="value">${docsFinalizados}/${docs.length}</div>
+                        </div>
+                        <div class="rh-field">
+                            <label><i class="bi bi-truck"></i> Placa</label>
+                            <div class="value" id="rutaPlacaVal">…</div>
                         </div>
                     </div>
                     <div class="picking-bar-lg">
@@ -904,6 +910,7 @@
                 }
                 const docs = await res.json();
                 renderDetailOrder(ruta, docs);
+                cargarPlaca(routeNumber);
             } catch (err) {
                 console.error('Error cargando documentos order:', err);
                 panel.innerHTML = '<div class="loading-detail" style="color:#c62828"><i class="bi bi-exclamation-triangle"></i> Error: ' + esc(err.message) + '</div>';
@@ -963,6 +970,10 @@
                         <div class="rh-field">
                             <label>Pedidos</label>
                             <div class="value">${docsFinalizados}/${docs.length}</div>
+                        </div>
+                        <div class="rh-field">
+                            <label><i class="bi bi-truck"></i> Placa</label>
+                            <div class="value" id="rutaPlacaVal">…</div>
                         </div>
                     </div>
                     <div class="picking-bar-lg">
@@ -1083,10 +1094,39 @@
             }
         }
 
-        function printCuadroRuta(routeNumber) {
+        async function fetchPlaca(routeNumber) {
+            const res = await fetch('/api/despacho/cuadro-ruta/' + routeNumber + '/info?pais=' + userPais);
+            if (!res.ok) throw new Error('info');
+            return await res.json();
+        }
+
+        async function printCuadroRuta(routeNumber) {
+            let info;
+            try { info = await fetchPlaca(routeNumber); }
+            catch { alert('No se pudo validar la unidad. Intenta de nuevo.'); return; }
+            if (!info.Placa || String(info.Placa).trim() === '') {
+                alert('Cuadro de ruta pendiente de asignar unidad');
+                return;
+            }
             window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
             // Al imprimir el cuadro de ruta, la ruta se marca como completada (sale de pendientes)
             marcarCompletado(selectedRoutePlanId, routeNumber, true);
+        }
+
+        // Muestra la placa asignada en la cabecera de la ruta
+        async function cargarPlaca(routeNumber) {
+            const el = document.getElementById('rutaPlacaVal');
+            if (!el) return;
+            try {
+                const info = await fetchPlaca(routeNumber);
+                if (info.Placa && String(info.Placa).trim() !== '') {
+                    el.textContent = info.Placa;
+                    el.classList.remove('placa-pendiente');
+                } else {
+                    el.textContent = 'Sin asignar';
+                    el.classList.add('placa-pendiente');
+                }
+            } catch { el.textContent = '—'; }
         }
 
         async function marcarCompletado(idRoutePlan, routeNumber, silent) {
