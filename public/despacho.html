@@ -747,7 +747,7 @@
                             <button class="btn-print-cuadro" onclick="printPackingAllProducto(${ruta.RouteNumber})" title="Imprimir todos los packing lists de la ruta">
                                 <i class="bi bi-file-earmark-check"></i> Packing List
                             </button>
-                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta (marca la ruta como completada)">
+                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
                                 <i class="bi bi-printer"></i> Cuadro de Ruta
                             </button>
                         </div>
@@ -949,7 +949,7 @@
                             <button class="btn-print-cuadro" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
                                 <i class="bi bi-file-earmark-check"></i> Packing List
                             </button>
-                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta (marca la ruta como completada)">
+                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
                                 <i class="bi bi-printer"></i> Cuadro de Ruta
                             </button>
                         </div>
@@ -1109,8 +1109,6 @@
                 return;
             }
             window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
-            // Al imprimir el cuadro de ruta, la ruta se marca como completada (sale de pendientes)
-            marcarCompletado(selectedRoutePlanId, routeNumber, true);
         }
 
         // Muestra la placa asignada en la cabecera de la ruta
