@@ -366,12 +366,14 @@ async function selectRutaOrder(idRoutePlan, routeNumber) {
     try {
         selectedRoutePlanId = idRoutePlan;
         selectedRuta = null;
-        const [pedidosRes, resumenRes] = await Promise.all([
+        const [pedidosRes, resumenRes, pickersRes] = await Promise.all([
             fetch(`/api/order/rutas/${idRoutePlan}/pedidos`),
-            fetch(`/api/order/rutas/${idRoutePlan}/resumen`)
+            fetch(`/api/order/rutas/${idRoutePlan}/resumen`),
+            fetch(`/api/order/rutas/${idRoutePlan}/pickers-activos`)
         ]);
         const pedidos = await pedidosRes.json();
         const resumen = await resumenRes.json();
+        const pickers = await pickersRes.json();
         const ruta = rutasCache.find(r => r.ID_RoutePlan === idRoutePlan) || {};
 
         renderRutasList(
@@ -379,14 +381,64 @@ async function selectRutaOrder(idRoutePlan, routeNumber) {
                 ? rutasCache.filter(r => r.RouteNumber.toString().includes(document.getElementById('searchRutas').value))
                 : rutasCache
         );
-        renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen);
+        renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pickers);
     } catch (err) {
         console.error('Error selecting order ruta:', err);
     }
 }
 
-function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen) {
+function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pickers) {
     const panel = document.getElementById('panelDetalle');
+
+    // ── Regla de alarma / ordenamiento de pedidos abiertos ──
+    const ALARMA_MS = 60 * 60 * 1000; // 1 hora sin pick
+    const now = Date.now();
+    const lastActivity = (p) => {
+        const t = p.UltimaTransaccion || p.FechaAsignacion;
+        return t ? new Date(t).getTime() : null;
+    };
+    const esAlarma = (p) => {
+        if (p.Estado === 'Finalizado') return false;
+        const la = lastActivity(p);
+        return la !== null && (now - la) > ALARMA_MS;
+    };
+    const tiempoAbierto = (p) => {
+        const t = p.FechaAsignacion || ruta.FechaInicio;
+        return t ? (now - new Date(t).getTime()) : 0;
+    };
+    // Abiertos primero; dentro, alarma arriba; luego mayor tiempo abierto. Finalizados al final.
+    const pedidosOrdenados = [...pedidos].sort((a, b) => {
+        const fa = a.Estado === 'Finalizado', fb = b.Estado === 'Finalizado';
+        if (fa !== fb) return fa ? 1 : -1;
+        if (!fa) {
+            const aa = esAlarma(a), ab = esAlarma(b);
+            if (aa !== ab) return aa ? -1 : 1;
+            return tiempoAbierto(b) - tiempoAbierto(a);
+        }
+        return 0;
+    });
+
+    // ── Panel de pickers activos ──
+    const minDesde = (t) => t ? Math.floor((now - new Date(t).getTime()) / 60000) : null;
+    const fmtMin = (m) => m === null ? 'sin actividad' : (m < 60 ? `${m} min` : `${Math.floor(m/60)}h ${m%60}m`);
+    const pickersHtml = (pickers && pickers.length) ? `
+        <div class="pickers-panel">
+            <div class="pickers-title"><i class="bi bi-people-fill"></i> Pickers activos <span class="badge-count">${pickers.length}</span></div>
+            <div class="pickers-list">
+                ${pickers.map(pk => {
+                    const m = minDesde(pk.UltimaTransaccion);
+                    const stale = m !== null && m >= 60;
+                    return `<div class="picker-chip${stale ? ' stale' : ''}">
+                        <div class="pk-name"><i class="bi bi-person-fill"></i> ${pk.OperarioNombre}</div>
+                        <div class="pk-meta">
+                            <span class="pk-tasks">${pk.TareasPendientes} tarea${pk.TareasPendientes == 1 ? '' : 's'}</span>
+                            <span class="pk-time${stale ? ' stale' : ''}"><i class="bi bi-clock-history"></i> ${m === null ? 'sin actividad' : 'hace ' + fmtMin(m)}</span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>` : '';
+
     const completados = resumen.PedidosFinalizados || 0;
     const total = resumen.TotalPedidos || 0;
     const pct = total > 0 ? Math.round((completados / total) * 100) : 0;
@@ -405,6 +457,7 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen) {
     }
 
     panel.innerHTML = `
+        ${pickersHtml}
         <div class="resumen-card">
             <div class="resumen-header">
                 <h5><i class="bi bi-info-circle"></i> Ruta #${routeNumber} ${ruta.Pais ? `<span style="font-size:0.7rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.15rem 0.5rem;border-radius:4px;margin-left:0.5rem">${nombrePais(ruta.Pais)}</span>` : ''}</h5>
@@ -473,14 +526,20 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen) {
         </div>
 
         <div id="pedidosList">
-            ${pedidos.map(p => renderPedido(idRoutePlan, p)).join('')}
+            ${pedidosOrdenados.map(p => renderPedido(idRoutePlan, p, esAlarma(p))).join('')}
         </div>
     `;
 }
 
-function renderPedido(idRoutePlan, p) {
+function renderPedido(idRoutePlan, p, alarma) {
     const estadoClean = (p.Estado || 'Pendiente').replace(' ', '');
     const isFinalizado = p.Estado === 'Finalizado';
+    const alarmaCls = alarma ? ' alarma' : '';
+    const alarmaBadge = alarma
+        ? `<span class="alarma-badge" title="Sin pick en la última hora"><i class="bi bi-exclamation-triangle-fill"></i> ALARMA</span>` : '';
+    const ultimoPickHtml = (!isFinalizado && p.UltimaTransaccion)
+        ? `<div class="timer-item${alarma ? ' alarma' : ''}"><i class="bi bi-box-arrow-in-down"></i> Último pick hace: <span data-timer-start="${p.UltimaTransaccion}">${formatElapsed(p.UltimaTransaccion)}</span></div>`
+        : '';
 
     const operarioHtml = p.OperarioNombre
         ? `<div class="pedido-picker asignado"><i class="bi bi-check"></i> ${p.OperarioNombre}</div>`
@@ -506,15 +565,16 @@ function renderPedido(idRoutePlan, p) {
         <i class="bi bi-chevron-down"></i></button>`;
 
     return `
-        <div class="pedido-card estado-${estadoClean}">
+        <div class="pedido-card estado-${estadoClean}${alarmaCls}">
             <div class="pedido-header">
                 <div class="pedido-info">
-                    <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${p.Estado || 'Pendiente'}</span></div>
+                    <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${p.Estado || 'Pendiente'}</span> ${alarmaBadge}</div>
                     <div class="pedido-meta">${p.TotalLineas || 0} lineas | ${p.TotalUnidades || 0} uds | ${formatNumber(p.PesoTotal || 0)} kg</div>
                     ${operarioHtml}
                     ${p.FechaAsignacion ? `<div class="timer-item${isFinalizado ? ' finalizado' : ''}">
                         <i class="bi bi-clock"></i> ${isFinalizado ? 'Duración' : 'Asignado hace'}: <span data-timer-start="${p.FechaAsignacion}"${p.FechaFin ? ` data-timer-end="${p.FechaFin}"` : ''}>${formatElapsed(p.FechaAsignacion, p.FechaFin || null)}</span>
                     </div>` : ''}
+                    ${ultimoPickHtml}
                 </div>
                 <div class="pedido-actions">
                     ${detailBtn}
@@ -549,6 +609,7 @@ async function togglePedidoDetail(idOrderPicking, btn) {
             return;
         }
 
+        const fmtFechaHora = (dt) => dt ? new Date(dt).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
         container.innerHTML = tareas.map(t => {
             const done = t.Estado === 'Finalizado' || t.CantidadPendiente === 0;
             return `
@@ -557,7 +618,7 @@ async function togglePedidoDetail(idOrderPicking, btn) {
                     <span class="tarea-qty">${t.Cantidad} uds</span>
                     <span class="tarea-status">
                         ${done
-                            ? '<i class="bi bi-check-circle-fill" style="color:var(--success)"></i>'
+                            ? `<i class="bi bi-check-circle-fill" style="color:var(--success)"></i>${t.UltimaActualizacion ? ` <span class="tarea-fecha"><i class="bi bi-calendar-check"></i> ${fmtFechaHora(t.UltimaActualizacion)}</span>` : ''}`
                             : `<span style="color:#d4a826;font-size:0.75rem">${t.CantidadPendiente} pend.</span>`
                         }
                     </span>
@@ -808,15 +869,8 @@ async function refreshData() {
 
     if (pickingMode === 'order' && selectedRoutePlanId) {
         try {
-            const [pedidosRes, resumenRes] = await Promise.all([
-                fetch(`/api/order/rutas/${selectedRoutePlanId}/pedidos`),
-                fetch(`/api/order/rutas/${selectedRoutePlanId}/resumen`)
-            ]);
-            const pedidos = await pedidosRes.json();
-            const pedidosList = document.getElementById('pedidosList');
-            if (pedidosList) {
-                pedidosList.innerHTML = pedidos.map(p => renderPedido(selectedRoutePlanId, p)).join('');
-            }
+            const ruta = rutasCache.find(r => r.ID_RoutePlan === selectedRoutePlanId);
+            if (ruta) await selectRutaOrder(selectedRoutePlanId, ruta.RouteNumber);
         } catch (err) {
             console.error('Error refreshing order:', err);
         }

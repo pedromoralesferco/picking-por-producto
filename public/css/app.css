@@ -555,3 +555,40 @@ body {
     }
     .panel-rutas { max-height: 40vh; }
 }
+
+/* ── Pickers activos (gestión order) ── */
+.pickers-panel {
+    background: #fff; border: 1px solid #e8e8e8; border-radius: 12px;
+    padding: 0.8rem 1rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.pickers-title { font-size: 0.8rem; font-weight: 700; color: #222; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; }
+.pickers-title i { color: var(--primary, #d4a826); }
+.pickers-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.picker-chip {
+    border: 1px solid #e0e0e0; border-left: 3px solid #2e7d32; border-radius: 8px;
+    padding: 0.45rem 0.7rem; min-width: 150px; background: #fafafa;
+}
+.picker-chip.stale { border-left-color: #c62828; background: rgba(198,40,40,0.05); }
+.picker-chip .pk-name { font-weight: 700; font-size: 0.82rem; color: #222; }
+.picker-chip .pk-name i { color: #2e7d32; }
+.picker-chip.stale .pk-name i { color: #c62828; }
+.picker-chip .pk-meta { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.72rem; color: #666; margin-top: 0.2rem; }
+.picker-chip .pk-tasks { font-weight: 600; }
+.picker-chip .pk-time.stale { color: #c62828; font-weight: 700; }
+
+/* ── Alarma de pedido sin pick (>1h) ── */
+.pedido-card.alarma {
+    border-left: 4px solid #c62828 !important;
+    background: rgba(198,40,40,0.04);
+    box-shadow: 0 0 0 1px rgba(198,40,40,0.15);
+}
+.alarma-badge {
+    background: #c62828; color: #fff; font-size: 0.62rem; font-weight: 700;
+    padding: 0.1rem 0.45rem; border-radius: 4px; letter-spacing: 0.03em; white-space: nowrap;
+}
+.alarma-badge i { font-size: 0.6rem; }
+.timer-item.alarma { color: #c62828; font-weight: 700; }
+
+/* Fecha de finalización de tarea */
+.tarea-fecha { font-size: 0.68rem; color: #888; margin-left: 0.3rem; white-space: nowrap; }
+.tarea-fecha i { font-size: 0.62rem; }

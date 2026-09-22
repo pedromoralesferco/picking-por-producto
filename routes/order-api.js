@@ -125,7 +125,9 @@ router.get('/rutas/:id/pedidos', async (req, res) => {
                     opm.FechaAsignacion,
                     opm.FechaInicio,
                     opm.FechaFin,
-                    o.Nombre AS OperarioNombre
+                    o.Nombre AS OperarioNombre,
+                    (SELECT MAX(t.UltimaActualizacion) FROM OrderPickingTask t
+                     WHERE t.ID_OrderPicking = opm.ID_OrderPicking) AS UltimaTransaccion
                 FROM OrderPickingManagement opm
                 LEFT JOIN Operario o ON o.ID_Operario = opm.ID_Operario
                 WHERE opm.ID_RoutePlan = @idRoutePlan
@@ -166,6 +168,34 @@ router.get('/rutas/:id/resumen', async (req, res) => {
         res.json(result.recordset[0]);
     } catch (err) {
         console.error('GET /api/order/rutas/:id/resumen error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// GET /api/order/rutas/:id/pickers-activos — operarios con tareas en la ruta: pendientes + última transacción
+router.get('/rutas/:id/pickers-activos', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('idRoutePlan', sql.Int, parseInt(req.params.id))
+            .query(`
+                SELECT
+                    o.ID_Operario,
+                    o.Nombre AS OperarioNombre,
+                    SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) AS TareasPendientes,
+                    COUNT(*) AS TareasTotales,
+                    MAX(t.UltimaActualizacion) AS UltimaTransaccion
+                FROM OrderPickingTask t
+                INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
+                INNER JOIN Operario o ON o.ID_Operario = t.ID_Operario
+                WHERE opm.ID_RoutePlan = @idRoutePlan AND t.ID_Operario IS NOT NULL
+                GROUP BY o.ID_Operario, o.Nombre
+                HAVING SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) > 0
+                ORDER BY MAX(t.UltimaActualizacion) ASC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/order/rutas/:id/pickers-activos error:', err);
         res.status(500).json({ error: 'Error interno' });
     }
 });
