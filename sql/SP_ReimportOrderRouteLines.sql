@@ -1,5 +1,5 @@
 -- ============================================================
--- SP_ReimportOrderRouteLines  (modo pedido / order: SV, HN)
+-- SP_ReimportOrderRouteLines  (modo pedido / order: SV, HN, GT-138)
 --
 -- Re-sincroniza las líneas/pedidos de una ruta YA INICIADA contra
 -- el cuadro de ruta actual en SAP/Lisa:
@@ -7,8 +7,9 @@
 --   - Elimina líneas/pedidos que se quitaron del cuadro.
 --   - Recalcula totales (TotalLineas/Unidades/Peso) por pedido.
 --   - Reabre pedidos 'Finalizado' que vuelvan a tener pendientes.
--- NO toca el progreso de las líneas que permanecen (no refresca
--- cantidades: de eso se encarga SP_UpdateOrderPickingTasksLisa).
+--   - Los artículos NO INVENTARIABLES (OITM.InvntItem='N', p.ej. flete)
+--     entran ya completados (CantidadPendiente=0, Estado='Finalizado').
+-- NO toca el progreso de las líneas que permanecen.
 --
 -- Candado de seguridad: si el cuadro no devuelve líneas (p.ej. falla
 -- el linked server), ABORTA sin borrar nada.
@@ -29,8 +30,8 @@ BEGIN
     IF @RouteNumber IS NULL
     BEGIN RAISERROR('Ruta no encontrada.', 16, 1); RETURN; END
 
-    IF @Pais NOT IN ('SV', 'HN')
-    BEGIN RAISERROR('Re-import solo disponible para rutas en modo pedido (SV/HN).', 16, 1); RETURN; END
+    IF @Pais NOT IN ('SV', 'HN', 'GT')
+    BEGIN RAISERROR('Re-import solo disponible para rutas en modo pedido (SV/HN/GT).', 16, 1); RETURN; END
 
     IF OBJECT_ID('tempdb..#src') IS NOT NULL DROP TABLE #src;
     CREATE TABLE #src (
@@ -45,7 +46,8 @@ BEGIN
         ProductName NVARCHAR(255) COLLATE DATABASE_DEFAULT,
         Cantidad NUMERIC(18,6),
         CantidadPendiente NUMERIC(18,6),
-        UnitWeight NUMERIC(18,6)
+        UnitWeight NUMERIC(18,6),
+        InvntItem NVARCHAR(1) COLLATE DATABASE_DEFAULT
     );
 
     -- ── Cargar el cuadro actual desde SAP/Lisa según país ──
@@ -54,23 +56,25 @@ BEGIN
         INSERT INTO #src
         SELECT t0.DocNum, t1.U_No_Ov, t1.U_Tipo_Documento,
                t2.IdCustomerOrder, t2.IdAccountableOrder, t3.IdLine, t3.IdProduct,
-               t4.InternIdProduct, t4.ProductName, t3.QtyOrdered, t3.ToPick, t4.UnitMass
+               t4.InternIdProduct, t4.ProductName, t3.QtyOrdered, t3.ToPick, t4.UnitMass, ISNULL(oi.InvntItem, 'Y')
         FROM [server-sql].sbointergres.dbo.[@CUADRO_RUTA_E] t0 WITH (NOLOCK)
         LEFT JOIN [server-sql].sbointergres.dbo.[@CUADRO_RUTA_D] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
         LEFT JOIN [server-sql].lisa_sbointergres.dbo.[CustomerOrder] t2 WITH (NOLOCK) ON t2.IdAccountableOrder = t1.U_No_Ov
         LEFT JOIN [server-sql].lisa_sbointergres.dbo.[CustomerOrderLine] t3 WITH (NOLOCK) ON t3.IdCustomerOrder = t2.IdCustomerOrder
         LEFT JOIN [server-sql].lisa_sbointergres.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
+        LEFT JOIN [server-sql].sbointergres.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
         WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento = 'OV';
 
         INSERT INTO #src
         SELECT t0.DocNum, t1.U_No_Ov, t1.U_Tipo_Documento,
                t2.IdTransferRequest, t2.DocNum, t3.IdLine, t3.IdProduct,
-               t4.InternIdProduct, t4.ProductName, t3.QtyToTransfer, t3.QtyToPick, t4.UnitMass
+               t4.InternIdProduct, t4.ProductName, t3.QtyToTransfer, t3.QtyToPick, t4.UnitMass, ISNULL(oi.InvntItem, 'Y')
         FROM [server-sql].sbointergres.dbo.[@CUADRO_RUTA_E] t0 WITH (NOLOCK)
         LEFT JOIN [server-sql].sbointergres.dbo.[@CUADRO_RUTA_D] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
         LEFT JOIN [server-sql].lisa_sbointergres.dbo.TransferRequest t2 WITH (NOLOCK) ON t2.DocNum = t1.U_No_OV
         LEFT JOIN [server-sql].lisa_sbointergres.dbo.TransferRequestLines t3 WITH (NOLOCK) ON t3.IdTransferRequest = t2.IdTransferRequest
         LEFT JOIN [server-sql].lisa_sbointergres.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
+        LEFT JOIN [server-sql].sbointergres.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
         WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento IN ('TR', 'RESURTIDO');
     END
     ELSE IF @Pais = 'HN'
@@ -78,23 +82,51 @@ BEGIN
         INSERT INTO #src
         SELECT t0.DocNum, t1.U_No_Ov, t1.U_Tipo_Documento,
                t2.IdCustomerOrder, t2.IdAccountableOrder, t3.IdLine, t3.IdProduct,
-               t4.InternIdProduct, t4.ProductName, t3.QtyOrdered, t3.ToPick, t4.UnitMass
+               t4.InternIdProduct, t4.ProductName, t3.QtyOrdered, t3.ToPick, t4.UnitMass, ISNULL(oi.InvntItem, 'Y')
         FROM [server-sql].sbopym.dbo.[@CUADRO_RUTA_E] t0 WITH (NOLOCK)
         LEFT JOIN [server-sql].sbopym.dbo.[@CUADRO_RUTA_D] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
         LEFT JOIN [server-sql].lisa_sbopym.dbo.[CustomerOrder] t2 WITH (NOLOCK) ON t2.IdAccountableOrder = t1.U_No_Ov
         LEFT JOIN [server-sql].lisa_sbopym.dbo.[CustomerOrderLine] t3 WITH (NOLOCK) ON t3.IdCustomerOrder = t2.IdCustomerOrder
         LEFT JOIN [server-sql].lisa_sbopym.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
+        LEFT JOIN [server-sql].sbopym.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
         WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento = 'OV';
 
         INSERT INTO #src
         SELECT t0.DocNum, t1.U_No_Ov, t1.U_Tipo_Documento,
                t2.IdTransferRequest, t2.DocNum, t3.IdLine, t3.IdProduct,
-               t4.InternIdProduct, t4.ProductName, t3.QtyToTransfer, t3.QtyToPick, t4.UnitMass
+               t4.InternIdProduct, t4.ProductName, t3.QtyToTransfer, t3.QtyToPick, t4.UnitMass, ISNULL(oi.InvntItem, 'Y')
         FROM [server-sql].sbopym.dbo.[@CUADRO_RUTA_E] t0 WITH (NOLOCK)
         LEFT JOIN [server-sql].sbopym.dbo.[@CUADRO_RUTA_D] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
         LEFT JOIN [server-sql].lisa_sbopym.dbo.TransferRequest t2 WITH (NOLOCK) ON t2.DocNum = t1.U_No_OV
         LEFT JOIN [server-sql].lisa_sbopym.dbo.TransferRequestLines t3 WITH (NOLOCK) ON t3.IdTransferRequest = t2.IdTransferRequest
         LEFT JOIN [server-sql].lisa_sbopym.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
+        LEFT JOIN [server-sql].sbopym.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
+        WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento IN ('TR', 'RESURTIDO');
+    END
+    ELSE IF @Pais = 'GT'
+    BEGIN
+        INSERT INTO #src
+        SELECT t0.DocNum, t1.U_No_Ov, t1.U_Tipo_Documento,
+               t2.IdCustomerOrder, t2.IdAccountableOrder, t3.IdLine, t3.IdProduct,
+               t4.InternIdProduct, t4.ProductName, t3.QtyOrdered, t3.ToPick, t4.UnitMass, ISNULL(oi.InvntItem, 'Y')
+        FROM [server-sql].sboferco.dbo.[@cuadro_ruta_e] t0 WITH (NOLOCK)
+        LEFT JOIN [server-sql].sboferco.dbo.[@cuadro_ruta_d] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.[CustomerOrder] t2 WITH (NOLOCK) ON t2.IdAccountableOrder = t1.U_No_Ov
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.[CustomerOrderLine] t3 WITH (NOLOCK) ON t3.IdCustomerOrder = t2.IdCustomerOrder
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
+        LEFT JOIN [server-sql].sboferco.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
+        WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento = 'OV';
+
+        INSERT INTO #src
+        SELECT t0.DocNum, t1.U_No_Ov, t1.U_Tipo_Documento,
+               t2.IdTransferRequest, t2.DocNum, t3.IdLine, t3.IdProduct,
+               t4.InternIdProduct, t4.ProductName, t3.QtyToTransfer, t3.QtyToPick, t4.UnitMass, ISNULL(oi.InvntItem, 'Y')
+        FROM [server-sql].sboferco.dbo.[@cuadro_ruta_e] t0 WITH (NOLOCK)
+        LEFT JOIN [server-sql].sboferco.dbo.[@cuadro_ruta_d] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.TransferRequest t2 WITH (NOLOCK) ON t2.DocNum = t1.U_No_OV
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.TransferRequestLines t3 WITH (NOLOCK) ON t3.IdTransferRequest = t2.IdTransferRequest
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
+        LEFT JOIN [server-sql].sboferco.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
         WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento IN ('TR', 'RESURTIDO');
     END
 
@@ -124,15 +156,18 @@ BEGIN
         GROUP BY s.OV_Number, s.DocType;
         SET @addPed = @@ROWCOUNT;
 
-        -- 2) Líneas (tareas) nuevas  (IDCustomerOrder es NOT NULL: si una línea nueva
-        --    no matchea en Lisa, el INSERT falla y se revierte todo — candado de integridad)
+        -- 2) Líneas (tareas) nuevas. Los no-inventariables nacen completados.
+        --    IDCustomerOrder es NOT NULL: una línea nueva sin match en Lisa revierte todo (candado de integridad).
         INSERT INTO dbo.OrderPickingTask
             (ID_OrderPicking, RouteNumber, OV_Number, DocType, IDCustomerOrder, IdAccountableOrder,
              Line_ID, IdProduct, InternIdProduct, Descripcion, Cantidad, CantidadPendiente,
-             UnitWeight, FechaLiberacion, ID_Centro, Pais)
+             UnitWeight, Estado, FechaLiberacion, ID_Centro, Pais)
         SELECT opm.ID_OrderPicking, @RouteNumber, s.OV_Number, s.DocType, s.IdCustomerOrder, s.IdAccountableOrder,
-               s.Line_ID, s.IdProduct, s.InternIdProduct, s.ProductName, s.Cantidad, s.CantidadPendiente,
-               s.UnitWeight, GETDATE(), @ID_Centro, @Pais
+               s.Line_ID, s.IdProduct, s.InternIdProduct, s.ProductName, s.Cantidad,
+               CASE WHEN s.InvntItem = 'N' THEN 0 ELSE s.CantidadPendiente END,
+               s.UnitWeight,
+               CASE WHEN s.InvntItem = 'N' THEN 'Finalizado' ELSE 'Pendiente' END,
+               GETDATE(), @ID_Centro, @Pais
         FROM #src s
         INNER JOIN dbo.OrderPickingManagement opm
             ON opm.ID_RoutePlan = @ID_RoutePlan AND opm.OV_Number = s.OV_Number AND opm.DocType = s.DocType
