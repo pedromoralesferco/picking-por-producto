@@ -45,7 +45,25 @@ app.get('/login', (req, res) => {
 });
 
 // Static files (public)
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+// Cache-Control: no-cache en JS/CSS/HTML → el navegador SIEMPRE revalida con ETag
+// (304 si no cambió, versión fresca si cambió). Evita servir código viejo tras un deploy.
+app.use(express.static(path.join(__dirname, 'public'), {
+    index: false,
+    etag: true,
+    setHeaders: (res, filePath) => {
+        if (/\.(js|css|html)$/i.test(filePath)) {
+            res.setHeader('Cache-Control', 'no-cache');
+        }
+    }
+}));
+
+// Páginas HTML servidas por sendFile (gestión, dashboard, etc.): revalidar siempre
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+        res.setHeader('Cache-Control', 'no-cache');
+    }
+    next();
+});
 
 // API routes
 app.use('/api/auth', authRoutes);
