@@ -96,7 +96,12 @@ app.get('/gestion', requireAuthPage, requireCentro, requirePermisoPage('gestion'
     res.sendFile(path.join(__dirname, 'public', 'gestion.html'));
 });
 
+// HUB Escuintla (ID_Centro=3) prioriza desde gestión de rutas (inline), no con drag-drop.
+const CENTRO_ESCUINTLA = 3;
 app.get('/priorizacion', requireAuthPage, requireCentro, requirePermisoPage('priorizacion'), (req, res) => {
+    if (req.session.user.selectedCentro === CENTRO_ESCUINTLA) {
+        return res.redirect('/gestion');
+    }
     res.sendFile(path.join(__dirname, 'public', 'priorizacion.html'));
 });
 

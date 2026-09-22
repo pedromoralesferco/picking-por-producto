@@ -250,7 +250,8 @@
                 });
             }
 
-            if (isAdmin || permisos.includes('priorizacion')) {
+            // Escuintla (ID_Centro=3) prioriza desde Gestión de Rutas (inline), no con el drag-drop.
+            if ((isAdmin || permisos.includes('priorizacion')) && currentUser.selectedCentro !== 3) {
                 modules.push({
                     href: '/priorizacion',
                     icon: 'bi-sort-numeric-down',

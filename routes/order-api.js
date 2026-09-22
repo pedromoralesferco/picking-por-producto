@@ -432,6 +432,7 @@ router.get('/priorizacion/rutas', async (req, res) => {
             ) opm ON opm.ID_RoutePlan = orp.ID_RoutePlan
             WHERE orp.Estado IN ('Iniciado', 'Pendiente')
               AND (orp.Estado = 'Iniciado' OR orp.FechaPlanificacion >= DATEADD(DAY, -3, CAST(GETDATE() AS DATE)))
+              AND orp.ID_Centro <> ${CENTRO_ESCUINTLA}  -- Escuintla prioriza inline en gestión
               ${centroFilter}
             ORDER BY
                 CASE orp.Estado WHEN 'Iniciado' THEN 0 ELSE 1 END,
@@ -496,6 +497,7 @@ router.post('/priorizacion/guardar', async (req, res) => {
                     UPDATE OrderRoutePlan
                     SET Prioridad = @prioridad
                     WHERE ID_RoutePlan = @idRoutePlan AND Estado = 'Pendiente'
+                      AND ID_Centro <> ${CENTRO_ESCUINTLA}
                 `);
         }
         res.json({ ok: true, actualizadas: orden.length });
