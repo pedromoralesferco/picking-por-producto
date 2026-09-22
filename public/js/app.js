@@ -107,26 +107,37 @@ function renderRutasList(rutas) {
     document.getElementById('rutasCount').textContent = rutasCache.length;
 
     if (pickingMode === 'order') {
-        // Siempre: alarma (sin pick +1h) hasta arriba; luego agrupadas por estado (abiertas primero).
-        // Dentro del grupo, el criterio elegido: Prioridad (default), Antigüedad o Avance.
         const estadoRank = e => e === 'Iniciado' ? 0 : e === 'Pendiente' ? 1 : 2;
         const tOpen = r => { const t = r.FechaInicio || r.FechaPlanificacion; return t ? Date.now() - new Date(t).getTime() : 0; };
         const pctAvance = r => r.TotalPedidos > 0 ? (r.PedidosFinalizados / r.TotalPedidos) : 0;
-        const ordenadas = [...rutas].sort((a, b) => {
+        // Orden por defecto (rutas sin prioridad y desempate): alarma → estado → tiempo/fecha
+        const grupoDefault = (a, b) => {
             const aa = rutaOrderAlarma(a), ab = rutaOrderAlarma(b);
             if (aa !== ab) return aa ? -1 : 1;
             const ra = estadoRank(a.Estado), rb = estadoRank(b.Estado);
             if (ra !== rb) return ra - rb;
-            // Criterio elegido dentro del mismo grupo de estado
+            if (a.Estado === 'Iniciado') return tOpen(b) - tOpen(a);
+            return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
+        };
+        const ordenadas = [...rutas].sort((a, b) => {
+            if (sortMode === 'prioridad') {
+                // La prioridad manual manda por encima de TODO, incluidas las alarmas.
+                // Solo cuenta en rutas no finalizadas con prioridad; el resto va por defecto.
+                const pv = r => (r.Estado !== 'Finalizado' && r.Prioridad != null) ? r.Prioridad : Infinity;
+                const pa = pv(a), pb = pv(b);
+                if (pa !== pb) return pa - pb; // menor número primero; sin prioridad al final
+                return grupoDefault(a, b);
+            }
+            // Antigüedad / Avance: alarma arriba, luego estado, luego criterio elegido
+            const aa = rutaOrderAlarma(a), ab = rutaOrderAlarma(b);
+            if (aa !== ab) return aa ? -1 : 1;
+            const ra = estadoRank(a.Estado), rb = estadoRank(b.Estado);
+            if (ra !== rb) return ra - rb;
             if (sortMode === 'antiguedad') {
                 const d = tOpen(b) - tOpen(a); if (d) return d;         // más tiempo abierta primero
             } else if (sortMode === 'avance') {
                 const d = pctAvance(b) - pctAvance(a); if (d) return d;  // mayor avance primero
-            } else {
-                const pa = (a.Prioridad ?? 999999), pb = (b.Prioridad ?? 999999);
-                if (pa !== pb) return pa - pb;                          // prioridad: menor número primero
             }
-            // Desempate común
             if (a.Estado === 'Iniciado') return tOpen(b) - tOpen(a);
             return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
         });
