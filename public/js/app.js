@@ -101,12 +101,11 @@ function renderRutasList(rutas) {
             if (aa !== ab) return aa ? -1 : 1;
             const ra = estadoRank(a.Estado), rb = estadoRank(b.Estado);
             if (ra !== rb) return ra - rb;
+            // Mismo estado: prioridad manual primero (menor número = más prioritaria)
+            const pa = (a.Prioridad ?? 999999), pb = (b.Prioridad ?? 999999);
+            if (pa !== pb) return pa - pb;
             if (a.Estado === 'Iniciado') return tOpen(b) - tOpen(a);
-            if (a.Estado === 'Pendiente') {
-                const pa = (a.Prioridad ?? 999999), pb = (b.Prioridad ?? 999999);
-                if (pa !== pb) return pa - pb; // menor número = más prioritaria
-                return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
-            }
+            if (a.Estado === 'Pendiente') return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
             return 0;
         });
         list.innerHTML = ordenadas.map(r => renderRutaCardOrder(r)).join('');
@@ -126,9 +125,10 @@ function rutaOrderAlarma(r) {
 // ── Priorización inline (solo HUB Escuintla, rutas pendientes) ──
 const CENTRO_ESCUINTLA = 3;
 
-// La ruta admite mostrar/ordenar por prioridad (Escuintla + pendiente)
+// La ruta admite mostrar/ordenar por prioridad (Escuintla, pendiente o iniciada)
 function esRutaPriorizable(r) {
-    return r.ID_Centro === CENTRO_ESCUINTLA && r.Estado === 'Pendiente';
+    return r.ID_Centro === CENTRO_ESCUINTLA &&
+           (r.Estado === 'Pendiente' || r.Estado === 'Iniciado');
 }
 
 // El usuario puede EDITAR la prioridad (permiso 'priorizacion' o Admin)

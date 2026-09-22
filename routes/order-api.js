@@ -446,7 +446,7 @@ router.get('/priorizacion/rutas', async (req, res) => {
 });
 
 // POST /priorizacion/set — fija la prioridad de UNA ruta (edición inline en gestión).
-// Solo HUB Escuintla y solo rutas Pendientes; requiere permiso 'priorizacion'.
+// Solo HUB Escuintla, rutas Pendientes o Iniciadas; requiere permiso 'priorizacion'.
 router.post('/priorizacion/set', requirePermiso('priorizacion'), async (req, res) => {
     try {
         const id = parseInt(req.body.id_routePlan);
@@ -467,11 +467,12 @@ router.post('/priorizacion/set', requirePermiso('priorizacion'), async (req, res
             .query(`
                 UPDATE OrderRoutePlan
                 SET Prioridad = @prio
-                WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND Estado = 'Pendiente'
+                WHERE ID_RoutePlan = @id AND ID_Centro = @centro
+                  AND Estado IN ('Pendiente', 'Iniciado')
             `);
 
         if (result.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: 'Ruta no encontrada, no pertenece a Escuintla o ya no está pendiente' });
+            return res.status(404).json({ error: 'Ruta no encontrada, no pertenece a Escuintla o ya está finalizada' });
         }
         res.json({ ok: true, prioridad: prio });
     } catch (err) {
