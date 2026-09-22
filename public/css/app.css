@@ -606,3 +606,29 @@ body {
     padding: 0.12rem 0.45rem; border-radius: 4px; margin-bottom: 0.35rem;
 }
 .ruta-alarma i { font-size: 0.58rem; }
+
+/* ── Priorización inline (HUB Escuintla) ── */
+.prio-editor {
+    display: flex; align-items: center; gap: 0.4rem;
+    margin-top: 0.4rem; padding: 0.3rem 0.45rem;
+    background: rgba(212,168,38,0.10); border: 1px dashed var(--primary, #d4a826);
+    border-radius: 6px;
+}
+.prio-label {
+    font-size: 0.68rem; font-weight: 600; color: var(--primary-dark, #b8941f);
+    white-space: nowrap;
+}
+.prio-label i { font-size: 0.72rem; }
+.prio-input {
+    width: 3.2rem; margin-left: auto; text-align: center;
+    font-size: 0.8rem; font-weight: 700; color: #333;
+    border: 1px solid #d8cba0; border-radius: 4px; padding: 0.15rem 0.25rem;
+    background: #fff;
+}
+.prio-input:focus { outline: none; border-color: var(--primary, #d4a826); }
+.prio-view { margin-top: 0.35rem; }
+.prio-badge {
+    display: inline-block; background: var(--primary, #d4a826); color: #fff;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em;
+    padding: 0.12rem 0.5rem; border-radius: 4px;
+}

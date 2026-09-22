@@ -1,7 +1,11 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
 const { getSapDb } = require('../config/paises');
+const { requirePermiso } = require('../middleware/auth');
 const router = express.Router();
+
+// HUB Escuintla — único centro GT en modo pedido; la priorización inline solo aplica aquí
+const CENTRO_ESCUINTLA = 3;
 
 // Trae { OV_Number: CardName } desde SAP para un conjunto de OVs (por país)
 async function getClientesSAP(pool, pais, ovNumbers) {
@@ -66,6 +70,7 @@ router.get('/rutas', async (req, res) => {
                 orp.EstadoDespacho,
                 orp.ID_Centro,
                 orp.Pais,
+                orp.Prioridad,
                 c.Nombre AS CarrilNombre,
                 cd.Nombre AS CentroNombre,
                 ISNULL(opm.TotalPedidos, 0) AS TotalPedidos,
@@ -437,6 +442,41 @@ router.get('/priorizacion/rutas', async (req, res) => {
     } catch (err) {
         console.error('GET /api/order/priorizacion/rutas error:', err);
         res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// POST /priorizacion/set — fija la prioridad de UNA ruta (edición inline en gestión).
+// Solo HUB Escuintla y solo rutas Pendientes; requiere permiso 'priorizacion'.
+router.post('/priorizacion/set', requirePermiso('priorizacion'), async (req, res) => {
+    try {
+        const id = parseInt(req.body.id_routePlan);
+        if (!id) return res.status(400).json({ error: 'id_routePlan requerido' });
+
+        const raw = req.body.prioridad;
+        let prio = null; // vacío = quitar prioridad
+        if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+            prio = parseInt(raw);
+            if (isNaN(prio) || prio < 1) return res.status(400).json({ error: 'Prioridad inválida' });
+        }
+
+        const pool = getPool();
+        const result = await pool.request()
+            .input('id', sql.Int, id)
+            .input('prio', sql.Int, prio)
+            .input('centro', sql.Int, CENTRO_ESCUINTLA)
+            .query(`
+                UPDATE OrderRoutePlan
+                SET Prioridad = @prio
+                WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND Estado = 'Pendiente'
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Ruta no encontrada, no pertenece a Escuintla o ya no está pendiente' });
+        }
+        res.json({ ok: true, prioridad: prio });
+    } catch (err) {
+        console.error('POST /api/order/priorizacion/set error:', err);
+        res.status(500).json({ error: 'Error al guardar prioridad' });
     }
 });
 

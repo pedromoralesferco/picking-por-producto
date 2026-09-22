@@ -5,6 +5,7 @@ let selectedRuta = null;
 let selectedRoutePlanId = null; // for order mode (ID_RoutePlan)
 let rutasCache = [];
 let pickersCache = [];
+let currentUser = null;
 let assigningProduct = null;
 let assigningPedido = null;
 let refreshInterval = null;
@@ -25,6 +26,7 @@ async function detectMode() {
         const res = await fetch('/api/auth/me');
         if (!res.ok) return;
         const user = await res.json();
+        currentUser = user;
 
         // Modalidad determinada por el CENTRO seleccionado (fallback: por país)
         const pais = user.selectedPais || 'GT';
@@ -100,6 +102,11 @@ function renderRutasList(rutas) {
             const ra = estadoRank(a.Estado), rb = estadoRank(b.Estado);
             if (ra !== rb) return ra - rb;
             if (a.Estado === 'Iniciado') return tOpen(b) - tOpen(a);
+            if (a.Estado === 'Pendiente') {
+                const pa = (a.Prioridad ?? 999999), pb = (b.Prioridad ?? 999999);
+                if (pa !== pb) return pa - pb; // menor número = más prioritaria
+                return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
+            }
             return 0;
         });
         list.innerHTML = ordenadas.map(r => renderRutaCardOrder(r)).join('');
@@ -114,6 +121,61 @@ function rutaOrderAlarma(r) {
     const ref = r.UltimaTransaccion || r.FechaInicio;
     if (!ref) return false;
     return (Date.now() - new Date(ref).getTime()) > 60 * 60 * 1000;
+}
+
+// ── Priorización inline (solo HUB Escuintla, rutas pendientes) ──
+const CENTRO_ESCUINTLA = 3;
+
+// La ruta admite mostrar/ordenar por prioridad (Escuintla + pendiente)
+function esRutaPriorizable(r) {
+    return r.ID_Centro === CENTRO_ESCUINTLA && r.Estado === 'Pendiente';
+}
+
+// El usuario puede EDITAR la prioridad (permiso 'priorizacion' o Admin)
+function puedeEditarPrioridad() {
+    if (!currentUser) return false;
+    return currentUser.rol === 'Admin' ||
+           (Array.isArray(currentUser.permisos) && currentUser.permisos.includes('priorizacion'));
+}
+
+function renderPrioridadControl(r) {
+    if (!esRutaPriorizable(r)) return '';
+    const val = (r.Prioridad !== null && r.Prioridad !== undefined) ? r.Prioridad : '';
+    if (puedeEditarPrioridad()) {
+        return `
+        <div class="prio-editor" onclick="event.stopPropagation()">
+            <span class="prio-label"><i class="bi bi-sort-numeric-down"></i> Prioridad</span>
+            <input type="number" min="1" step="1" class="prio-input" value="${val}"
+                   placeholder="—" title="Establecer prioridad (1 = primero)"
+                   onclick="event.stopPropagation()"
+                   onchange="setPrioridad(${r.ID_RoutePlan}, this.value)">
+        </div>`;
+    }
+    // Solo lectura: badge con la prioridad asignada
+    if (val === '') return '';
+    return `<div class="prio-view"><span class="prio-badge">P${val}</span></div>`;
+}
+
+async function setPrioridad(idRoutePlan, value) {
+    try {
+        const res = await fetch('/api/order/priorizacion/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_routePlan: idRoutePlan, prioridad: value })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || 'No se pudo guardar la prioridad');
+            return;
+        }
+        // Actualiza el cache local y reordena sin recargar todo
+        const r = rutasCache.find(x => x.ID_RoutePlan === idRoutePlan);
+        if (r) r.Prioridad = (String(value).trim() === '') ? null : parseInt(value);
+        renderRutasList(rutasCache);
+    } catch (e) {
+        console.error('setPrioridad error:', e);
+        alert('Error de red al guardar la prioridad');
+    }
 }
 
 function renderRutaCardProduct(r) {
@@ -151,6 +213,7 @@ function renderRutaCardOrder(r) {
         <div class="ruta-number"><i class="bi bi-signpost-split"></i> #${r.RouteNumber}</div>
         <div class="ruta-name">${r.RouteName || ''}</div>
         ${r.Pais ? `<span style="font-size:0.65rem;background:rgba(212,168,38,0.2);color:#b8941f;padding:0.1rem 0.4rem;border-radius:3px;font-weight:600">${nombrePais(r.Pais)}</span>` : ''}
+        ${renderPrioridadControl(r)}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.4rem">
             <span class="estado estado-${estadoCss}">${estado}</span>
             <span style="font-size:0.75rem;color:#888">${r.TotalPedidos > 0 ? r.PedidosFinalizados + '/' + r.TotalPedidos + ' pedidos — ' + pct + '%' : 'Sin pedidos'}</span>
