@@ -6,6 +6,7 @@ let selectedRoutePlanId = null; // for order mode (ID_RoutePlan)
 let rutasCache = [];
 let pickersCache = [];
 let currentUser = null;
+let sortMode = 'prioridad'; // 'prioridad' (default) | 'antiguedad' | 'avance'
 let assigningProduct = null;
 let assigningPedido = null;
 let refreshInterval = null;
@@ -61,6 +62,19 @@ function updateUIForMode() {
     if (brand) {
         brand.textContent = pickingMode === 'product' ? 'Picking por Producto' : 'Picking por Pedido';
     }
+    // El selector de ordenamiento solo aplica al modo pedido (order)
+    const sortBox = document.getElementById('sortRutas');
+    if (sortBox) sortBox.style.display = pickingMode === 'order' ? '' : 'none';
+}
+
+// Cambia el criterio de ordenamiento del panel izquierdo y re-renderiza
+function setSortMode(mode) {
+    sortMode = mode;
+    document.querySelectorAll('#sortRutas .sort-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.sort === mode);
+    });
+    const q = document.getElementById('searchRutas');
+    filterRutas(q ? q.value : '');
 }
 
 // ══════════════════════════════════════════
@@ -93,20 +107,28 @@ function renderRutasList(rutas) {
     document.getElementById('rutasCount').textContent = rutasCache.length;
 
     if (pickingMode === 'order') {
-        // Abiertas (Iniciado) primero; con alarma (sin pick +1h) hasta arriba; luego por tiempo abierto.
+        // Siempre: alarma (sin pick +1h) hasta arriba; luego agrupadas por estado (abiertas primero).
+        // Dentro del grupo, el criterio elegido: Prioridad (default), Antigüedad o Avance.
         const estadoRank = e => e === 'Iniciado' ? 0 : e === 'Pendiente' ? 1 : 2;
         const tOpen = r => { const t = r.FechaInicio || r.FechaPlanificacion; return t ? Date.now() - new Date(t).getTime() : 0; };
+        const pctAvance = r => r.TotalPedidos > 0 ? (r.PedidosFinalizados / r.TotalPedidos) : 0;
         const ordenadas = [...rutas].sort((a, b) => {
             const aa = rutaOrderAlarma(a), ab = rutaOrderAlarma(b);
             if (aa !== ab) return aa ? -1 : 1;
             const ra = estadoRank(a.Estado), rb = estadoRank(b.Estado);
             if (ra !== rb) return ra - rb;
-            // Mismo estado: prioridad manual primero (menor número = más prioritaria)
-            const pa = (a.Prioridad ?? 999999), pb = (b.Prioridad ?? 999999);
-            if (pa !== pb) return pa - pb;
+            // Criterio elegido dentro del mismo grupo de estado
+            if (sortMode === 'antiguedad') {
+                const d = tOpen(b) - tOpen(a); if (d) return d;         // más tiempo abierta primero
+            } else if (sortMode === 'avance') {
+                const d = pctAvance(b) - pctAvance(a); if (d) return d;  // mayor avance primero
+            } else {
+                const pa = (a.Prioridad ?? 999999), pb = (b.Prioridad ?? 999999);
+                if (pa !== pb) return pa - pb;                          // prioridad: menor número primero
+            }
+            // Desempate común
             if (a.Estado === 'Iniciado') return tOpen(b) - tOpen(a);
-            if (a.Estado === 'Pendiente') return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
-            return 0;
+            return new Date(b.FechaPlanificacion) - new Date(a.FechaPlanificacion);
         });
         list.innerHTML = ordenadas.map(r => renderRutaCardOrder(r)).join('');
     } else {

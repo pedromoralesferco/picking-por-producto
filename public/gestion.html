@@ -25,6 +25,12 @@
                     <h6><i class="bi bi-list-ul"></i> Rutas <span id="rutasCount" class="badge-count">0</span></h6>
                 </div>
                 <input type="text" class="search-rutas" id="searchRutas" placeholder="Buscar por número o nombre de ruta..." oninput="filterRutas(this.value)">
+                <div class="sort-rutas" id="sortRutas" style="display:none">
+                    <span class="sort-label"><i class="bi bi-sort-down"></i> Ordenar</span>
+                    <button type="button" class="sort-btn active" data-sort="prioridad" onclick="setSortMode('prioridad')">Prioridad</button>
+                    <button type="button" class="sort-btn" data-sort="antiguedad" onclick="setSortMode('antiguedad')">Antigüedad</button>
+                    <button type="button" class="sort-btn" data-sort="avance" onclick="setSortMode('avance')">Avance</button>
+                </div>
             </div>
             <div class="rutas-list" id="rutasList"></div>
         </div>
