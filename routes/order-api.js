@@ -71,7 +71,10 @@ router.get('/rutas', async (req, res) => {
                 ISNULL(opm.TotalPedidos, 0) AS TotalPedidos,
                 ISNULL(opm.TotalLineas, 0) AS TotalLineas,
                 ISNULL(opm.PesoTotal, 0) AS PesoTotal,
-                ISNULL(opm.PedidosFinalizados, 0) AS PedidosFinalizados
+                ISNULL(opm.PedidosFinalizados, 0) AS PedidosFinalizados,
+                (SELECT MAX(t.UltimaActualizacion) FROM OrderPickingTask t
+                 INNER JOIN OrderPickingManagement o2 ON o2.ID_OrderPicking = t.ID_OrderPicking
+                 WHERE o2.ID_RoutePlan = orp.ID_RoutePlan) AS UltimaTransaccion
             FROM OrderRoutePlan orp
             LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
             LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = orp.ID_Centro
@@ -172,30 +175,32 @@ router.get('/rutas/:id/resumen', async (req, res) => {
     }
 });
 
-// GET /api/order/rutas/:id/pickers-activos — operarios con tareas en la ruta: pendientes + última transacción
-router.get('/rutas/:id/pickers-activos', async (req, res) => {
+// GET /api/order/pickers-activos — pickers activos del CEDI (todas las rutas Iniciadas): tareas pendientes + última transacción
+router.get('/pickers-activos', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request()
-            .input('idRoutePlan', sql.Int, parseInt(req.params.id))
-            .query(`
-                SELECT
-                    o.ID_Operario,
-                    o.Nombre AS OperarioNombre,
-                    SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) AS TareasPendientes,
-                    COUNT(*) AS TareasTotales,
-                    MAX(t.UltimaActualizacion) AS UltimaTransaccion
-                FROM OrderPickingTask t
-                INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
-                INNER JOIN Operario o ON o.ID_Operario = t.ID_Operario
-                WHERE opm.ID_RoutePlan = @idRoutePlan AND t.ID_Operario IS NOT NULL
-                GROUP BY o.ID_Operario, o.Nombre
-                HAVING SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) > 0
-                ORDER BY MAX(t.UltimaActualizacion) ASC
-            `);
+        const centros = getUserCentros(req);
+        const request = pool.request();
+        const centroFilter = buildCentroFilter(request, centros, 'orp');
+        const result = await request.query(`
+            SELECT
+                o.ID_Operario,
+                o.Nombre AS OperarioNombre,
+                SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) AS TareasPendientes,
+                COUNT(DISTINCT orp.ID_RoutePlan) AS RutasActivas,
+                MAX(t.UltimaActualizacion) AS UltimaTransaccion
+            FROM OrderPickingTask t
+            INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
+            INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+            INNER JOIN Operario o ON o.ID_Operario = t.ID_Operario
+            WHERE t.ID_Operario IS NOT NULL AND orp.Estado = 'Iniciado'${centroFilter}
+            GROUP BY o.ID_Operario, o.Nombre
+            HAVING SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) > 0
+            ORDER BY MAX(t.UltimaActualizacion) ASC
+        `);
         res.json(result.recordset);
     } catch (err) {
-        console.error('GET /api/order/rutas/:id/pickers-activos error:', err);
+        console.error('GET /api/order/pickers-activos error:', err);
         res.status(500).json({ error: 'Error interno' });
     }
 });

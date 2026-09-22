@@ -592,3 +592,17 @@ body {
 /* Fecha de finalización de tarea */
 .tarea-fecha { font-size: 0.68rem; color: #888; margin-left: 0.3rem; white-space: nowrap; }
 .tarea-fecha i { font-size: 0.62rem; }
+
+/* ── Alarma a nivel RUTA (lista de rutas) ── */
+.ruta-card.alarma {
+    border-left-color: #c62828 !important;
+    background: rgba(198,40,40,0.06);
+    box-shadow: 0 0 0 1px rgba(198,40,40,0.2);
+}
+.ruta-card.alarma:hover { background: rgba(198,40,40,0.1); }
+.ruta-alarma {
+    display: inline-block; background: #c62828; color: #fff;
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em;
+    padding: 0.12rem 0.45rem; border-radius: 4px; margin-bottom: 0.35rem;
+}
+.ruta-alarma i { font-size: 0.58rem; }

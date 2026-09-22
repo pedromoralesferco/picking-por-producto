@@ -91,10 +91,29 @@ function renderRutasList(rutas) {
     document.getElementById('rutasCount').textContent = rutasCache.length;
 
     if (pickingMode === 'order') {
-        list.innerHTML = rutas.map(r => renderRutaCardOrder(r)).join('');
+        // Abiertas (Iniciado) primero; con alarma (sin pick +1h) hasta arriba; luego por tiempo abierto.
+        const estadoRank = e => e === 'Iniciado' ? 0 : e === 'Pendiente' ? 1 : 2;
+        const tOpen = r => { const t = r.FechaInicio || r.FechaPlanificacion; return t ? Date.now() - new Date(t).getTime() : 0; };
+        const ordenadas = [...rutas].sort((a, b) => {
+            const aa = rutaOrderAlarma(a), ab = rutaOrderAlarma(b);
+            if (aa !== ab) return aa ? -1 : 1;
+            const ra = estadoRank(a.Estado), rb = estadoRank(b.Estado);
+            if (ra !== rb) return ra - rb;
+            if (a.Estado === 'Iniciado') return tOpen(b) - tOpen(a);
+            return 0;
+        });
+        list.innerHTML = ordenadas.map(r => renderRutaCardOrder(r)).join('');
     } else {
         list.innerHTML = rutas.map(r => renderRutaCardProduct(r)).join('');
     }
+}
+
+// Alarma a nivel RUTA: ruta iniciada sin ningún pick en la última hora
+function rutaOrderAlarma(r) {
+    if (r.Estado !== 'Iniciado') return false;
+    const ref = r.UltimaTransaccion || r.FechaInicio;
+    if (!ref) return false;
+    return (Date.now() - new Date(ref).getTime()) > 60 * 60 * 1000;
 }
 
 function renderRutaCardProduct(r) {
@@ -123,9 +142,11 @@ function renderRutaCardOrder(r) {
         ? Math.round((r.PedidosFinalizados / r.TotalPedidos) * 100) : 0;
     const estado = r.Estado || 'Pendiente';
     const estadoCss = estado.replace(' ', '');
+    const alarma = rutaOrderAlarma(r);
     return `
-    <div class="ruta-card estado-${estadoCss} ${selectedRoutePlanId === r.ID_RoutePlan ? 'active' : ''}"
+    <div class="ruta-card estado-${estadoCss} ${selectedRoutePlanId === r.ID_RoutePlan ? 'active' : ''}${alarma ? ' alarma' : ''}"
          onclick="selectRutaOrder(${r.ID_RoutePlan}, ${r.RouteNumber})">
+        ${alarma ? `<div class="ruta-alarma"><i class="bi bi-exclamation-triangle-fill"></i> ALARMA · sin pick +1h</div>` : ''}
         <div class="ruta-date">${formatDate(r.FechaPlanificacion)}</div>
         <div class="ruta-number"><i class="bi bi-signpost-split"></i> #${r.RouteNumber}</div>
         <div class="ruta-name">${r.RouteName || ''}</div>
@@ -369,7 +390,7 @@ async function selectRutaOrder(idRoutePlan, routeNumber) {
         const [pedidosRes, resumenRes, pickersRes] = await Promise.all([
             fetch(`/api/order/rutas/${idRoutePlan}/pedidos`),
             fetch(`/api/order/rutas/${idRoutePlan}/resumen`),
-            fetch(`/api/order/rutas/${idRoutePlan}/pickers-activos`)
+            fetch(`/api/order/pickers-activos`)
         ]);
         const pedidos = await pedidosRes.json();
         const resumen = await resumenRes.json();
@@ -390,35 +411,8 @@ async function selectRutaOrder(idRoutePlan, routeNumber) {
 function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pickers) {
     const panel = document.getElementById('panelDetalle');
 
-    // ── Regla de alarma / ordenamiento de pedidos abiertos ──
-    const ALARMA_MS = 60 * 60 * 1000; // 1 hora sin pick
+    // ── Panel de pickers activos (general del CEDI) ──
     const now = Date.now();
-    const lastActivity = (p) => {
-        const t = p.UltimaTransaccion || p.FechaAsignacion;
-        return t ? new Date(t).getTime() : null;
-    };
-    const esAlarma = (p) => {
-        if (p.Estado === 'Finalizado') return false;
-        const la = lastActivity(p);
-        return la !== null && (now - la) > ALARMA_MS;
-    };
-    const tiempoAbierto = (p) => {
-        const t = p.FechaAsignacion || ruta.FechaInicio;
-        return t ? (now - new Date(t).getTime()) : 0;
-    };
-    // Abiertos primero; dentro, alarma arriba; luego mayor tiempo abierto. Finalizados al final.
-    const pedidosOrdenados = [...pedidos].sort((a, b) => {
-        const fa = a.Estado === 'Finalizado', fb = b.Estado === 'Finalizado';
-        if (fa !== fb) return fa ? 1 : -1;
-        if (!fa) {
-            const aa = esAlarma(a), ab = esAlarma(b);
-            if (aa !== ab) return aa ? -1 : 1;
-            return tiempoAbierto(b) - tiempoAbierto(a);
-        }
-        return 0;
-    });
-
-    // ── Panel de pickers activos ──
     const minDesde = (t) => t ? Math.floor((now - new Date(t).getTime()) / 60000) : null;
     const fmtMin = (m) => m === null ? 'sin actividad' : (m < 60 ? `${m} min` : `${Math.floor(m/60)}h ${m%60}m`);
     const pickersHtml = (pickers && pickers.length) ? `
@@ -431,7 +425,7 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pi
                     return `<div class="picker-chip${stale ? ' stale' : ''}">
                         <div class="pk-name"><i class="bi bi-person-fill"></i> ${pk.OperarioNombre}</div>
                         <div class="pk-meta">
-                            <span class="pk-tasks">${pk.TareasPendientes} tarea${pk.TareasPendientes == 1 ? '' : 's'}</span>
+                            <span class="pk-tasks">${pk.TareasPendientes} tarea${pk.TareasPendientes == 1 ? '' : 's'}${pk.RutasActivas ? ` · ${pk.RutasActivas} ruta${pk.RutasActivas == 1 ? '' : 's'}` : ''}</span>
                             <span class="pk-time${stale ? ' stale' : ''}"><i class="bi bi-clock-history"></i> ${m === null ? 'sin actividad' : 'hace ' + fmtMin(m)}</span>
                         </div>
                     </div>`;
@@ -526,19 +520,16 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pi
         </div>
 
         <div id="pedidosList">
-            ${pedidosOrdenados.map(p => renderPedido(idRoutePlan, p, esAlarma(p))).join('')}
+            ${pedidos.map(p => renderPedido(idRoutePlan, p)).join('')}
         </div>
     `;
 }
 
-function renderPedido(idRoutePlan, p, alarma) {
+function renderPedido(idRoutePlan, p) {
     const estadoClean = (p.Estado || 'Pendiente').replace(' ', '');
     const isFinalizado = p.Estado === 'Finalizado';
-    const alarmaCls = alarma ? ' alarma' : '';
-    const alarmaBadge = alarma
-        ? `<span class="alarma-badge" title="Sin pick en la última hora"><i class="bi bi-exclamation-triangle-fill"></i> ALARMA</span>` : '';
     const ultimoPickHtml = (!isFinalizado && p.UltimaTransaccion)
-        ? `<div class="timer-item${alarma ? ' alarma' : ''}"><i class="bi bi-box-arrow-in-down"></i> Último pick hace: <span data-timer-start="${p.UltimaTransaccion}">${formatElapsed(p.UltimaTransaccion)}</span></div>`
+        ? `<div class="timer-item"><i class="bi bi-box-arrow-in-down"></i> Último pick hace: <span data-timer-start="${p.UltimaTransaccion}">${formatElapsed(p.UltimaTransaccion)}</span></div>`
         : '';
 
     const operarioHtml = p.OperarioNombre
@@ -565,10 +556,10 @@ function renderPedido(idRoutePlan, p, alarma) {
         <i class="bi bi-chevron-down"></i></button>`;
 
     return `
-        <div class="pedido-card estado-${estadoClean}${alarmaCls}">
+        <div class="pedido-card estado-${estadoClean}">
             <div class="pedido-header">
                 <div class="pedido-info">
-                    <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${p.Estado || 'Pendiente'}</span> ${alarmaBadge}</div>
+                    <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${p.Estado || 'Pendiente'}</span></div>
                     <div class="pedido-meta">${p.TotalLineas || 0} lineas | ${p.TotalUnidades || 0} uds | ${formatNumber(p.PesoTotal || 0)} kg</div>
                     ${operarioHtml}
                     ${p.FechaAsignacion ? `<div class="timer-item${isFinalizado ? ' finalizado' : ''}">
