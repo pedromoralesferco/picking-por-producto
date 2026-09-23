@@ -144,6 +144,26 @@
         .carril-routes::-webkit-scrollbar { height: 3px; }
         .carril-routes::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
 
+        /* ── Kanban vertical (Despacho): 3 slots por estado ── */
+        .kanban-slot { margin-bottom: 0.7rem; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; }
+        .kanban-slot-header {
+            padding: 0.45rem 0.7rem; display: flex; align-items: center; gap: 0.4rem;
+            font-size: 0.75rem; font-weight: 700; color: #fff;
+        }
+        .kanban-slot-header i { font-size: 0.85rem; }
+        .kanban-slot-header .badge-count {
+            margin-left: auto; background: rgba(255,255,255,0.28); color: #fff;
+            padding: 0.05rem 0.4rem; border-radius: 8px; font-size: 0.65rem; font-weight: 700;
+        }
+        .kanban-slot.slot-picking .kanban-slot-header { background: #8a6d1a; }
+        .kanban-slot.slot-completado .kanban-slot-header { background: #1565c0; }
+        .kanban-slot.slot-listo .kanban-slot-header { background: #2e7d32; }
+        .kanban-routes { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.4rem; }
+        .kanban-routes:empty::after {
+            content: 'Sin rutas'; color: #bbb; font-size: 0.7rem; padding: 0.35rem 0.2rem; text-align: center;
+        }
+        .kanban-routes .route-chip { min-width: 0; max-width: none; width: 100%; }
+
         /* ── Route chip (compact, horizontal) ── */
         .route-chip {
             min-width: 140px;
@@ -557,7 +577,7 @@
         <!-- Left: Carriles stacked, routes horizontal inside -->
         <div class="panel-carriles">
             <div class="panel-carriles-header">
-                <h3><i class="bi bi-signpost-2" style="color:var(--primary)"></i> Carriles</h3>
+                <h3><i class="bi bi-kanban" style="color:var(--primary)"></i> Tablero</h3>
                 <select id="centroFilter" onchange="renderCarriles()">
                     <option value="">Todos</option>
                 </select>
@@ -630,46 +650,42 @@
             } catch (err) { console.error(err); }
         }
 
+        // Kanban vertical: 3 slots por estado de la ruta
+        //   1) En proceso de picking   → Estado 'Iniciado'
+        //   2) Picking completado      → Estado 'Finalizado' y EstadoDespacho 'Pendiente'
+        //   3) Listas para despachar   → EstadoDespacho 'Listo para Carga'
         function renderCarriles() {
             const container = document.getElementById('carrilesList');
             const centroFilter = document.getElementById('centroFilter').value;
 
-            let carriles = allCarriles;
             let routes = despachoData;
-            if (centroFilter) {
-                carriles = carriles.filter(c => c.ID_Centro == centroFilter);
-                routes = routes.filter(r => r.ID_Centro == centroFilter);
-            }
+            if (centroFilter) routes = routes.filter(r => r.ID_Centro == centroFilter);
 
-            const groups = {};
+            const slotPicking = [], slotCompletado = [], slotListo = [];
             routes.forEach(r => {
-                const key = r.ID_Carril || 0;
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(r);
+                const ed = r.EstadoDespacho || 'Pendiente';
+                if (ed === 'Finalizado') return;              // ya despachada, sale del tablero
+                if (ed === 'Listo para Carga') slotListo.push(r);
+                else if (r.Estado === 'Finalizado') slotCompletado.push(r);
+                else slotPicking.push(r);                     // Iniciado / en picking
             });
 
-            const carrilesWithRoutes = carriles.filter(c => groups[c.ID_Carril] && groups[c.ID_Carril].length > 0);
+            const byRoute = (a, b) => (a.RouteNumber || 0) - (b.RouteNumber || 0);
+            [slotPicking, slotCompletado, slotListo].forEach(s => s.sort(byRoute));
 
-            if (carrilesWithRoutes.length === 0) {
-                container.innerHTML = '<div style="text-align:center;padding:2rem;color:#bbb"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:0.5rem"></i>Sin rutas pendientes</div>';
-                return;
-            }
-
-            container.innerHTML = carrilesWithRoutes.map(carril => {
-                const routeList = groups[carril.ID_Carril] || [];
-
-                return `
-                    <div class="carril-row">
-                        <div class="carril-row-header">
-                            <h4><i class="bi bi-signpost-2"></i> ${esc(carril.Nombre)}</h4>
-                            <span class="badge-count">${routeList.length}</span>
-                        </div>
-                        <div class="carril-routes">
-                            ${routeList.map(r => renderRouteChip(r)).join('')}
-                        </div>
+            const slotHtml = (cls, icon, titulo, list) => `
+                <div class="kanban-slot ${cls}">
+                    <div class="kanban-slot-header">
+                        <i class="bi ${icon}"></i> ${titulo}
+                        <span class="badge-count">${list.length}</span>
                     </div>
-                `;
-            }).join('');
+                    <div class="kanban-routes">${list.map(r => renderRouteChip(r)).join('')}</div>
+                </div>`;
+
+            container.innerHTML =
+                slotHtml('slot-picking', 'bi-hourglass-split', 'En proceso de picking', slotPicking) +
+                slotHtml('slot-completado', 'bi-box-seam', 'Picking completado', slotCompletado) +
+                slotHtml('slot-listo', 'bi-truck', 'Listas para despachar', slotListo);
         }
 
         function renderRouteChip(r) {
