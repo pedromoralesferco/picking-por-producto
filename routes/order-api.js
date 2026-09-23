@@ -585,6 +585,19 @@ router.post('/despacho/estado', async (req, res) => {
             }
         }
 
+        // Despachar (Finalizado) solo desde 'Listo para Carga' — hay que revisarla antes
+        if (estado === 'Finalizado') {
+            const check = await pool.request()
+                .input('idRoutePlan', sql.Int, idRoutePlan)
+                .query(`SELECT EstadoDespacho FROM OrderRoutePlan WHERE ID_RoutePlan = @idRoutePlan`);
+            if (check.recordset.length === 0) {
+                return res.status(404).json({ error: 'Ruta no encontrada' });
+            }
+            if (check.recordset[0].EstadoDespacho !== 'Listo para Carga') {
+                return res.status(400).json({ error: 'La ruta debe estar Lista para Carga antes de despacharla' });
+            }
+        }
+
         let setClause = `EstadoDespacho = @estado`;
         if (estado === 'Finalizado') {
             setClause += `, FechaDespachoFin = GETDATE()`;

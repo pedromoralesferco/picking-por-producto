@@ -266,6 +266,14 @@
         .btn-completar:hover:not(:disabled) { background: #1b5e20; border-color: #1b5e20; }
         .btn-completar:disabled { background: #9ccc9f; border-color: #9ccc9f; cursor: default; }
         .btn-completar i { margin-right: 0.3rem; }
+        .btn-listo {
+            background: #1565c0; color: #fff; border: 1px solid #1565c0;
+            padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; white-space: nowrap; transition: all 0.15s;
+        }
+        .btn-listo:hover:not(:disabled) { background: #0d47a1; border-color: #0d47a1; }
+        .btn-listo:disabled { background: #a8c7e8; border-color: #a8c7e8; cursor: default; }
+        .btn-listo i { margin-right: 0.3rem; }
         .placa-pendiente { color: #c62828; font-weight: 700; }
         .btn-print-packing {
             background: #2e7d32;
@@ -741,8 +749,11 @@
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
                         <div class="route-header-btns">
-                            <button class="btn-completar" ${yaCompletado ? 'disabled' : ''} onclick="marcarCompletado(null, ${ruta.RouteNumber}, false)" title="Marcar la ruta como completada">
-                                <i class="bi bi-check2-circle"></i> ${yaCompletado ? 'Completado' : 'Marcar como Completado'}
+                            <button class="btn-listo" ${(!pickingComplete || estadoDespacho !== 'Pendiente') ? 'disabled' : ''} onclick="cambiarEstado(${ruta.RouteNumber}, 'Listo para Carga')" title="${!pickingComplete ? 'El picking debe estar finalizado' : (estadoDespacho !== 'Pendiente' ? 'Ya está lista para carga' : 'Revisar y marcar como lista para carga')}">
+                                <i class="bi bi-box-seam"></i> ${estadoDespacho === 'Pendiente' ? 'Lista para Carga' : 'Lista para Carga ✓'}
+                            </button>
+                            <button class="btn-completar" ${estadoDespacho !== 'Listo para Carga' ? 'disabled' : ''} onclick="cambiarEstado(${ruta.RouteNumber}, 'Finalizado')" title="${estadoDespacho !== 'Listo para Carga' ? 'Primero marcá Lista para Carga' : 'Despachar: sale del tablero'}">
+                                <i class="bi bi-truck"></i> ${yaCompletado ? 'Despachado' : 'Marcar como Despachado'}
                             </button>
                             <button class="btn-print-cuadro" onclick="printPackingAllProducto(${ruta.RouteNumber})" title="Imprimir todos los packing lists de la ruta">
                                 <i class="bi bi-file-earmark-check"></i> Packing List
@@ -862,8 +873,8 @@
 
         async function cambiarEstado(routeNumber, estado) {
             const labels = {
-                'Listo para Carga': 'marcar como Listo para Carga',
-                'Finalizado': 'finalizar el despacho de',
+                'Listo para Carga': 'marcar como Lista para Carga',
+                'Finalizado': 'marcar como DESPACHADA (saldrá del tablero)',
                 'Pendiente': 'revertir a Pendiente'
             };
             if (!confirm(`Confirmar: ${labels[estado]} ruta #${routeNumber}?`)) return;
@@ -943,8 +954,11 @@
                             <div class="route-header-subtitle"><i class="bi bi-signpost-2" style="color:var(--primary)"></i> ${esc(ruta.CarrilNombre || 'Sin carril')}</div>
                         </div>
                         <div class="route-header-btns">
-                            <button class="btn-completar" ${yaCompletado ? 'disabled' : ''} onclick="marcarCompletado(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, false)" title="Marcar la ruta como completada">
-                                <i class="bi bi-check2-circle"></i> ${yaCompletado ? 'Completado' : 'Marcar como Completado'}
+                            <button class="btn-listo" ${(!pickingComplete || estadoDespacho !== 'Pendiente') ? 'disabled' : ''} onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Listo para Carga')" title="${!pickingComplete ? 'El picking debe estar finalizado' : (estadoDespacho !== 'Pendiente' ? 'Ya está lista para carga' : 'Revisar y marcar como lista para carga')}">
+                                <i class="bi bi-box-seam"></i> ${estadoDespacho === 'Pendiente' ? 'Lista para Carga' : 'Lista para Carga ✓'}
+                            </button>
+                            <button class="btn-completar" ${estadoDespacho !== 'Listo para Carga' ? 'disabled' : ''} onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Finalizado')" title="${estadoDespacho !== 'Listo para Carga' ? 'Primero marcá Lista para Carga' : 'Despachar: sale del tablero'}">
+                                <i class="bi bi-truck"></i> ${yaCompletado ? 'Despachado' : 'Marcar como Despachado'}
                             </button>
                             <button class="btn-print-cuadro" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
                                 <i class="bi bi-file-earmark-check"></i> Packing List
@@ -1068,8 +1082,8 @@
 
         async function cambiarEstadoOrder(idRoutePlan, routeNumber, estado) {
             const labels = {
-                'Listo para Carga': 'marcar como Listo para Carga',
-                'Finalizado': 'finalizar el despacho de',
+                'Listo para Carga': 'marcar como Lista para Carga',
+                'Finalizado': 'marcar como DESPACHADA (saldrá del tablero)',
                 'Pendiente': 'revertir a Pendiente'
             };
             if (!confirm(`Confirmar: ${labels[estado]} ruta #${routeNumber}?`)) return;
@@ -1125,25 +1139,6 @@
                     el.classList.add('placa-pendiente');
                 }
             } catch { el.textContent = '—'; }
-        }
-
-        async function marcarCompletado(idRoutePlan, routeNumber, silent) {
-            if (!silent && !confirm(`Marcar la ruta #${routeNumber} como completada?\n\nSaldrá del listado de despachos pendientes.`)) return;
-            const url = pickingMode === 'order' ? '/api/order/despacho/estado' : '/api/despacho/estado';
-            const body = pickingMode === 'order'
-                ? { idRoutePlan, estado: 'Finalizado' }
-                : { routeNumber, estado: 'Finalizado' };
-            try {
-                const res = await fetch(url, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (!res.ok) { if (!silent) alert('Error al completar la ruta'); return; }
-                await loadDespacho();
-                selectedRoutePlanId = null; selectedRoute = null;
-                document.getElementById('panelDetail').innerHTML =
-                    '<div class="empty-detail"><i class="bi bi-check-circle" style="color:var(--success)"></i><p>Ruta completada — despacho finalizado</p></div>';
-            } catch { if (!silent) alert('Error de conexión'); }
         }
 
         // ── Verificación de calidad (QC) ──
