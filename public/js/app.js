@@ -201,10 +201,8 @@ async function setPrioridad(idRoutePlan, value) {
             alert(err.error || 'No se pudo guardar la prioridad');
             return;
         }
-        // Actualiza el cache local y reordena sin recargar todo
-        const r = rutasCache.find(x => x.ID_RoutePlan === idRoutePlan);
-        if (r) r.Prioridad = (String(value).trim() === '') ? null : parseInt(value);
-        renderRutasList(rutasCache);
+        // Recarga del servidor: las prioridades se renumeran a 1..N contiguas
+        await loadRutas();
     } catch (e) {
         console.error('setPrioridad error:', e);
         alert('Error de red al guardar la prioridad');

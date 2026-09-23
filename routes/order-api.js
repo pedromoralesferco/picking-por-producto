@@ -53,6 +53,10 @@ router.get('/rutas', async (req, res) => {
     try {
         const pool = getPool();
         const centros = getUserCentros(req);
+        // Mantener las prioridades de Escuintla contiguas (1..N) — capta completados/removidos
+        if (!centros || centros.includes(CENTRO_ESCUINTLA)) {
+            await pool.request().execute('SP_NormalizeEscuintlaPriorities');
+        }
         const request = pool.request();
         const centroFilter = buildCentroFilter(request, centros, 'orp');
 
@@ -475,7 +479,9 @@ router.post('/priorizacion/set', requirePermiso('priorizacion'), async (req, res
         if (result.rowsAffected[0] === 0) {
             return res.status(404).json({ error: 'Ruta no encontrada, no pertenece a Escuintla o ya está finalizada' });
         }
-        res.json({ ok: true, prioridad: prio });
+        // Recompactar prioridades (1..N contiguas) tras el cambio
+        await pool.request().execute('SP_NormalizeEscuintlaPriorities');
+        res.json({ ok: true });
     } catch (err) {
         console.error('POST /api/order/priorizacion/set error:', err);
         res.status(500).json({ error: 'Error al guardar prioridad' });
