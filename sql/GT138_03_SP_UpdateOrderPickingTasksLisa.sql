@@ -118,6 +118,35 @@ BEGIN
         END CATCH
     END
 
+    -- ================================================
+    -- Cierre 4 (catch-all): cierra rutas 'Iniciado' que ya están 100% pero
+    -- cuyas tareas NO estaban 'En Proceso' en esta corrida (p.ej. el picker
+    -- las finalizó en la app) → nunca entraron a #RoutesProcessed y el Cierre 3
+    -- no las evalúa. Independiente de #RoutesProcessed. FechaFin = último pick real.
+    -- ================================================
+    RAISERROR('Cierre catch-all OrderRoutePlan...', 0, 0) WITH NOWAIT;
+    UPDATE orp
+    SET orp.Estado = 'Finalizado',
+        orp.FechaFin = ISNULL((
+            SELECT MAX(t.UltimaActualizacion)
+            FROM dbo.OrderPickingManagement opm
+            INNER JOIN dbo.OrderPickingTask t ON t.ID_OrderPicking = opm.ID_OrderPicking
+            WHERE opm.ID_RoutePlan = orp.ID_RoutePlan
+        ), GETDATE())
+    FROM dbo.OrderRoutePlan orp
+    WHERE orp.Estado = 'Iniciado'
+      AND EXISTS (
+          SELECT 1 FROM dbo.OrderPickingManagement opm
+          INNER JOIN dbo.OrderPickingTask t ON t.ID_OrderPicking = opm.ID_OrderPicking
+          WHERE opm.ID_RoutePlan = orp.ID_RoutePlan)
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.OrderPickingManagement opm
+          INNER JOIN dbo.OrderPickingTask t ON t.ID_OrderPicking = opm.ID_OrderPicking
+          WHERE opm.ID_RoutePlan = orp.ID_RoutePlan
+            AND ISNULL(t.CantidadPendiente, 0) > 0);
+    SET @msg = 'Cierre catch-all cerrados: ' + CONVERT(VARCHAR, @@ROWCOUNT);
+    RAISERROR(@msg, 0, 0) WITH NOWAIT;
+
     IF OBJECT_ID('tempdb..#RoutesProcessed') IS NOT NULL DROP TABLE #RoutesProcessed;
     RAISERROR('SP completado.', 0, 0) WITH NOWAIT;
 END;
