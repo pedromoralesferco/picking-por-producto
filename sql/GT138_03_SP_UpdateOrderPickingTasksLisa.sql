@@ -147,6 +147,10 @@ BEGIN
     SET @msg = 'Cierre catch-all cerrados: ' + CONVERT(VARCHAR, @@ROWCOUNT);
     RAISERROR(@msg, 0, 0) WITH NOWAIT;
 
+    -- Renumerar prioridades de HUB Escuintla a 1..N contiguas en cada ciclo (cada 30s).
+    -- Cierra los huecos cuando una ruta priorizada se completa/quita, sin depender del Node.
+    EXEC dbo.SP_NormalizeEscuintlaPriorities;
+
     IF OBJECT_ID('tempdb..#RoutesProcessed') IS NOT NULL DROP TABLE #RoutesProcessed;
     RAISERROR('SP completado.', 0, 0) WITH NOWAIT;
 END;
