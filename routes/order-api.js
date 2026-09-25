@@ -313,6 +313,31 @@ router.post('/pedidos/asignar', async (req, res) => {
             return res.status(400).json({ error: 'idOrderPicking y operarioId requeridos' });
         }
         const pool = getPool();
+
+        // Candado: el operario debe pertenecer al MISMO centro que el pedido
+        // (evita asignar, p.ej., un operario de Zona 5 a un pedido de Escuintla —
+        //  típico cuando hay operarios con el mismo nombre en distintos CEDIs).
+        const chk = await pool.request()
+            .input('idOrderPicking', sql.Int, idOrderPicking)
+            .input('operarioId', sql.Int, idOperario)
+            .query(`
+                SELECT opm.ID_Centro AS PedidoCentro, o.ID_Centro AS OperarioCentro,
+                       o.Nombre AS OperarioNombre, cd.Nombre AS CentroPedido
+                FROM OrderPickingManagement opm
+                CROSS JOIN Operario o
+                LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = opm.ID_Centro
+                WHERE opm.ID_OrderPicking = @idOrderPicking AND o.ID_Operario = @operarioId
+            `);
+        if (chk.recordset.length === 0) {
+            return res.status(404).json({ error: 'Pedido u operario no encontrado' });
+        }
+        const row = chk.recordset[0];
+        if (row.PedidoCentro !== row.OperarioCentro) {
+            return res.status(400).json({
+                error: `El operario "${row.OperarioNombre}" no pertenece a ${row.CentroPedido || 'este CEDI'}. Asigná un operario del mismo centro.`
+            });
+        }
+
         // The trigger on OrderPickingManagement handles:
         // - Setting Estado='Asignado', FechaAsignacion
         // - Cascading to OrderPickingTask (Estado='En Proceso', ID_Operario)
