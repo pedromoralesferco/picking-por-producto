@@ -196,7 +196,7 @@ router.get('/pickers-activos', async (req, res) => {
                 o.ID_Operario,
                 o.Nombre AS OperarioNombre,
                 SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) AS TareasPendientes,
-                COUNT(DISTINCT orp.ID_RoutePlan) AS RutasActivas,
+                COUNT(DISTINCT CASE WHEN t.Estado <> 'Finalizado' THEN orp.ID_RoutePlan END) AS RutasActivas,
                 MAX(t.UltimaActualizacion) AS UltimaTransaccion
             FROM OrderPickingTask t
             INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
