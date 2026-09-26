@@ -119,6 +119,23 @@ BEGIN
     END
 
     -- ================================================
+    -- Cierre 2b: reconciliación de líneas huérfanas.
+    -- Si un PEDIDO ya está 'Finalizado', sus tareas que quedaron pendientes NO se
+    -- van a pickear → se cierran (CantidadPendiente=0, Estado='Finalizado'). Así la
+    -- ruta puede llegar al 100% y cerrar. Solo rutas activas (Iniciado).
+    -- ================================================
+    UPDATE t
+    SET t.CantidadPendiente = 0, t.Estado = 'Finalizado', t.UltimaActualizacion = GETDATE()
+    FROM dbo.OrderPickingTask t
+    INNER JOIN dbo.OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
+    INNER JOIN dbo.OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+    WHERE orp.Estado = 'Iniciado'
+      AND opm.Estado = 'Finalizado'
+      AND (ISNULL(t.CantidadPendiente, 0) > 0 OR t.Estado <> 'Finalizado');
+    SET @msg = 'Lineas huerfanas cerradas: ' + CONVERT(VARCHAR, @@ROWCOUNT);
+    RAISERROR(@msg, 0, 0) WITH NOWAIT;
+
+    -- ================================================
     -- Cierre 4 (catch-all): cierra rutas 'Iniciado' que ya están 100% pero
     -- cuyas tareas NO estaban 'En Proceso' en esta corrida (p.ej. el picker
     -- las finalizó en la app) → nunca entraron a #RoutesProcessed y el Cierre 3
