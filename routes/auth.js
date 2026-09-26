@@ -4,19 +4,22 @@ const rateLimit = require('express-rate-limit');
 const { getPool, sql } = require('../db');
 const router = express.Router();
 
-// Rate limiting: max 5 intentos por IP cada 15 minutos
+// Rate limiting: max 10 intentos POR USUARIO cada 15 minutos (no por IP,
+// para no bloquear a toda una oficina que comparte IP).
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 10,
     message: { error: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.ip
+    keyGenerator: (req) => (req.body && req.body.usuario)
+        ? req.body.usuario.trim().toLowerCase()
+        : req.ip
 });
 
 // Bloqueo por usuario: rastrear intentos fallidos en memoria
 const failedAttempts = new Map();
-const MAX_FAILED = 5;
+const MAX_FAILED = 10;
 const LOCK_TIME = 15 * 60 * 1000; // 15 minutos
 
 function checkUserLock(usuario) {

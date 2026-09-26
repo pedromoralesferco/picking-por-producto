@@ -406,7 +406,9 @@ router.get('/pickers', getOperarios); // backward compat
 router.get('/centros', async (req, res) => {
     try {
         const pool = getPool();
-        const centros = getUserCentros(req);
+        // Lista de centros para ELEGIR: todos los asignados al usuario (no el ya
+        // seleccionado). Así el selector "cambiar centro" muestra todas las opciones.
+        const centros = (req.session && req.session.user) ? req.session.user.centros : null;
         const request = pool.request();
         let where = '';
         if (centros && centros.length > 0) {
