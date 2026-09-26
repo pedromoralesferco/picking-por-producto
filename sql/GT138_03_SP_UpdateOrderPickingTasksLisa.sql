@@ -168,6 +168,10 @@ BEGIN
     -- Cierra los huecos cuando una ruta priorizada se completa/quita, sin depender del Node.
     EXEC dbo.SP_NormalizeEscuintlaPriorities;
 
+    -- Auto-despacho HUB Escuintla: los cuadros con picking completo y PLACA
+    -- asignada en SAP salen del tablero como Despachados (cada 30s).
+    EXEC dbo.SP_AutoDespachoEscuintla;
+
     IF OBJECT_ID('tempdb..#RoutesProcessed') IS NOT NULL DROP TABLE #RoutesProcessed;
     RAISERROR('SP completado.', 0, 0) WITH NOWAIT;
 END;
