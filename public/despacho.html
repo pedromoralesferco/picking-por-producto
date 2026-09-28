@@ -823,6 +823,10 @@
                             <div class="value">${docsFinalizados}/${docs.length}</div>
                         </div>
                         <div class="rh-field">
+                            <label><i class="bi bi-box-seam"></i> Bultos (ruta)</label>
+                            <div class="value" id="rutaBultosTotal">—</div>
+                        </div>
+                        <div class="rh-field">
                             <label><i class="bi bi-truck"></i> Placa</label>
                             <div class="value" id="rutaPlacaVal">…</div>
                         </div>
@@ -842,6 +846,7 @@
                     ${docs.map(d => renderDocCard(ruta.RouteNumber, d)).join('')}
                 </div>
             `;
+            actualizarBultosTotal();
         }
 
         function renderDocCard(routeNumber, d) {
@@ -864,7 +869,7 @@
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
                             <label>Bultos</label>
-                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()">
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingProducto('${routeNumber}', '${esc(d.OV_Number)}')">
                             <i class="bi bi-printer"></i>
@@ -900,7 +905,9 @@
 
                 el.innerHTML = productos.map(p => {
                     const pDone = p.Estado === 'Finalizado';
-                    const qty = pDone ? '✓' : p.CantidadPendiente + '/' + p.Cantidad;
+                    const totalQ = Number(p.Cantidad) || 0;
+                    const pickedQ = Math.max(0, totalQ - (Number(p.CantidadPendiente) || 0));
+                    const qty = pickedQ + '/' + totalQ;
                     return `
                         <div class="prod-row ${p.Verificado ? 'verificado' : ''}">
                             <div class="prod-icon ${pDone ? 'done' : 'pending'}">
@@ -1039,6 +1046,10 @@
                             <div class="value">${docsFinalizados}/${docs.length}</div>
                         </div>
                         <div class="rh-field">
+                            <label><i class="bi bi-box-seam"></i> Bultos (ruta)</label>
+                            <div class="value" id="rutaBultosTotal">—</div>
+                        </div>
+                        <div class="rh-field">
                             <label><i class="bi bi-truck"></i> Placa</label>
                             <div class="value" id="rutaPlacaVal">…</div>
                         </div>
@@ -1058,6 +1069,7 @@
                     ${docs.map(d => renderDocCardOrder(d)).join('')}
                 </div>
             `;
+            actualizarBultosTotal();
         }
 
         function renderDocCardOrder(d) {
@@ -1082,7 +1094,7 @@
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
                             <label>Bultos</label>
-                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()">
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingOrder(${d.ID_OrderPicking})">
                             <i class="bi bi-printer"></i>
@@ -1120,7 +1132,9 @@
 
                 el.innerHTML = productos.map(p => {
                     const pDone = p.Estado === 'Finalizado';
-                    const qty = pDone ? '✓' : p.CantidadPendiente + '/' + p.Cantidad;
+                    const totalQ = Number(p.Cantidad) || 0;
+                    const pickedQ = Math.max(0, totalQ - (Number(p.CantidadPendiente) || 0));
+                    const qty = pickedQ + '/' + totalQ;
                     return `
                         <div class="prod-row ${p.Verificado ? 'verificado' : ''}">
                             <div class="prod-icon ${pDone ? 'done' : 'pending'}">
@@ -1246,6 +1260,19 @@
         // ── Etiquetas 4x8 (una por bulto de cada OV) ──
         // Recolecta el # de bultos por OV desde los inputs del detalle y lo deja en
         // localStorage para que la página de etiquetas genere 1/X, 2/X … por OV.
+        // Suma el # de bultos de todas las OVs de la ruta abierta → total que carga el camión.
+        function actualizarBultosTotal() {
+            const el = document.getElementById('rutaBultosTotal');
+            if (!el) return;
+            let total = 0, ovs = 0;
+            document.querySelectorAll('.bultos-input').forEach(inp => {
+                let n = parseInt(inp.value, 10);
+                if (!Number.isFinite(n) || n < 1) n = 1;
+                total += n; ovs++;
+            });
+            el.textContent = ovs ? (total + ' bulto' + (total === 1 ? '' : 's')) : '—';
+        }
+
         function guardarBultos() {
             const map = {};
             document.querySelectorAll('.bultos-input').forEach(inp => {
