@@ -353,7 +353,7 @@ function renderDetalle(routeNumber, ruta, productos, resumen) {
                 <div class="kpi-label">Articulos</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value" style="color:var(--success)">${formatNumber(resumen.PesoPickeado || 0)}<span class="kpi-sep">/${formatNumber(resumen.PesoTotal || 0)}</span></div>
+                <div class="kpi-value" style="color:var(--success)">${formatEntero(resumen.PesoPickeado || 0)}<span class="kpi-sep">/${formatEntero(resumen.PesoTotal || 0)}</span></div>
                 <div class="kpi-label">Kg Totales</div>
             </div>
         </div>
@@ -602,7 +602,7 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pi
                 <div class="kpi-label">Unidades</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value" style="color:var(--success)">${formatNumber(resumen.PesoPickeado || 0)}<span class="kpi-sep">/${formatNumber(resumen.PesoTotal || 0)}</span></div>
+                <div class="kpi-value" style="color:var(--success)">${formatEntero(resumen.PesoPickeado || 0)}<span class="kpi-sep">/${formatEntero(resumen.PesoTotal || 0)}</span></div>
                 <div class="kpi-label">Kg Totales</div>
             </div>
         </div>
@@ -988,6 +988,11 @@ function formatDate(dateStr) {
 
 function formatNumber(n) {
     return parseFloat(n).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Entero con separador de miles, sin decimales (KG en las cajas de resumen).
+function formatEntero(n) {
+    return Math.round(Number(n) || 0).toLocaleString('es-GT');
 }
 
 function esc(s) {
