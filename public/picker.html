@@ -382,8 +382,8 @@
                         <div class="kpi-lbl">Kg Pendientes</div>
                     </div>
                     <div class="kpi-mini accent">
-                        <div class="kpi-val">${resumen.PedidosCompletadosHoy}</div>
-                        <div class="kpi-lbl">Completados Hoy</div>
+                        <div class="kpi-val">${resumen.LineasCompletadasHoy ?? 0}</div>
+                        <div class="kpi-lbl">Líneas Hoy</div>
                     </div>
                     <div class="kpi-mini accent">
                         <div class="kpi-val">${resumen.UnidadesPendientes}</div>
@@ -402,7 +402,7 @@
 
                 // Load tareas for each pedido
                 const tareasPromises = pedidos.map(p =>
-                    fetch(`/api/order/pedidos/${p.ID_OrderPicking}/tareas`).then(r => r.json())
+                    fetch(`/api/order/pedidos/${p.ID_OrderPicking}/tareas?operarioId=${selectedPicker.id}`).then(r => r.json())
                 );
                 const allTareas = await Promise.all(tareasPromises);
 

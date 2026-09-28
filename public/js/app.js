@@ -9,6 +9,7 @@ let currentUser = null;
 let sortMode = 'prioridad'; // 'prioridad' (default) | 'antiguedad' | 'avance'
 let assigningProduct = null;
 let assigningPedido = null;
+let assigningLineas = null;
 let refreshInterval = null;
 let pendingIniciarRuta = null;
 let timerInterval = null;
@@ -626,9 +627,14 @@ function renderPedido(idRoutePlan, p) {
         ? `<div class="timer-item"><i class="bi bi-box-arrow-in-down"></i> Último pick hace: <span data-timer-start="${p.UltimaTransaccion}">${formatElapsed(p.UltimaTransaccion)}</span></div>`
         : '';
 
-    const operarioHtml = p.OperarioNombre
-        ? `<div class="pedido-picker asignado"><i class="bi bi-check"></i> ${p.OperarioNombre}</div>`
-        : `<div class="pedido-picker sin-asignar"><i class="bi bi-exclamation-triangle"></i> Sin asignar</div>`;
+    let operarioHtml;
+    if ((p.PickersDistintos || 0) > 1) {
+        operarioHtml = `<div class="pedido-picker repartida" title="${esc(p.PickersNombres || '')}"><i class="bi bi-people-fill"></i> Repartida (${p.PickersDistintos}): ${esc(p.PickersNombres || '')}</div>`;
+    } else if (p.PickersNombres || p.OperarioNombre) {
+        operarioHtml = `<div class="pedido-picker asignado"><i class="bi bi-check"></i> ${esc(p.PickersNombres || p.OperarioNombre)}</div>`;
+    } else {
+        operarioHtml = `<div class="pedido-picker sin-asignar"><i class="bi bi-exclamation-triangle"></i> Sin asignar</div>`;
+    }
 
     const docLabel = p.DocType === 'OV' ? 'OV' : p.DocType;
 
@@ -685,6 +691,11 @@ async function togglePedidoDetail(idOrderPicking, btn) {
     container.style.display = 'block';
     container.innerHTML = '<div style="text-align:center;color:#999;padding:0.5rem">Cargando...</div>';
 
+    await renderPedidoDetalle(idOrderPicking, container);
+}
+
+// Render (o re-render) del detalle de líneas de un pedido, con reparto por línea.
+async function renderPedidoDetalle(idOrderPicking, container) {
     try {
         const res = await fetch(`/api/order/pedidos/${idOrderPicking}/tareas`);
         const tareas = await res.json();
@@ -695,12 +706,22 @@ async function togglePedidoDetail(idOrderPicking, btn) {
         }
 
         const fmtFechaHora = (dt) => dt ? new Date(dt).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-        container.innerHTML = tareas.map(t => {
+        const asignables = tareas.filter(t => !(t.Estado === 'Finalizado' || t.CantidadPendiente === 0)).length;
+
+        const filas = tareas.map(t => {
             const done = t.Estado === 'Finalizado' || t.CantidadPendiente === 0;
+            const picker = t.OperarioNombre
+                ? `<span class="tarea-picker" title="Operario de esta línea"><i class="bi bi-person-fill"></i> ${esc(t.OperarioNombre)}</span>`
+                : `<span class="tarea-picker sin"><i class="bi bi-person-dash"></i> sin asignar</span>`;
+            const chk = done
+                ? '<span style="width:18px;display:inline-block"></span>'
+                : `<input type="checkbox" class="linea-chk" data-task="${t.ID_Task}" onclick="event.stopPropagation()">`;
             return `
                 <div class="tarea-item ${done ? 'tarea-done' : ''}">
+                    ${chk}
                     <span class="tarea-product">${t.InternIdProduct} — ${t.Descripcion || ''}</span>
                     <span class="tarea-qty">${t.Cantidad} uds</span>
+                    ${picker}
                     <span class="tarea-status">
                         ${done
                             ? `<i class="bi bi-check-circle-fill" style="color:var(--success)"></i>${t.UltimaActualizacion ? ` <span class="tarea-fecha"><i class="bi bi-calendar-check"></i> ${fmtFechaHora(t.UltimaActualizacion)}</span>` : ''}`
@@ -709,9 +730,40 @@ async function togglePedidoDetail(idOrderPicking, btn) {
                     </span>
                 </div>`;
         }).join('');
+
+        const barra = asignables > 0 ? `
+            <div class="reparto-bar">
+                <label class="reparto-all"><input type="checkbox" onclick="toggleTodasLineas(${idOrderPicking}, this)"> Seleccionar todas</label>
+                <button class="btn-reparto" onclick="asignarLineasSeleccionadas(${idOrderPicking})">
+                    <i class="bi bi-people-fill"></i> Asignar líneas seleccionadas a picker
+                </button>
+            </div>` : '';
+
+        container.innerHTML = `<div id="tareas-list-${idOrderPicking}">${filas}</div>${barra}`;
     } catch (err) {
         container.innerHTML = '<div style="color:var(--danger);font-size:0.85rem">Error al cargar lineas</div>';
     }
+}
+
+function toggleTodasLineas(idOrderPicking, master) {
+    const cont = document.getElementById(`pedido-detail-${idOrderPicking}`);
+    if (!cont) return;
+    cont.querySelectorAll('.linea-chk').forEach(c => { c.checked = master.checked; });
+}
+
+function asignarLineasSeleccionadas(idOrderPicking) {
+    const cont = document.getElementById(`pedido-detail-${idOrderPicking}`);
+    if (!cont) return;
+    const ids = [...cont.querySelectorAll('.linea-chk:checked')].map(c => parseInt(c.getAttribute('data-task')));
+    if (ids.length === 0) { alert('Seleccioná al menos una línea.'); return; }
+    assigningLineas = { idOrderPicking, idTasks: ids };
+    assigningPedido = null;
+    assigningProduct = null;
+    document.getElementById('pickerModal').style.display = 'flex';
+    document.getElementById('pickerModalSubtitle').textContent =
+        `Asignar ${ids.length} línea${ids.length === 1 ? '' : 's'} a un operario`;
+    fetch('/api/operarios').then(r => r.json()).then(list => { pickersCache = list; renderPickers(list); })
+        .catch(err => console.error('Error loading pickers:', err));
 }
 
 async function iniciarRutaOrder(idRoutePlan) {
@@ -880,6 +932,7 @@ function closePickerModal() {
     document.getElementById('pickerModal').style.display = 'none';
     assigningProduct = null;
     assigningPedido = null;
+    assigningLineas = null;
 }
 
 function filterPickers(query) {
@@ -904,7 +957,33 @@ function renderPickers(pickers) {
 
 async function assignPicker(operarioId) {
     try {
-        if (assigningPedido) {
+        if (assigningLineas) {
+            // Reparto por línea: asigna las tareas seleccionadas a este operario.
+            const { idOrderPicking, idTasks } = assigningLineas;
+            const res = await fetch('/api/order/pedidos/asignar-lineas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idOrderPicking, idTasks, operarioId })
+            });
+            if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+            const idRP = selectedRoutePlanId;
+            closePickerModal();
+            await loadRutas();
+            if (idRP) {
+                const ruta = rutasCache.find(r => r.ID_RoutePlan === idRP);
+                if (ruta) await selectRutaOrder(idRP, ruta.RouteNumber);
+            }
+            // Re-abrir el detalle del pedido para ver los pickers por línea actualizados
+            const cont = document.getElementById(`pedido-detail-${idOrderPicking}`);
+            if (cont) {
+                cont.style.display = 'block';
+                await renderPedidoDetalle(idOrderPicking, cont);
+                const card = cont.closest('.pedido-card');
+                const b = card && card.querySelector('.btn-detalle');
+                if (b) b.innerHTML = '<i class="bi bi-chevron-up"></i>';
+            }
+            return;
+        } else if (assigningPedido) {
             // Order mode: assign operario to pedido
             const res = await fetch('/api/order/pedidos/asignar', {
                 method: 'POST',

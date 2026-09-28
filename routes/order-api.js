@@ -141,7 +141,15 @@ router.get('/rutas/:id/pedidos', async (req, res) => {
                     opm.FechaFin,
                     o.Nombre AS OperarioNombre,
                     (SELECT MAX(t.UltimaActualizacion) FROM OrderPickingTask t
-                     WHERE t.ID_OrderPicking = opm.ID_OrderPicking) AS UltimaTransaccion
+                     WHERE t.ID_OrderPicking = opm.ID_OrderPicking) AS UltimaTransaccion,
+                    -- Desglose de asignación por línea (para detectar OV "repartida")
+                    (SELECT COUNT(DISTINCT t.ID_Operario) FROM OrderPickingTask t
+                     WHERE t.ID_OrderPicking = opm.ID_OrderPicking AND t.ID_Operario IS NOT NULL) AS PickersDistintos,
+                    STUFF((SELECT DISTINCT ', ' + o2.Nombre
+                           FROM OrderPickingTask t2
+                           INNER JOIN Operario o2 ON o2.ID_Operario = t2.ID_Operario
+                           WHERE t2.ID_OrderPicking = opm.ID_OrderPicking
+                           FOR XML PATH('')), 1, 2, '') AS PickersNombres
                 FROM OrderPickingManagement opm
                 LEFT JOIN Operario o ON o.ID_Operario = opm.ID_Operario
                 WHERE opm.ID_RoutePlan = @idRoutePlan
@@ -388,6 +396,67 @@ router.post('/pedidos/asignar', async (req, res) => {
     }
 });
 
+// POST /api/order/pedidos/asignar-lineas — Asignar líneas (tareas) sueltas a un operario.
+// Permite repartir una OV entre varios pickers. NO toca OPM.ID_Operario (para no
+// disparar el trigger que cascada a todas las líneas); solo marca las tareas dadas.
+router.post('/pedidos/asignar-lineas', async (req, res) => {
+    try {
+        const { idOrderPicking, idTasks, operarioId, pickerId } = req.body;
+        const idOperario = operarioId || pickerId;
+        const tasks = Array.isArray(idTasks) ? idTasks.map(n => parseInt(n)).filter(n => !isNaN(n)) : [];
+        if (!idOrderPicking || !idOperario || tasks.length === 0) {
+            return res.status(400).json({ error: 'idOrderPicking, operarioId e idTasks requeridos' });
+        }
+        const pool = getPool();
+
+        // Candado: operario del mismo centro que el pedido
+        const chk = await pool.request()
+            .input('idOrderPicking', sql.Int, idOrderPicking)
+            .input('operarioId', sql.Int, idOperario)
+            .query(`
+                SELECT opm.ID_Centro AS PedidoCentro, o.ID_Centro AS OperarioCentro,
+                       o.Nombre AS OperarioNombre, cd.Nombre AS CentroPedido
+                FROM OrderPickingManagement opm
+                CROSS JOIN Operario o
+                LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = opm.ID_Centro
+                WHERE opm.ID_OrderPicking = @idOrderPicking AND o.ID_Operario = @operarioId
+            `);
+        if (chk.recordset.length === 0) return res.status(404).json({ error: 'Pedido u operario no encontrado' });
+        const row = chk.recordset[0];
+        if (row.PedidoCentro !== row.OperarioCentro) {
+            return res.status(400).json({
+                error: `El operario "${row.OperarioNombre}" no pertenece a ${row.CentroPedido || 'este CEDI'}. Asigná un operario del mismo centro.`
+            });
+        }
+
+        // Asignar las tareas indicadas (solo del pedido dado, por seguridad).
+        // Las ya finalizadas no se reasignan (conservan su histórico).
+        const reqUpd = pool.request()
+            .input('idOrderPicking', sql.Int, idOrderPicking)
+            .input('operarioId', sql.Int, idOperario);
+        const inParams = tasks.map((v, i) => { reqUpd.input('t' + i, sql.Int, v); return '@t' + i; }).join(',');
+        const upd = await reqUpd.query(`
+            UPDATE OrderPickingTask
+            SET ID_Operario = @operarioId,
+                Estado = CASE WHEN ISNULL(CantidadPendiente, 0) > 0 THEN 'En Proceso' ELSE Estado END,
+                FechaLiberacion = ISNULL(FechaLiberacion, GETDATE()),
+                UltimaActualizacion = GETDATE()
+            WHERE ID_OrderPicking = @idOrderPicking
+              AND ID_Task IN (${inParams})
+              AND Estado <> 'Finalizado';
+
+            -- El encabezado pasa a 'En Proceso' si estaba Pendiente (sin tocar ID_Operario)
+            UPDATE OrderPickingManagement
+            SET Estado = 'En Proceso', FechaAsignacion = ISNULL(FechaAsignacion, GETDATE())
+            WHERE ID_OrderPicking = @idOrderPicking AND Estado = 'Pendiente';
+        `);
+        res.json({ ok: true, asignadas: upd.rowsAffected && upd.rowsAffected[0] ? upd.rowsAffected[0] : 0 });
+    } catch (err) {
+        console.error('POST /api/order/pedidos/asignar-lineas error:', err);
+        res.status(500).json({ error: 'Error al asignar líneas' });
+    }
+});
+
 // POST /api/order/pedidos/cerrar — Force-close a pedido
 router.post('/pedidos/cerrar', async (req, res) => {
     try {
@@ -426,24 +495,29 @@ router.post('/pedidos/cerrar', async (req, res) => {
 router.get('/pedidos/:id/tareas', async (req, res) => {
     try {
         const pool = getPool();
-        const result = await pool.request()
-            .input('idOrderPicking', sql.Int, parseInt(req.params.id))
-            .query(`
+        // operarioId opcional: contexto picker → solo sus líneas. Gestión no lo manda → todas.
+        const operarioId = req.query.operarioId ? parseInt(req.query.operarioId) : null;
+        const reqDb = pool.request().input('idOrderPicking', sql.Int, parseInt(req.params.id));
+        if (operarioId) reqDb.input('operarioId', sql.Int, operarioId);
+        const result = await reqDb.query(`
                 SELECT
-                    ID_Task,
-                    InternIdProduct,
-                    Descripcion,
-                    Cantidad,
-                    CantidadPendiente,
-                    UnitWeight,
-                    Estado,
-                    ID_Operario,
-                    UltimaActualizacion
-                FROM OrderPickingTask
-                WHERE ID_OrderPicking = @idOrderPicking
+                    t.ID_Task,
+                    t.InternIdProduct,
+                    t.Descripcion,
+                    t.Cantidad,
+                    t.CantidadPendiente,
+                    t.UnitWeight,
+                    t.Estado,
+                    t.ID_Operario,
+                    o.Nombre AS OperarioNombre,
+                    t.UltimaActualizacion
+                FROM OrderPickingTask t
+                LEFT JOIN Operario o ON o.ID_Operario = t.ID_Operario
+                WHERE t.ID_OrderPicking = @idOrderPicking
+                  ${operarioId ? 'AND t.ID_Operario = @operarioId' : ''}
                 ORDER BY
-                    CASE Estado WHEN 'Finalizado' THEN 1 ELSE 0 END,
-                    InternIdProduct
+                    CASE t.Estado WHEN 'Finalizado' THEN 1 ELSE 0 END,
+                    t.InternIdProduct
             `);
         res.json(result.recordset);
     } catch (err) {
@@ -957,25 +1031,36 @@ router.get('/pickers/:id/pedidos', async (req, res) => {
                     orp.RouteName,
                     opm.OV_Number,
                     opm.DocType,
-                    opm.TotalLineas,
-                    opm.TotalUnidades,
-                    opm.PesoTotal,
+                    -- Subtotales del PICKER (solo sus líneas). Cantidad se repite por
+                    -- fila de tarea → MAX por producto.
+                    (SELECT COUNT(DISTINCT t.InternIdProduct) FROM OrderPickingTask t
+                     WHERE t.ID_OrderPicking = opm.ID_OrderPicking AND t.ID_Operario = @operarioId) AS TotalLineas,
+                    (SELECT ISNULL(SUM(x.Cant), 0) FROM (
+                        SELECT MAX(ISNULL(t.Cantidad, 0)) AS Cant FROM OrderPickingTask t
+                        WHERE t.ID_OrderPicking = opm.ID_OrderPicking AND t.ID_Operario = @operarioId
+                        GROUP BY t.InternIdProduct) x) AS TotalUnidades,
+                    (SELECT ISNULL(SUM(x.Peso), 0) FROM (
+                        SELECT MAX(ISNULL(t.Cantidad, 0)) * MAX(ISNULL(t.UnitWeight, 0)) AS Peso FROM OrderPickingTask t
+                        WHERE t.ID_OrderPicking = opm.ID_OrderPicking AND t.ID_Operario = @operarioId
+                        GROUP BY t.InternIdProduct) x) AS PesoTotal,
                     opm.Estado,
                     opm.FechaAsignacion,
-                    c.Nombre AS CarrilNombre
+                    c.Nombre AS CarrilNombre,
+                    -- OV repartida entre varios pickers (para avisar en el picker)
+                    (SELECT COUNT(DISTINCT t.ID_Operario) FROM OrderPickingTask t
+                     WHERE t.ID_OrderPicking = opm.ID_OrderPicking AND t.ID_Operario IS NOT NULL) AS PickersDistintos
                 FROM OrderPickingManagement opm
                 INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                 LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
-                WHERE opm.ID_Operario = @operarioId
-                  AND (opm.Estado IN ('Asignado', 'En Proceso')
-                       OR (opm.Estado = 'Finalizado' AND CAST(opm.FechaFin AS DATE) = CAST(GETDATE() AS DATE)))
-                ORDER BY
-                    CASE opm.Estado
-                        WHEN 'En Proceso' THEN 0
-                        WHEN 'Asignado' THEN 1
-                        WHEN 'Finalizado' THEN 2
-                    END,
-                    opm.FechaAsignacion DESC
+                -- Muestra el pedido mientras el picker tenga líneas SUYAS pendientes.
+                -- Cuando termina lo suyo, la OV desaparece de su lista (aunque otros
+                -- pickers sigan con sus líneas).
+                WHERE orp.Estado = 'Iniciado'
+                  AND EXISTS (SELECT 1 FROM OrderPickingTask t
+                              WHERE t.ID_OrderPicking = opm.ID_OrderPicking
+                                AND t.ID_Operario = @operarioId
+                                AND ISNULL(t.CantidadPendiente, 0) > 0)
+                ORDER BY opm.FechaAsignacion DESC, opm.OV_Number
             `);
         res.json(result.recordset);
     } catch (err) {
@@ -990,16 +1075,28 @@ router.get('/pickers/:id/resumen', async (req, res) => {
         const result = await pool.request()
             .input('operarioId', sql.Int, parseInt(req.params.id))
             .query(`
+                ;WITH mias AS (
+                    SELECT t.ID_OrderPicking, t.InternIdProduct,
+                           MAX(ISNULL(t.Cantidad, 0)) AS Cant,
+                           MAX(ISNULL(t.CantidadPendiente, 0)) AS Pend
+                    FROM OrderPickingTask t
+                    INNER JOIN OrderRoutePlan orp2 ON orp2.RouteNumber = t.RouteNumber AND orp2.Pais = t.Pais
+                    WHERE t.ID_Operario = @operarioId AND orp2.Estado = 'Iniciado'
+                    GROUP BY t.ID_OrderPicking, t.InternIdProduct
+                )
                 SELECT
-                    (SELECT COUNT(*) FROM OrderPickingManagement
-                     WHERE ID_Operario = @operarioId AND Estado IN ('Asignado','En Proceso')) AS PedidosPendientes,
-                    (SELECT COUNT(*) FROM OrderPickingManagement
-                     WHERE ID_Operario = @operarioId AND Estado = 'Finalizado'
-                       AND CAST(FechaFin AS DATE) = CAST(GETDATE() AS DATE)) AS PedidosCompletadosHoy,
-                    (SELECT ISNULL(SUM(TotalUnidades), 0) FROM OrderPickingManagement
-                     WHERE ID_Operario = @operarioId AND Estado IN ('Asignado','En Proceso')) AS UnidadesPendientes,
-                    (SELECT ISNULL(SUM(PesoTotal), 0) FROM OrderPickingManagement
-                     WHERE ID_Operario = @operarioId AND Estado IN ('Asignado','En Proceso')) AS PesoPendiente
+                    (SELECT COUNT(DISTINCT ID_OrderPicking) FROM mias WHERE Pend > 0) AS PedidosPendientes,
+                    (SELECT COUNT(*) FROM OrderPickingTask t2
+                     WHERE t2.ID_Operario = @operarioId AND t2.Estado = 'Finalizado'
+                       AND CAST(t2.UltimaActualizacion AS DATE) = CAST(GETDATE() AS DATE)) AS LineasCompletadasHoy,
+                    (SELECT ISNULL(SUM(Pend), 0) FROM mias) AS UnidadesPendientes,
+                    (SELECT ISNULL(SUM(x.Peso), 0) FROM (
+                        SELECT t3.ID_OrderPicking, t3.InternIdProduct,
+                               MAX(ISNULL(t3.CantidadPendiente,0)) * MAX(ISNULL(t3.UnitWeight,0)) AS Peso
+                        FROM OrderPickingTask t3
+                        INNER JOIN OrderRoutePlan orp3 ON orp3.RouteNumber = t3.RouteNumber AND orp3.Pais = t3.Pais
+                        WHERE t3.ID_Operario = @operarioId AND orp3.Estado = 'Iniciado'
+                        GROUP BY t3.ID_OrderPicking, t3.InternIdProduct) x) AS PesoPendiente
             `);
         res.json(result.recordset[0]);
     } catch (err) {

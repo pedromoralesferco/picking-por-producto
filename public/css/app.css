@@ -506,6 +506,22 @@ body {
 .tarea-item .tarea-status { margin-left: 0.5rem; }
 .tarea-item.tarea-done { opacity: 0.6; }
 .tarea-item.tarea-done .tarea-product { text-decoration: line-through; }
+.tarea-item .linea-chk { width: 16px; height: 16px; margin-right: 0.5rem; cursor: pointer; flex: none; accent-color: #1565c0; }
+.tarea-item .tarea-picker { font-size: 0.72rem; color: #1565c0; font-weight: 600; white-space: nowrap; margin-left: 0.6rem; }
+.tarea-item .tarea-picker.sin { color: #bbb; font-weight: 500; }
+
+/* Barra de reparto de líneas */
+.reparto-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    margin-top: 0.5rem; padding: 0.5rem 0.6rem; border-top: 1px dashed #d8d8d8;
+}
+.reparto-bar .reparto-all { font-size: 0.78rem; color: #555; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+.btn-reparto {
+    background: #1565c0; color: #fff; border: none; border-radius: 6px;
+    padding: 0.4rem 0.8rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.btn-reparto:hover { background: #0d47a1; }
+.pedido-picker.repartida { color: #1565c0; font-weight: 600; }
 
 /* Progress bar */
 .progress-bar-custom {
