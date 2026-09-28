@@ -245,12 +245,12 @@
                     href: '/gestion',
                     icon: 'bi-kanban',
                     iconClass: 'gestion',
-                    title: 'Gestion de Rutas',
+                    title: 'Gestion de Picking',
                     desc: 'Asignar operarios, monitorear avance y cerrar rutas.'
                 });
             }
 
-            // Escuintla (ID_Centro=3) prioriza desde Gestión de Rutas (inline), no con el drag-drop.
+            // Escuintla (ID_Centro=3) prioriza desde Gestión de Picking (inline), no con el drag-drop.
             if ((isAdmin || permisos.includes('priorizacion')) && currentUser.selectedCentro !== 3) {
                 modules.push({
                     href: '/priorizacion',

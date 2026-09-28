@@ -278,6 +278,10 @@ body {
     font-weight: 600;
 }
 
+/* Avance dentro del KPI: completado/total */
+.kpi-card .kpi-value .kpi-done { color: inherit; }
+.kpi-card .kpi-value .kpi-sep { color: #b9b9b9; font-weight: 700; font-size: 0.72em; }
+
 /* Pedidos / Productos list */
 .pedidos-header {
     display: flex;

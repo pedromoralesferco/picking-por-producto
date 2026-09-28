@@ -179,7 +179,37 @@ router.get('/rutas/:id/resumen', async (req, res) => {
                 FROM OrderPickingManagement
                 WHERE ID_RoutePlan = @idRoutePlan
             `);
-        res.json(result.recordset[0]);
+        const resumen = result.recordset[0] || {};
+
+        // Avance de picking: líneas/unidades/kg ya pickeados (desde las tareas).
+        // Cantidad/CantidadPendiente se repiten por fila de tarea → MAX por producto.
+        try {
+            const av = await pool.request()
+                .input('idRoutePlan', sql.Int, parseInt(req.params.id))
+                .query(`
+                    ;WITH prod AS (
+                        SELECT opt.ID_OrderPicking, opt.InternIdProduct,
+                               MAX(ISNULL(opt.Cantidad, 0)) AS Cant,
+                               MAX(ISNULL(opt.CantidadPendiente, 0)) AS Pend,
+                               MAX(ISNULL(opt.UnitWeight, 0)) AS UW
+                        FROM OrderPickingTask opt
+                        INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = opt.ID_OrderPicking
+                        WHERE opm.ID_RoutePlan = @idRoutePlan
+                        GROUP BY opt.ID_OrderPicking, opt.InternIdProduct
+                    )
+                    SELECT
+                        SUM(CASE WHEN Pend = 0 THEN 1 ELSE 0 END) AS LineasFinalizadas,
+                        SUM(Cant - Pend) AS UnidadesPickeadas,
+                        SUM((Cant - Pend) * UW) AS PesoPickeado
+                    FROM prod
+                `);
+            const a = av.recordset[0] || {};
+            resumen.LineasFinalizadas = a.LineasFinalizadas || 0;
+            resumen.UnidadesPickeadas = a.UnidadesPickeadas || 0;
+            resumen.PesoPickeado = a.PesoPickeado || 0;
+        } catch (e) { console.error('avance resumen (order):', e.message); }
+
+        res.json(resumen);
     } catch (err) {
         console.error('GET /api/order/rutas/:id/resumen error:', err);
         res.status(500).json({ error: 'Error interno' });

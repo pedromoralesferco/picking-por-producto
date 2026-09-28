@@ -164,7 +164,34 @@ router.get('/rutas/:routeNumber/resumen', async (req, res) => {
                 FROM RoutePickingManagement
                 WHERE RouteNumber = @routeNumber
             `);
-        res.json(result.recordset[0]);
+        const resumen = result.recordset[0] || {};
+
+        // Avance de picking: artículos/kg ya pickeados (desde las tareas).
+        try {
+            const av = await pool.request()
+                .input('routeNumber', sql.Int, req.params.routeNumber)
+                .query(`
+                    ;WITH prod AS (
+                        SELECT OV_Number, InternIdProduct,
+                               MAX(ISNULL(Cantidad, 0)) AS Cant,
+                               MAX(ISNULL(CantidadPendiente, 0)) AS Pend,
+                               MAX(ISNULL(UnitWeight, 0)) AS UW
+                        FROM RoutePickingTask
+                        WHERE Route_Number = @routeNumber
+                        GROUP BY OV_Number, InternIdProduct
+                    )
+                    SELECT
+                        SUM(CASE WHEN Pend = 0 THEN 1 ELSE 0 END) AS ProductosPickeados,
+                        SUM(Cant - Pend) AS ArticulosPickeados,
+                        SUM((Cant - Pend) * UW) AS PesoPickeado
+                    FROM prod
+                `);
+            const a = av.recordset[0] || {};
+            resumen.ArticulosPickeados = a.ArticulosPickeados || 0;
+            resumen.PesoPickeado = a.PesoPickeado || 0;
+        } catch (e) { console.error('avance resumen (producto):', e.message); }
+
+        res.json(resumen);
     } catch (err) {
         console.error('GET /api/rutas/:routeNumber/resumen error:', err);
         res.status(500).json({ error: 'Error interno' });

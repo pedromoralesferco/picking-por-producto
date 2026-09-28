@@ -345,15 +345,15 @@ function renderDetalle(routeNumber, ruta, productos, resumen) {
 
         <div class="kpi-row">
             <div class="kpi-card">
-                <div class="kpi-value">${resumen.TotalProductos || 0}</div>
+                <div class="kpi-value"><span class="kpi-done">${resumen.ProductosFinalizados || 0}</span><span class="kpi-sep">/${resumen.TotalProductos || 0}</span></div>
                 <div class="kpi-label">Productos</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value">${resumen.TotalArticulos || 0}</div>
+                <div class="kpi-value"><span class="kpi-done">${resumen.ArticulosPickeados || 0}</span><span class="kpi-sep">/${resumen.TotalArticulos || 0}</span></div>
                 <div class="kpi-label">Articulos</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value" style="color:var(--success)">${formatNumber(resumen.PesoTotal || 0)}</div>
+                <div class="kpi-value" style="color:var(--success)">${formatNumber(resumen.PesoPickeado || 0)}<span class="kpi-sep">/${formatNumber(resumen.PesoTotal || 0)}</span></div>
                 <div class="kpi-label">Kg Totales</div>
             </div>
         </div>
@@ -590,19 +590,19 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pi
 
         <div class="kpi-row">
             <div class="kpi-card">
-                <div class="kpi-value">${resumen.TotalPedidos || 0}</div>
+                <div class="kpi-value"><span class="kpi-done">${resumen.PedidosFinalizados || 0}</span><span class="kpi-sep">/${resumen.TotalPedidos || 0}</span></div>
                 <div class="kpi-label">Pedidos</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value">${resumen.TotalLineas || 0}</div>
+                <div class="kpi-value"><span class="kpi-done">${resumen.LineasFinalizadas || 0}</span><span class="kpi-sep">/${resumen.TotalLineas || 0}</span></div>
                 <div class="kpi-label">Lineas</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value">${resumen.TotalUnidades || 0}</div>
+                <div class="kpi-value"><span class="kpi-done">${resumen.UnidadesPickeadas || 0}</span><span class="kpi-sep">/${resumen.TotalUnidades || 0}</span></div>
                 <div class="kpi-label">Unidades</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value" style="color:var(--success)">${formatNumber(resumen.PesoTotal || 0)}</div>
+                <div class="kpi-value" style="color:var(--success)">${formatNumber(resumen.PesoPickeado || 0)}<span class="kpi-sep">/${formatNumber(resumen.PesoTotal || 0)}</span></div>
                 <div class="kpi-label">Kg Totales</div>
             </div>
         </div>
