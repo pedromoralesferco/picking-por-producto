@@ -901,21 +901,24 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
             const inParams = ovInts.map((v, i) => { reqC.input('ov' + i, sql.Int, v); return '@ov' + i; }).join(',');
             try {
                 const cRes = await reqC.query(`
-                    SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName
+                    SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName,
+                           MAX(ISNULL(NULLIF(o.Address2, ''), o.Address)) AS ShipTo
                     FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
                     LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
                     WHERE o.DocNum IN (${inParams}) GROUP BY o.DocNum`);
-                cRes.recordset.forEach(row => { clientes[String(row.OV)] = row.CardName; });
+                cRes.recordset.forEach(row => { clientes[String(row.OV)] = { name: row.CardName, address: row.ShipTo }; });
             } catch (e) { console.error('packing producto cliente SAP:', e.message); }
         }
 
         const pedidosMap = new Map();
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.OV_Number)) {
+                const cli = clientes[String(r.OV_Number)] || null;
                 pedidosMap.set(r.OV_Number, {
                     OV_Number: r.OV_Number, DocType: r.DocType,
-                    ClienteNombre: clientes[String(r.OV_Number)] || null,
-                    OperarioNombre: r.OperarioNombre, lineas: []
+                    ClienteNombre: cli ? cli.name : null, ClienteDireccion: cli ? cli.address : null,
+                    OperarioNombre: r.OperarioNombre,
+                    RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []
                 });
             }
             pedidosMap.get(r.OV_Number).lineas.push({

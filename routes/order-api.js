@@ -7,7 +7,8 @@ const router = express.Router();
 // HUB Escuintla — único centro GT en modo pedido; la priorización inline solo aplica aquí
 const CENTRO_ESCUINTLA = 3;
 
-// Trae { OV_Number: CardName } desde SAP para un conjunto de OVs (por país)
+// Trae { OV_Number: { name, address } } desde SAP para un conjunto de OVs (por país).
+// address = dirección de entrega (ship-to = ORDR.Address2), fallback a facturación (Address).
 async function getClientesSAP(pool, pais, ovNumbers) {
     const map = {};
     const ovInts = [...new Set(ovNumbers.map(v => parseInt(v)).filter(v => !isNaN(v)))];
@@ -17,12 +18,13 @@ async function getClientesSAP(pool, pais, ovNumbers) {
     const inParams = ovInts.map((v, i) => { req.input('ov' + i, sql.Int, v); return '@ov' + i; }).join(',');
     try {
         const r = await req.query(`
-            SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName
+            SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName,
+                   MAX(ISNULL(NULLIF(o.Address2, ''), o.Address)) AS ShipTo
             FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
             LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
             WHERE o.DocNum IN (${inParams})
             GROUP BY o.DocNum`);
-        r.recordset.forEach(row => { map[String(row.OV)] = row.CardName; });
+        r.recordset.forEach(row => { map[String(row.OV)] = { name: row.CardName, address: row.ShipTo }; });
     } catch (e) { console.error('getClientesSAP error:', e.message); }
     return map;
 }
@@ -789,10 +791,12 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
         const pedidosMap = new Map();
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.ID_OrderPicking)) {
+                const cli = clientes[String(r.OV_Number)] || null;
                 pedidosMap.set(r.ID_OrderPicking, {
                     ID_OrderPicking: r.ID_OrderPicking, OV_Number: r.OV_Number, DocType: r.DocType,
-                    ClienteNombre: clientes[String(r.OV_Number)] || null, PesoTotal: r.PesoTotal,
-                    OperarioNombre: r.OperarioNombre, lineas: []
+                    ClienteNombre: cli ? cli.name : null, ClienteDireccion: cli ? cli.address : null,
+                    PesoTotal: r.PesoTotal, OperarioNombre: r.OperarioNombre,
+                    RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []
                 });
             }
             pedidosMap.get(r.ID_OrderPicking).lineas.push({

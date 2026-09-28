@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Etiquetas 4x8</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --ink:#111; --muted:#666; }
+        body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: var(--ink); background: #e9e9e9; padding: 1rem; }
+
+        .toolbar { max-width: 4in; margin: 0 auto 1rem; display: flex; gap: 0.6rem; justify-content: center; }
+        .toolbar button {
+            background: #222; color: #d4a826; border: 1px solid #d4a826;
+            padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem;
+        }
+        .toolbar button:hover { background: #d4a826; color: #222; }
+
+        /* Etiqueta 4in x 8in (ancho x alto), vertical */
+        .label {
+            width: 4in; height: 8in; background: #fff; margin: 0 auto 1rem;
+            padding: 0.35in 0.35in 0.3in; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column;
+        }
+        .lb-brand { font-size: 9pt; font-weight: 800; letter-spacing: 2px; color: #b8891a;
+            margin-bottom: 4pt; }
+        .lb-cuadro { border-bottom: 3px solid var(--ink); padding-bottom: 8pt; margin-bottom: 12pt; }
+        .lb-cuadro .num { font-size: 30pt; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+        .lb-cuadro .num small { font-size: 12pt; font-weight: 700; }
+        .lb-cuadro .ruta { font-size: 18pt; font-weight: 800; text-transform: uppercase;
+            line-height: 1.1; margin-top: 3pt; }
+        .lb-field { margin-bottom: 11pt; }
+        .lb-field .k { font-size: 12pt; font-weight: 700; }
+        .lb-field .v { font-size: 12pt; font-weight: 400; }
+        .lb-field.big .k { font-size: 13pt; }
+        .lb-field.big .v { font-size: 15pt; font-weight: 700; }
+        .lb-field .v.multi { display: block; margin-top: 2pt; line-height: 1.25; }
+
+        .lb-barcode { margin-top: auto; text-align: center; padding-top: 10pt; }
+        .lb-barcode svg { max-width: 100%; height: auto; }
+
+        .loading, .error { max-width: 4in; margin: 3rem auto; text-align: center; color:#888; font-size: 0.95rem; }
+        .error { color: #c62828; }
+
+        @media print {
+            html, body { background: #fff; padding: 0; margin: 0; }
+            .toolbar { display: none; }
+            .label { box-shadow: none; margin: 0; page-break-after: always; }
+            .label:last-child { page-break-after: auto; }
+            @page { size: 4in 8in; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+        <button onclick="window.close()"><i class="bi bi-x-lg"></i> Cerrar</button>
+    </div>
+    <div id="content"><div class="loading"><i class="bi bi-hourglass-split"></i> Cargando etiquetas...</div></div>
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        const mode = params.get('mode') || 'order';
+        const soloPedido = params.get('pedido');   // order: ID_OrderPicking
+        const soloOv = params.get('ov');            // product: OV_Number
+
+        const esc = s => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
+
+        async function load() {
+            let url;
+            if (mode === 'product') {
+                url = '/api/despacho/packing/' + params.get('routeNumber');
+            } else {
+                url = '/api/order/despacho/packing/' + params.get('idRoutePlan');
+            }
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('No se pudo cargar (' + res.status + ')');
+                const data = await res.json();
+                render(data);
+            } catch (err) {
+                document.getElementById('content').innerHTML =
+                    '<div class="error"><i class="bi bi-exclamation-triangle"></i> ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function render(data) {
+            const ruta = data.ruta || {};
+            let pedidos = data.pedidos || [];
+            if (soloPedido) pedidos = pedidos.filter(p => String(p.ID_OrderPicking) === String(soloPedido));
+            if (soloOv) pedidos = pedidos.filter(p => String(p.OV_Number) === String(soloOv));
+
+            if (pedidos.length === 0) {
+                document.getElementById('content').innerHTML = '<div class="error">Sin pedidos para imprimir.</div>';
+                return;
+            }
+
+            const cuadro = ruta.RouteNumber || '';
+
+            document.getElementById('content').innerHTML = pedidos.map((p, idx) => {
+                const cliente = p.ClienteNombre
+                    ? esc(p.ClienteNombre)
+                    : (p.DocType === 'TR' ? 'Traslado interno' : '—');
+                const direccion = p.ClienteDireccion ? esc(p.ClienteDireccion) : '—';
+                const picker = p.OperarioNombre ? esc(p.OperarioNombre) : '—';
+                const rutaNombre = (p.RouteName || ruta.RouteName || '').trim();
+
+                return `
+                    <div class="label">
+                        <div class="lb-brand">FERCO &middot; DESPACHO</div>
+                        <div class="lb-cuadro">
+                            <div class="num"><small>CUADRO DE RUTA</small><br>${esc(cuadro)}</div>
+                            ${rutaNombre ? '<div class="ruta">' + esc(rutaNombre) + '</div>' : ''}
+                        </div>
+
+                        <div class="lb-field big">
+                            <span class="k">OV:</span> <span class="v">${esc(p.OV_Number)}</span>
+                        </div>
+                        <div class="lb-field">
+                            <span class="k">Cliente:</span>
+                            <span class="v multi">${cliente}</span>
+                        </div>
+                        <div class="lb-field">
+                            <span class="k">Direcci&oacute;n:</span>
+                            <span class="v multi">${direccion}</span>
+                        </div>
+                        <div class="lb-field">
+                            <span class="k">Picker:</span> <span class="v">${picker}</span>
+                        </div>
+
+                        <div class="lb-barcode">
+                            <svg class="bc" data-ov="${esc(p.OV_Number)}" id="bc-${idx}"></svg>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Render barcodes (Code128) con la OV
+            document.querySelectorAll('svg.bc').forEach(el => {
+                const ov = el.getAttribute('data-ov') || '';
+                try {
+                    JsBarcode(el, String(ov), {
+                        format: 'CODE128', width: 2.4, height: 90,
+                        displayValue: true, text: 'OV  ' + ov,
+                        fontSize: 18, margin: 0, textMargin: 6
+                    });
+                } catch (e) { /* OV no numérica u otro: dejar vacío */ }
+            });
+
+            setTimeout(() => window.print(), 500);
+        }
+
+        load();
+    </script>
+</body>
+</html>

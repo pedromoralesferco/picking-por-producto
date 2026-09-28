@@ -276,8 +276,21 @@
         }
         .btn-print-cuadro i { margin-right: 0.3rem; }
 
+        /* Salto de línea dentro del contenedor flex de botones */
+        .btns-break { flex-basis: 100%; height: 0; margin: 0; }
+        /* Etiquetas de empaque: naranja llamativo */
+        .btn-etiquetas {
+            background: #ff6a00;
+            color: #fff;
+            border-color: #ff6a00;
+            box-shadow: 0 2px 6px rgba(255,106,0,0.35);
+        }
+        .btn-etiquetas:hover { background: #e65c00; border-color: #e65c00; color: #fff; }
+
         .route-header-print { display: flex; flex-direction: column; gap: 0.4rem; }
         .route-header-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
+        /* Todos los botones del header al mismo tamaño */
+        .route-header-btns button { min-width: 210px; text-align: center; }
         .btn-completar {
             background: #2e7d32; color: #fff; border: 1px solid #2e7d32;
             padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
@@ -777,6 +790,10 @@
                             <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
                                 <i class="bi bi-printer"></i> Cuadro de Ruta
                             </button>
+                            <div class="btns-break"></div>
+                            <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasProducto(${ruta.RouteNumber})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
+                                <i class="bi bi-tag-fill"></i> Etiquetas de empaque
+                            </button>
                         </div>
                     </div>
                     <div class="route-header-grid">
@@ -838,6 +855,9 @@
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingProducto('${routeNumber}', '${esc(d.OV_Number)}')">
                             <i class="bi bi-printer"></i>
+                        </button>
+                        <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaProducto('${routeNumber}', '${esc(d.OV_Number)}')">
+                            <i class="bi bi-tag"></i>
                         </button>
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
@@ -982,6 +1002,10 @@
                             <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
                                 <i class="bi bi-printer"></i> Cuadro de Ruta
                             </button>
+                            <div class="btns-break"></div>
+                            <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasOrder(${ruta.ID_RoutePlan})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
+                                <i class="bi bi-tag-fill"></i> Etiquetas de empaque
+                            </button>
                         </div>
                     </div>
                     <div class="route-header-grid">
@@ -1045,6 +1069,9 @@
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingOrder(${d.ID_OrderPicking})">
                             <i class="bi bi-printer"></i>
+                        </button>
+                        <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaOrder(${d.ID_OrderPicking})">
+                            <i class="bi bi-tag"></i>
                         </button>
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
@@ -1197,6 +1224,20 @@
         }
         function printPackingAllProducto(routeNumber) {
             window.open('/packing-list-print.html?mode=product&routeNumber=' + routeNumber, '_blank');
+        }
+
+        // ── Etiquetas 4x8 (una por OV) ──
+        function printEtiquetasOrder(idRoutePlan) {
+            window.open('/etiqueta-print.html?mode=order&idRoutePlan=' + idRoutePlan, '_blank');
+        }
+        function printEtiquetaOrder(idOrderPicking) {
+            window.open('/etiqueta-print.html?mode=order&idRoutePlan=' + selectedRoutePlanId + '&pedido=' + idOrderPicking, '_blank');
+        }
+        function printEtiquetasProducto(routeNumber) {
+            window.open('/etiqueta-print.html?mode=product&routeNumber=' + routeNumber, '_blank');
+        }
+        function printEtiquetaProducto(routeNumber, ovNumber) {
+            window.open('/etiqueta-print.html?mode=product&routeNumber=' + routeNumber + '&ov=' + encodeURIComponent(ovNumber), '_blank');
         }
 
         function esc(str) {
