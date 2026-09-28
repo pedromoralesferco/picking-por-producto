@@ -38,6 +38,13 @@
         .lb-field.big .v { font-size: 15pt; font-weight: 700; }
         .lb-field .v.multi { display: block; margin-top: 2pt; line-height: 1.25; }
 
+        /* Contador de bultos: 1/X, grande y destacado */
+        .lb-bultos { display: flex; align-items: baseline; gap: 8pt;
+            border: 2.5px solid var(--ink); border-radius: 8pt;
+            padding: 6pt 10pt; margin-bottom: 12pt; }
+        .lb-bultos .lbl { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        .lb-bultos .cnt { font-size: 26pt; font-weight: 800; line-height: 1; margin-left: auto; }
+
         .lb-barcode { margin-top: auto; text-align: center; padding-top: 10pt; }
         .lb-barcode svg { max-width: 100%; height: auto; }
 
@@ -67,6 +74,12 @@
         const soloOv = params.get('ov');            // product: OV_Number
 
         const esc = s => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
+        const ffecha = dt => {
+            if (!dt) return '—';
+            const d = new Date(dt);
+            if (isNaN(d)) return '—';
+            return d.toLocaleString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
 
         async function load() {
             let url;
@@ -99,7 +112,23 @@
 
             const cuadro = ruta.RouteNumber || '';
 
-            document.getElementById('content').innerHTML = pedidos.map((p, idx) => {
+            // # de bultos por OV (guardado desde el detalle de despacho); default 1.
+            let bultosMap = {};
+            try { bultosMap = JSON.parse(localStorage.getItem('etiquetasBultos') || '{}') || {}; } catch (e) {}
+            const bultosDe = ov => {
+                let n = parseInt(bultosMap[String(ov)], 10);
+                return (Number.isFinite(n) && n >= 1) ? n : 1;
+            };
+
+            // Una etiqueta por bulto: 1/X, 2/X … X/X
+            const labels = [];
+            pedidos.forEach(p => {
+                const X = bultosDe(p.OV_Number);
+                for (let i = 1; i <= X; i++) labels.push({ p, i, X });
+            });
+
+            document.getElementById('content').innerHTML = labels.map((L, idx) => {
+                const p = L.p;
                 const cliente = p.ClienteNombre
                     ? esc(p.ClienteNombre)
                     : (p.DocType === 'TR' ? 'Traslado interno' : '—');
@@ -115,6 +144,11 @@
                             ${rutaNombre ? '<div class="ruta">' + esc(rutaNombre) + '</div>' : ''}
                         </div>
 
+                        <div class="lb-bultos">
+                            <span class="lbl">Bulto</span>
+                            <span class="cnt">${L.i} / ${L.X}</span>
+                        </div>
+
                         <div class="lb-field big">
                             <span class="k">OV:</span> <span class="v">${esc(p.OV_Number)}</span>
                         </div>
@@ -128,6 +162,9 @@
                         </div>
                         <div class="lb-field">
                             <span class="k">Picker:</span> <span class="v">${picker}</span>
+                        </div>
+                        <div class="lb-field">
+                            <span class="k">Fecha picking:</span> <span class="v">${ffecha(p.FechaPicking)}</span>
                         </div>
 
                         <div class="lb-barcode">

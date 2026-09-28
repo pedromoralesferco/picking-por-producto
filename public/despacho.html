@@ -338,6 +338,15 @@
         }
         .btn-print-pedido:hover { background: #2e7d32; color: #fff; border-color: #2e7d32; }
 
+        /* Control de bultos por OV (para las etiquetas de empaque) */
+        .bultos-ctrl { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: none; }
+        .bultos-ctrl label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.04em; color: #999; font-weight: 700; }
+        .bultos-input {
+            width: 48px; height: 30px; text-align: center; font-weight: 700; font-size: 0.85rem;
+            border: 1px solid #ffb380; border-radius: 6px; color: #b34700; background: #fff8f2;
+        }
+        .bultos-input:focus { outline: none; border-color: #ff6a00; box-shadow: 0 0 0 2px rgba(255,106,0,0.2); }
+
         /* Checkbox de verificación QC */
         .qc-check { position: relative; display: inline-flex; align-items: center; cursor: pointer; flex: none; margin-left: 0.5rem; }
         .qc-check input { position: absolute; opacity: 0; width: 22px; height: 22px; margin: 0; cursor: pointer; }
@@ -853,6 +862,10 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado}</span></div>
                         </div>
+                        <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
+                            <label>Bultos</label>
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()">
+                        </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingProducto('${routeNumber}', '${esc(d.OV_Number)}')">
                             <i class="bi bi-printer"></i>
                         </button>
@@ -1067,10 +1080,14 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span></div>
                         </div>
+                        <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
+                            <label>Bultos</label>
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()">
+                        </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingOrder(${d.ID_OrderPicking})">
                             <i class="bi bi-printer"></i>
                         </button>
-                        <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaOrder(${d.ID_OrderPicking})">
+                        <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaOrder(${d.ID_OrderPicking}, '${esc(d.OV_Number)}')">
                             <i class="bi bi-tag"></i>
                         </button>
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
@@ -1226,17 +1243,34 @@
             window.open('/packing-list-print.html?mode=product&routeNumber=' + routeNumber, '_blank');
         }
 
-        // ── Etiquetas 4x8 (una por OV) ──
+        // ── Etiquetas 4x8 (una por bulto de cada OV) ──
+        // Recolecta el # de bultos por OV desde los inputs del detalle y lo deja en
+        // localStorage para que la página de etiquetas genere 1/X, 2/X … por OV.
+        function guardarBultos() {
+            const map = {};
+            document.querySelectorAll('.bultos-input').forEach(inp => {
+                const ov = inp.getAttribute('data-ov');
+                let n = parseInt(inp.value, 10);
+                if (!ov) return;
+                if (!Number.isFinite(n) || n < 1) n = 1;
+                map[ov] = n;
+            });
+            try { localStorage.setItem('etiquetasBultos', JSON.stringify(map)); } catch (e) {}
+        }
         function printEtiquetasOrder(idRoutePlan) {
+            guardarBultos();
             window.open('/etiqueta-print.html?mode=order&idRoutePlan=' + idRoutePlan, '_blank');
         }
-        function printEtiquetaOrder(idOrderPicking) {
+        function printEtiquetaOrder(idOrderPicking, ovNumber) {
+            guardarBultos();
             window.open('/etiqueta-print.html?mode=order&idRoutePlan=' + selectedRoutePlanId + '&pedido=' + idOrderPicking, '_blank');
         }
         function printEtiquetasProducto(routeNumber) {
+            guardarBultos();
             window.open('/etiqueta-print.html?mode=product&routeNumber=' + routeNumber, '_blank');
         }
         function printEtiquetaProducto(routeNumber, ovNumber) {
+            guardarBultos();
             window.open('/etiqueta-print.html?mode=product&routeNumber=' + routeNumber + '&ov=' + encodeURIComponent(ovNumber), '_blank');
         }
 

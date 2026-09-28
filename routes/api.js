@@ -789,6 +789,43 @@ router.get('/despacho/rutas/:routeNumber/documentos', async (req, res) => {
                     CASE WHEN SUM(CantidadPendiente) = 0 THEN 1 ELSE 0 END,
                     OV_Number
             `);
+
+        // Sugerido de bultos por OV = SUM(ceil(cantidad / U_PIEZAXCAJA)) por línea.
+        try {
+            const docs = result.recordset;
+            const rn = parseInt(req.params.routeNumber);
+            const linRes = await pool.request()
+                .input('routeNumber', sql.Int, rn)
+                .query(`
+                    SELECT OV_Number, InternIdProduct AS Product, MAX(Cantidad) AS Cantidad
+                    FROM RoutePickingTask WHERE Route_Number = @routeNumber
+                    GROUP BY OV_Number, InternIdProduct`);
+            const lines = linRes.recordset;
+
+            // Piezas por caja desde SAP (producto = GT)
+            const piezas = {};
+            const prods = [...new Set(lines.map(l => String(l.Product)).filter(Boolean))];
+            if (prods.length > 0) {
+                const sapDb = getSapDb('GT');
+                const rp = pool.request();
+                const pParams = prods.map((v, i) => { rp.input('p' + i, sql.NVarChar, v); return '@p' + i; }).join(',');
+                const pRes = await rp.query(`
+                    SELECT ItemCode, U_PIEZAXCAJA AS Pcs
+                    FROM [server-sql].[${sapDb}].dbo.OITM WITH (NOLOCK)
+                    WHERE ItemCode IN (${pParams})`);
+                pRes.recordset.forEach(row => { piezas[String(row.ItemCode)] = Number(row.Pcs) || 0; });
+            }
+
+            const bultos = {};
+            for (const l of lines) {
+                const pcs = piezas[String(l.Product)] || 0;
+                const cant = Number(l.Cantidad) || 0;
+                const b = pcs > 0 ? Math.ceil(cant / pcs) : 1;
+                bultos[l.OV_Number] = (bultos[l.OV_Number] || 0) + b;
+            }
+            docs.forEach(d => { d.SugeridoBultos = Math.max(1, bultos[d.OV_Number] || 1); });
+        } catch (e) { console.error('sugerido bultos (producto):', e.message); }
+
         res.json(result.recordset);
     } catch (err) {
         console.error('GET /api/despacho/rutas/:routeNumber/documentos error:', err);
@@ -881,7 +918,7 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
                 SELECT t.OV_Number, MAX(t.DocType) AS DocType, MAX(t.IDCustomerORder) AS IDCustomerOrder,
                        t.InternIdProduct AS Product, MAX(t.Descripcion) AS ProductName,
                        MAX(t.Cantidad) AS Cantidad, MAX(t.UnitWeight) AS UnitWeight,
-                       MAX(o.Nombre) AS OperarioNombre,
+                       MAX(o.Nombre) AS OperarioNombre, MAX(t.UltimaActualizacion) AS UltimoPick,
                        CAST(MIN(CAST(t.Verificado AS INT)) AS BIT) AS Verificado,
                        MAX(t.FechaVerificacion) AS FechaVerificacion, MAX(t.VerificadoPor) AS VerificadoPor
                 FROM RoutePickingTask t
@@ -917,9 +954,13 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
                 pedidosMap.set(r.OV_Number, {
                     OV_Number: r.OV_Number, DocType: r.DocType,
                     ClienteNombre: cli ? cli.name : null, ClienteDireccion: cli ? cli.address : null,
-                    OperarioNombre: r.OperarioNombre,
+                    OperarioNombre: r.OperarioNombre, FechaPicking: r.UltimoPick || null,
                     RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []
                 });
+            }
+            const pedProd = pedidosMap.get(r.OV_Number);
+            if (r.UltimoPick && (!pedProd.FechaPicking || new Date(r.UltimoPick) > new Date(pedProd.FechaPicking))) {
+                pedProd.FechaPicking = r.UltimoPick;
             }
             pedidosMap.get(r.OV_Number).lineas.push({
                 Product: r.Product, ProductName: r.ProductName, Cantidad: r.Cantidad,
