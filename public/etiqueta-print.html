@@ -41,9 +41,10 @@
         /* Contador de bultos: 1/X, grande y destacado */
         .lb-bultos { display: flex; align-items: baseline; gap: 8pt;
             border: 2.5px solid var(--ink); border-radius: 8pt;
-            padding: 6pt 10pt; margin-bottom: 12pt; }
+            padding: 6pt 10pt; margin-bottom: 3pt; }
         .lb-bultos .lbl { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
         .lb-bultos .cnt { font-size: 26pt; font-weight: 800; line-height: 1; margin-left: auto; }
+        .lb-bultos-sub { font-size: 9pt; color: var(--muted); margin-bottom: 12pt; }
 
         .lb-barcode { margin-top: auto; text-align: center; padding-top: 10pt; }
         .lb-barcode svg { max-width: 100%; height: auto; }
@@ -120,11 +121,15 @@
                 return (Number.isFinite(n) && n >= 1) ? n : 1;
             };
 
-            // Una etiqueta por bulto: 1/X, 2/X … X/X
+            // Numeración CORRIDA por todo el cuadro (los bultos del camión):
+            // 1/TOTAL, 2/TOTAL … TOTAL/TOTAL a lo largo de todas las OVs.
+            // Cada etiqueta muestra además su posición dentro de su OV (i de X).
+            const totalBultos = pedidos.reduce((s, p) => s + bultosDe(p.OV_Number), 0) || 1;
             const labels = [];
+            let g = 0;
             pedidos.forEach(p => {
                 const X = bultosDe(p.OV_Number);
-                for (let i = 1; i <= X; i++) labels.push({ p, i, X });
+                for (let i = 1; i <= X; i++) { g++; labels.push({ p, i, X, g, total: totalBultos }); }
             });
 
             document.getElementById('content').innerHTML = labels.map((L, idx) => {
@@ -146,8 +151,9 @@
 
                         <div class="lb-bultos">
                             <span class="lbl">Bulto</span>
-                            <span class="cnt">${L.i} / ${L.X}</span>
+                            <span class="cnt">${L.g} / ${L.total}</span>
                         </div>
+                        <div class="lb-bultos-sub">Bulto ${L.i} de ${L.X} de esta OV</div>
 
                         <div class="lb-field big">
                             <span class="k">OV:</span> <span class="v">${esc(p.OV_Number)}</span>
