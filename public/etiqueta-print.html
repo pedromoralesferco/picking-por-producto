@@ -140,6 +140,8 @@
                 const direccion = p.ClienteDireccion ? esc(p.ClienteDireccion) : '—';
                 const picker = p.OperarioNombre ? esc(p.OperarioNombre) : '—';
                 const rutaNombre = (p.RouteName || ruta.RouteName || '').trim();
+                const esTR = p.DocType === 'TR';
+                const dirLabel = esTR ? 'Destino:' : 'Direcci&oacute;n:';
 
                 return `
                     <div class="label">
@@ -163,7 +165,7 @@
                             <span class="v multi">${cliente}</span>
                         </div>
                         <div class="lb-field">
-                            <span class="k">Direcci&oacute;n:</span>
+                            <span class="k">${dirLabel}</span>
                             <span class="v multi">${direccion}</span>
                         </div>
                         <div class="lb-field">

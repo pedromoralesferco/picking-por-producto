@@ -938,13 +938,33 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
             } catch (e) { console.error('packing producto cliente SAP:', e.message); }
         }
 
+        // Destino de traslados (TR) = almacén destino de la solicitud OWTQ (producto = GT)
+        const destinosTR = {};
+        const trInts = [...new Set(lineasRes.recordset.filter(r => r.DocType === 'TR')
+            .map(r => parseInt(r.OV_Number)).filter(v => !isNaN(v)))];
+        if (trInts.length > 0) {
+            const sapDb = getSapDb('GT');
+            const reqT = pool.request();
+            const inParams = trInts.map((v, i) => { reqT.input('tr' + i, sql.Int, v); return '@tr' + i; }).join(',');
+            try {
+                const tRes = await reqT.query(`
+                    SELECT o.DocNum AS TR, MAX(o.ToWhsCode) AS ToWhs, MAX(wh.WhsName) AS Destino
+                    FROM [server-sql].[${sapDb}].dbo.OWTQ o WITH (NOLOCK)
+                    LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
+                    WHERE o.DocNum IN (${inParams}) GROUP BY o.DocNum`);
+                tRes.recordset.forEach(row => { destinosTR[String(row.TR)] = row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null); });
+            } catch (e) { console.error('packing producto TR destino SAP:', e.message); }
+        }
+
         const pedidosMap = new Map();
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.OV_Number)) {
                 const cli = clientes[String(r.OV_Number)] || null;
+                const destTR = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
                 pedidosMap.set(r.OV_Number, {
                     OV_Number: r.OV_Number, DocType: r.DocType,
-                    ClienteNombre: cli ? cli.name : null, ClienteDireccion: cli ? cli.address : null,
+                    ClienteNombre: cli ? cli.name : null,
+                    ClienteDireccion: destTR || (cli ? cli.address : null),
                     OperarioNombre: r.OperarioNombre, FechaPicking: r.UltimoPick || null,
                     RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []
                 });

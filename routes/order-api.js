@@ -29,6 +29,31 @@ async function getClientesSAP(pool, pais, ovNumbers) {
     return map;
 }
 
+// Trae { TR_DocNum: 'almacén destino' } para traslados (OWTQ) desde SAP.
+// El destino de un TR es OWTQ.ToWhsCode → nombre en OWHS.
+async function getTrasladosDestinoSAP(pool, pais, trNumbers) {
+    const map = {};
+    const ints = [...new Set(trNumbers.map(v => parseInt(v)).filter(v => !isNaN(v)))];
+    if (ints.length === 0) return map;
+    const sapDb = getSapDb(pais);
+    const req = pool.request();
+    const inParams = ints.map((v, i) => { req.input('tr' + i, sql.Int, v); return '@tr' + i; }).join(',');
+    try {
+        const r = await req.query(`
+            SELECT o.DocNum AS TR,
+                   MAX(o.ToWhsCode) AS ToWhs,
+                   MAX(wh.WhsName) AS Destino
+            FROM [server-sql].[${sapDb}].dbo.OWTQ o WITH (NOLOCK)
+            LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
+            WHERE o.DocNum IN (${inParams})
+            GROUP BY o.DocNum`);
+        r.recordset.forEach(row => {
+            map[String(row.TR)] = row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null);
+        });
+    } catch (e) { console.error('getTrasladosDestinoSAP error:', e.message); }
+    return map;
+}
+
 // Helper: get user's active centro(s) from session
 // If a centro is selected, return only that one; otherwise return all assigned
 function getUserCentros(req) {
@@ -889,18 +914,22 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
                 ORDER BY opm.OV_Number, t.InternIdProduct
             `);
 
-        // Nombre de cliente desde SAP (solo OVs)
+        // Nombre de cliente desde SAP (solo OVs) + destino de traslados (TR)
         const ovsOV = lineasRes.recordset.filter(r => r.DocType === 'OV').map(r => r.OV_Number);
         const clientes = await getClientesSAP(pool, ruta.Pais, ovsOV);
+        const trsTR = lineasRes.recordset.filter(r => r.DocType === 'TR').map(r => r.OV_Number);
+        const destinosTR = await getTrasladosDestinoSAP(pool, ruta.Pais, trsTR);
 
         // Agrupar líneas por pedido
         const pedidosMap = new Map();
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.ID_OrderPicking)) {
                 const cli = clientes[String(r.OV_Number)] || null;
+                const destTR = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
                 pedidosMap.set(r.ID_OrderPicking, {
                     ID_OrderPicking: r.ID_OrderPicking, OV_Number: r.OV_Number, DocType: r.DocType,
-                    ClienteNombre: cli ? cli.name : null, ClienteDireccion: cli ? cli.address : null,
+                    ClienteNombre: cli ? cli.name : null,
+                    ClienteDireccion: destTR || (cli ? cli.address : null),
                     PesoTotal: r.PesoTotal, OperarioNombre: r.OperarioNombre,
                     FechaPicking: r.UltimoPick || null,
                     RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []
