@@ -784,67 +784,12 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.OV_Number
             `);
 
-        // Sugerido de bultos por pedido = SUM(ceil(cantidad / U_PIEZAXCAJA)) por línea.
-        // Se calcula en JS (trae piezas/caja de OITM por separado) para no cruzar
-        // columnas locales (CP850) con SAP en un JOIN y evitar conflictos de colación.
-        try {
-            await attachSugeridoBultosOrder(pool, parseInt(req.params.id), result.recordset);
-        } catch (e) { console.error('sugerido bultos (order):', e.message); }
-
         res.json(result.recordset);
     } catch (err) {
         console.error('GET /api/order/despacho/rutas/:id/documentos error:', err);
         res.status(500).json({ error: 'Error interno' });
     }
 });
-
-// Calcula y adjunta SugeridoBultos a cada doc (modo pedido).
-async function attachSugeridoBultosOrder(pool, idRoutePlan, docs) {
-    const ids = docs.map(d => d.ID_OrderPicking).filter(v => v != null);
-    if (ids.length === 0) return;
-
-    const paisRes = await pool.request()
-        .input('idRoutePlan', sql.Int, idRoutePlan)
-        .query(`SELECT TOP 1 Pais FROM OrderRoutePlan WHERE ID_RoutePlan = @idRoutePlan`);
-    const pais = (paisRes.recordset[0] && paisRes.recordset[0].Pais) || 'GT';
-
-    const rl = pool.request();
-    const idParams = ids.map((v, i) => { rl.input('id' + i, sql.Int, v); return '@id' + i; }).join(',');
-    const linRes = await rl.query(`
-        SELECT ID_OrderPicking, InternIdProduct AS Product, MAX(Cantidad) AS Cantidad
-        FROM OrderPickingTask WHERE ID_OrderPicking IN (${idParams})
-        GROUP BY ID_OrderPicking, InternIdProduct`);
-    const lines = linRes.recordset;
-
-    const piezas = await getPiezasPorCaja(pool, pais, lines.map(l => l.Product));
-
-    const bultos = {};
-    for (const l of lines) {
-        const pcs = piezas[String(l.Product)] || 0;
-        const cant = Number(l.Cantidad) || 0;
-        const b = pcs > 0 ? Math.ceil(cant / pcs) : 1;
-        bultos[l.ID_OrderPicking] = (bultos[l.ID_OrderPicking] || 0) + b;
-    }
-    docs.forEach(d => { d.SugeridoBultos = Math.max(1, bultos[d.ID_OrderPicking] || 1); });
-}
-
-// Trae { ItemCode: U_PIEZAXCAJA } desde SAP para un conjunto de productos (por país).
-async function getPiezasPorCaja(pool, pais, productos) {
-    const map = {};
-    const prods = [...new Set(productos.map(p => String(p)).filter(Boolean))];
-    if (prods.length === 0) return map;
-    const sapDb = getSapDb(pais);
-    const rp = pool.request();
-    const pParams = prods.map((v, i) => { rp.input('p' + i, sql.NVarChar, v); return '@p' + i; }).join(',');
-    try {
-        const r = await rp.query(`
-            SELECT ItemCode, U_PIEZAXCAJA AS Pcs
-            FROM [server-sql].[${sapDb}].dbo.OITM WITH (NOLOCK)
-            WHERE ItemCode IN (${pParams})`);
-        r.recordset.forEach(row => { map[String(row.ItemCode)] = Number(row.Pcs) || 0; });
-    } catch (e) { console.error('getPiezasPorCaja error:', e.message); }
-    return map;
-}
 
 // GET /api/order/despacho/rutas/:id/documentos/:idOrderPicking/productos — Lines for a pedido in despacho
 router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (req, res) => {

@@ -869,7 +869,7 @@
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
                             <label>Bultos</label>
-                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="1" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingProducto('${routeNumber}', '${esc(d.OV_Number)}')">
                             <i class="bi bi-printer"></i>
@@ -1094,7 +1094,7 @@
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
                             <label>Bultos</label>
-                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="${d.SugeridoBultos || 1}" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="1" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingOrder(${d.ID_OrderPicking})">
                             <i class="bi bi-printer"></i>

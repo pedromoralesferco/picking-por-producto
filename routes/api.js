@@ -817,42 +817,6 @@ router.get('/despacho/rutas/:routeNumber/documentos', async (req, res) => {
                     OV_Number
             `);
 
-        // Sugerido de bultos por OV = SUM(ceil(cantidad / U_PIEZAXCAJA)) por línea.
-        try {
-            const docs = result.recordset;
-            const rn = parseInt(req.params.routeNumber);
-            const linRes = await pool.request()
-                .input('routeNumber', sql.Int, rn)
-                .query(`
-                    SELECT OV_Number, InternIdProduct AS Product, MAX(Cantidad) AS Cantidad
-                    FROM RoutePickingTask WHERE Route_Number = @routeNumber
-                    GROUP BY OV_Number, InternIdProduct`);
-            const lines = linRes.recordset;
-
-            // Piezas por caja desde SAP (producto = GT)
-            const piezas = {};
-            const prods = [...new Set(lines.map(l => String(l.Product)).filter(Boolean))];
-            if (prods.length > 0) {
-                const sapDb = getSapDb('GT');
-                const rp = pool.request();
-                const pParams = prods.map((v, i) => { rp.input('p' + i, sql.NVarChar, v); return '@p' + i; }).join(',');
-                const pRes = await rp.query(`
-                    SELECT ItemCode, U_PIEZAXCAJA AS Pcs
-                    FROM [server-sql].[${sapDb}].dbo.OITM WITH (NOLOCK)
-                    WHERE ItemCode IN (${pParams})`);
-                pRes.recordset.forEach(row => { piezas[String(row.ItemCode)] = Number(row.Pcs) || 0; });
-            }
-
-            const bultos = {};
-            for (const l of lines) {
-                const pcs = piezas[String(l.Product)] || 0;
-                const cant = Number(l.Cantidad) || 0;
-                const b = pcs > 0 ? Math.ceil(cant / pcs) : 1;
-                bultos[l.OV_Number] = (bultos[l.OV_Number] || 0) + b;
-            }
-            docs.forEach(d => { d.SugeridoBultos = Math.max(1, bultos[d.OV_Number] || 1); });
-        } catch (e) { console.error('sugerido bultos (producto):', e.message); }
-
         res.json(result.recordset);
     } catch (err) {
         console.error('GET /api/despacho/rutas/:routeNumber/documentos error:', err);
