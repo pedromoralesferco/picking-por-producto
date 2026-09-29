@@ -983,7 +983,16 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
                 FechaVerificacion: r.FechaVerificacion, VerificadoPor: r.VerificadoPor
             });
         }
-        res.json({ ruta, pedidos: Array.from(pedidosMap.values()) });
+        // Anti-duplicados: conservar la copia con más líneas de cada OV y descartar vacías
+        const porOV = new Map();
+        for (const p of pedidosMap.values()) {
+            const key = String(p.OV_Number) + '|' + (p.DocType || '');
+            const ex = porOV.get(key);
+            if (!ex || (p.lineas.length > ex.lineas.length)) porOV.set(key, p);
+        }
+        const pedidosDedup = Array.from(porOV.values()).filter(p => p.lineas.length > 0);
+
+        res.json({ ruta, pedidos: pedidosDedup });
     } catch (err) {
         console.error('GET /api/despacho/packing error:', err);
         res.status(500).json({ error: 'Error al obtener packing list' });
