@@ -106,24 +106,24 @@
             const direccion = zsan(p.ClienteDireccion || '');
             const picker = zsan(p.OperarioNombre || '-');
             const fecha = zsan(ffecha(p.FechaPicking));
+            // Material 3x2 (609x406) landscape; contenido ROTADO (R) para leer VERTICAL.
             return [
                 '^XA', '^CI28', '^PW609', '^LL406', '^LH0,0',
-                `^FO18,14^A0N,18,18^FDCUADRO DE RUTA^FS`,
-                `^FO18,34^A0N,60,60^FD${cuadro}^FS`,
-                `^FO18,100^A0N,24,24^FB360,1,0,L^FD${ruta}^FS`,
-                `^FO18,132^GB573,2,2^FS`,
-                `^FO392,12^GB199,74,3^FS`,
-                `^FO404,20^A0N,18,18^FDBULTO^FS`,
-                `^FO404,40^A0N,44,44^FD${L.g} / ${L.total}^FS`,
-                `^FO18,146^A0N,20,20^FDOV:^FS`,
-                `^FO60,142^A0N,32,32^FD${ov}^FS`,
-                `^FO18,182^A0N,18,18^FDCliente:^FS`,
-                `^FO18,202^A0N,22,22^FB380,2,0,L^FD${cliente}^FS`,
-                `^FO18,250^A0N,18,18^FD${dirLabel}^FS`,
-                `^FO18,270^A0N,20,20^FB380,2,0,L^FD${direccion}^FS`,
-                `^FO18,318^A0N,18,18^FDPicker: ${picker}^FS`,
-                `^FO18,340^A0N,18,18^FDFecha: ${fecha}^FS`,
-                `^FO392,150^BY2,2,60^BCN,60,Y,N,N^FD${ov}^FS`,
+                `^FO580,14^A0R,20,20^FDCUADRO DE RUTA^FS`,
+                `^FO515,14^A0R,60,60^FD${cuadro}^FS`,
+                `^FO486,14^A0R,24,24^FB384,1,0,L^FD${ruta}^FS`,
+                `^FO478,10^GB1,232,3^FS`,
+                `^FO438,262^GB44,140,2^FS`,
+                `^FO464,274^A0R,18,18^FDBULTO^FS`,
+                `^FO446,305^A0R,40,40^FD${L.g} / ${L.total}^FS`,
+                `^FO444,14^A0R,32,32^FDOV: ${ov}^FS`,
+                `^FO420,14^A0R,18,18^FDCliente:^FS`,
+                `^FO372,14^A0R,22,22^FB380,2,0,L^FD${cliente}^FS`,
+                `^FO350,14^A0R,18,18^FD${dirLabel}^FS`,
+                `^FO306,14^A0R,20,20^FB380,2,0,L^FD${direccion}^FS`,
+                `^FO282,14^A0R,18,18^FDPicker: ${picker}^FS`,
+                `^FO258,14^A0R,18,18^FDFecha: ${fecha}^FS`,
+                `^FO180,14^BY2,2,70^BCR,70,Y,N,N^FD${ov}^FS`,
                 '^XZ'
             ].join('\n');
         }
