@@ -85,6 +85,22 @@ try {
     console.error('AVISO: Planificador deshabilitado (fallo al cargar el modulo):', err.message);
 }
 
+// Reportes / Plan de Despachos (blindado, igual que el Planificador): si el
+// módulo falla al cargar, se desactiva SOLO Reportes y el resto arranca normal.
+try {
+    const reportesApiRoutes = require('./routes/reportes-api');
+    app.use('/api/reportes', reportesApiRoutes);
+    app.get('/plan-despachos', requireAuthPage, requireCentro, (req, res) => {
+        const u = req.session.user;
+        const ok = u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo')));
+        if (!ok) return res.redirect('/dashboard');
+        res.sendFile(path.join(__dirname, 'public', 'plan-despachos.html'));
+    });
+    console.log('Modulo Reportes (Plan de Despachos) cargado.');
+} catch (err) {
+    console.error('AVISO: Reportes deshabilitado (fallo al cargar el modulo):', err.message);
+}
+
 app.use('/api', apiRoutes);
 
 // Centro selection page

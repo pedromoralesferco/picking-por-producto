@@ -91,6 +91,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         let permisos = [];
         if (user.Rol === 'Admin') {
             permisos = ['priorizacion', 'gestion', 'despacho', 'pase-salida',
+                        'reportes', 'reportes_operativo',
                         'wms_picking', 'wms_ingreso', 'wms_traslados', 'wms_config'];
         } else {
             const permResult = await pool.request()

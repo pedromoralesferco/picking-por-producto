@@ -281,6 +281,16 @@
                 });
             }
 
+            if (isAdmin || permisos.includes('reportes') || permisos.includes('reportes_operativo')) {
+                modules.push({
+                    href: '/plan-despachos',
+                    icon: 'bi-clipboard-data',
+                    iconClass: 'despacho',
+                    title: 'Plan de Despachos',
+                    desc: 'Tablero de control de despachos del centro (en vivo).'
+                });
+            }
+
             if (isAdmin || permisos.includes('pase-salida')) {
                 modules.push({
                     href: '/pase-salida',
