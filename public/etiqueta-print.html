@@ -68,9 +68,12 @@
 </head>
 <body>
     <div class="toolbar">
-        <button onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+        <button onclick="enviarZebra(false)"><i class="bi bi-printer"></i> Imprimir en Zebra</button>
+        <button onclick="descargarZPL()"><i class="bi bi-download"></i> Descargar ZPL</button>
+        <button onclick="window.print()" title="Fallback por navegador"><i class="bi bi-file-earmark"></i> Navegador</button>
         <button onclick="window.close()"><i class="bi bi-x-lg"></i> Cerrar</button>
     </div>
+    <div id="zstatus" style="max-width:4in;margin:0 auto 0.6rem;text-align:center;font-size:0.8rem;color:#888"></div>
     <div id="content"><div class="loading"><i class="bi bi-hourglass-split"></i> Cargando etiquetas...</div></div>
 
     <script>
@@ -86,6 +89,85 @@
             if (isNaN(d)) return '—';
             return d.toLocaleString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         };
+
+        // ── ZPL (Zebra ZD421, 3x2 @ 203dpi = 609x406 dots) ──
+        let ETQ_LABELS = [];   // [{ p, i, X, g, total }]
+        let ETQ_RUTA = {};
+        const zsan = s => String(s == null ? '' : s).replace(/[\^~]/g, ' ').trim();
+
+        function zplForLabel(L) {
+            const p = L.p;
+            const cuadro = zsan(ETQ_RUTA.RouteNumber || '');
+            const ruta = zsan((p.RouteName || ETQ_RUTA.RouteName || '')).toUpperCase().slice(0, 34);
+            const ov = zsan(p.OV_Number);
+            const esTR = p.DocType === 'TR';
+            const cliente = zsan(p.ClienteNombre || (esTR ? 'Traslado interno' : ''));
+            const dirLabel = esTR ? 'Destino:' : 'Direccion:';
+            const direccion = zsan(p.ClienteDireccion || '');
+            const picker = zsan(p.OperarioNombre || '-');
+            const fecha = zsan(ffecha(p.FechaPicking));
+            return [
+                '^XA', '^CI28', '^PW609', '^LL406', '^LH0,0',
+                `^FO18,14^A0N,18,18^FDCUADRO DE RUTA^FS`,
+                `^FO18,34^A0N,60,60^FD${cuadro}^FS`,
+                `^FO18,100^A0N,24,24^FB360,1,0,L^FD${ruta}^FS`,
+                `^FO18,132^GB573,2,2^FS`,
+                `^FO392,12^GB199,74,3^FS`,
+                `^FO404,20^A0N,18,18^FDBULTO^FS`,
+                `^FO404,40^A0N,44,44^FD${L.g} / ${L.total}^FS`,
+                `^FO18,146^A0N,20,20^FDOV:^FS`,
+                `^FO60,142^A0N,32,32^FD${ov}^FS`,
+                `^FO18,182^A0N,18,18^FDCliente:^FS`,
+                `^FO18,202^A0N,22,22^FB380,2,0,L^FD${cliente}^FS`,
+                `^FO18,250^A0N,18,18^FD${dirLabel}^FS`,
+                `^FO18,270^A0N,20,20^FB380,2,0,L^FD${direccion}^FS`,
+                `^FO18,318^A0N,18,18^FDPicker: ${picker}^FS`,
+                `^FO18,340^A0N,18,18^FDFecha: ${fecha}^FS`,
+                `^FO392,150^BY2,2,60^BCN,60,Y,N,N^FD${ov}^FS`,
+                '^XZ'
+            ].join('\n');
+        }
+        function buildAllZPL() { return ETQ_LABELS.map(zplForLabel).join('\n'); }
+
+        // ── Envío a la Zebra vía Zebra Browser Print (servicio local en la PC) ──
+        const BP = 'http://127.0.0.1:9100';
+        async function bpDefault() {
+            const r = await fetch(BP + '/default?type=printer', { method: 'GET' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }
+        async function bpWrite(device, data) {
+            // text/plain evita el preflight CORS; Browser Print igual parsea el JSON
+            const r = await fetch(BP + '/write', {
+                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body: JSON.stringify({ device, data })
+            });
+            if (!r.ok) throw new Error('write HTTP ' + r.status);
+        }
+        async function enviarZebra(auto) {
+            const st = document.getElementById('zstatus');
+            if (!ETQ_LABELS.length) { return; }
+            try {
+                st.textContent = 'Conectando con la impresora…'; st.style.color = '#888';
+                const device = await bpDefault();
+                if (!device || (!device.uid && !device.name)) throw new Error('sin impresora predeterminada');
+                await bpWrite(device, buildAllZPL());
+                st.textContent = '✓ Enviado a ' + (device.name || 'Zebra') + ' (' + ETQ_LABELS.length + ' etiquetas)';
+                st.style.color = '#2e7d32';
+            } catch (e) {
+                st.innerHTML = '⚠ No se pudo imprimir por Browser Print (' + esc(e.message) +
+                    '). Usá <b>Descargar ZPL</b> o revisá que Zebra Browser Print esté instalado y con este sitio permitido.';
+                st.style.color = '#c62828';
+            }
+        }
+        function descargarZPL() {
+            if (!ETQ_LABELS.length) return;
+            const blob = new Blob([buildAllZPL()], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'etiquetas-' + (ETQ_RUTA.RouteNumber || 'cuadro') + '.zpl';
+            document.body.appendChild(a); a.click(); a.remove();
+        }
 
         async function load() {
             let url;
@@ -136,6 +218,8 @@
                 const X = bultosDe(p.OV_Number);
                 for (let i = 1; i <= X; i++) { g++; labels.push({ p, i, X, g, total: totalBultos }); }
             });
+            // Exponer para ZPL / Browser Print
+            ETQ_LABELS = labels; ETQ_RUTA = ruta;
 
             document.getElementById('content').innerHTML = labels.map((L, idx) => {
                 const p = L.p;
@@ -200,7 +284,9 @@
                 } catch (e) { /* OV no numérica u otro: dejar vacío */ }
             });
 
-            setTimeout(() => window.print(), 500);
+            // Auto-envío a la Zebra (ZPL vía Browser Print). Si falla, quedan los
+            // botones "Descargar ZPL" y "Navegador" como respaldo.
+            setTimeout(() => enviarZebra(true), 400);
         }
 
         load();
