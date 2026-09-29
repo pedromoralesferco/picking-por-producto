@@ -57,6 +57,12 @@
         .pl-summary b { font-size: 0.95rem; }
         .verok { color: var(--ok); font-weight: 700; }
 
+        .pl-foot { margin-top: 0.9rem; border: 1px solid #eee; border-radius: 8px; background: #faf8f2; padding: 0.7rem 1rem; }
+        .pl-foot .pl-footfield { margin-bottom: 0.5rem; }
+        .pl-foot .pl-footfield:last-child { margin-bottom: 0; }
+        .pl-foot label { display:block; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color:#999; font-weight:600; }
+        .pl-foot .v { font-size: 0.9rem; font-weight: 600; line-height: 1.3; white-space: pre-wrap; }
+
         .pl-sign { display:grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; margin-top: 2.2rem; }
         .pl-sign .s { text-align:center; }
         .pl-sign .line { border-top: 1px solid #333; padding-top: 0.3rem; font-size: 0.72rem; color:#666; }
@@ -136,6 +142,9 @@
                 const verificadas = lineas.filter(l => l.Verificado).length;
                 const pesoTotal = lineas.reduce((s,l) => s + (Number(l.Cantidad)||0)*(Number(l.UnitWeight)||0), 0);
                 const cliente = p.ClienteNombre ? esc(p.ClienteNombre) : (p.DocType === 'TR' ? 'Traslado interno' : '—');
+                const sucursalDest = p.SucursalDestino ? esc(p.SucursalDestino) : '';
+                const direccion = p.ClienteDireccion ? esc(p.ClienteDireccion) : '';
+                const comentarios = p.Comentarios ? esc(p.Comentarios) : '';
 
                 const filas = lineas.map((l, i) => `
                     <tr>
@@ -166,6 +175,7 @@
                             <div class="f"><label>Pedido / OV</label><div class="v">${esc(p.OV_Number)} (${esc(p.DocType || '')})</div></div>
                             <div class="f"><label>Operario</label><div class="v">${esc(p.OperarioNombre || '—')}</div></div>
                             <div class="f"><label>Cliente</label><div class="v">${cliente}</div></div>
+                            ${sucursalDest ? `<div class="f"><label>Sucursal Destino</label><div class="v">${sucursalDest}</div></div>` : ''}
                         </div>
 
                         <table>
@@ -185,6 +195,11 @@
                         <div class="pl-summary">
                             <div>Líneas verificadas: <span class="verok">${verificadas}/${lineas.length}</span></div>
                             <div>Peso total: <b>${num(Math.round(pesoTotal))} kg</b></div>
+                        </div>
+
+                        <div class="pl-foot">
+                            <div class="pl-footfield"><label>Dirección</label><div class="v">${direccion || '—'}</div></div>
+                            <div class="pl-footfield"><label>Comentarios</label><div class="v">${comentarios || '—'}</div></div>
                         </div>
 
                         <div class="pl-sign">

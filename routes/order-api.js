@@ -19,17 +19,18 @@ async function getClientesSAP(pool, pais, ovNumbers) {
     try {
         const r = await req.query(`
             SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName,
-                   MAX(ISNULL(NULLIF(o.Address2, ''), o.Address)) AS ShipTo
+                   MAX(ISNULL(NULLIF(o.Address2, ''), o.Address)) AS ShipTo,
+                   MAX(o.Comments) AS Comentarios
             FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
             LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
             WHERE o.DocNum IN (${inParams})
             GROUP BY o.DocNum`);
-        r.recordset.forEach(row => { map[String(row.OV)] = { name: row.CardName, address: row.ShipTo }; });
+        r.recordset.forEach(row => { map[String(row.OV)] = { name: row.CardName, address: row.ShipTo, comentarios: row.Comentarios }; });
     } catch (e) { console.error('getClientesSAP error:', e.message); }
     return map;
 }
 
-// Trae { TR_DocNum: 'almacén destino' } para traslados (OWTQ) desde SAP.
+// Trae { TR_DocNum: { destino, comentarios } } para traslados (OWTQ) desde SAP.
 // El destino de un TR es OWTQ.ToWhsCode → nombre en OWHS.
 async function getTrasladosDestinoSAP(pool, pais, trNumbers) {
     const map = {};
@@ -42,13 +43,17 @@ async function getTrasladosDestinoSAP(pool, pais, trNumbers) {
         const r = await req.query(`
             SELECT o.DocNum AS TR,
                    MAX(o.ToWhsCode) AS ToWhs,
-                   MAX(wh.WhsName) AS Destino
+                   MAX(wh.WhsName) AS Destino,
+                   MAX(o.Comments) AS Comentarios
             FROM [server-sql].[${sapDb}].dbo.OWTQ o WITH (NOLOCK)
             LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
             WHERE o.DocNum IN (${inParams})
             GROUP BY o.DocNum`);
         r.recordset.forEach(row => {
-            map[String(row.TR)] = row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null);
+            map[String(row.TR)] = {
+                destino: row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null),
+                comentarios: row.Comentarios || null
+            };
         });
     } catch (e) { console.error('getTrasladosDestinoSAP error:', e.message); }
     return map;
@@ -925,11 +930,13 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.ID_OrderPicking)) {
                 const cli = clientes[String(r.OV_Number)] || null;
-                const destTR = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
+                const tr = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
                 pedidosMap.set(r.ID_OrderPicking, {
                     ID_OrderPicking: r.ID_OrderPicking, OV_Number: r.OV_Number, DocType: r.DocType,
                     ClienteNombre: cli ? cli.name : null,
-                    ClienteDireccion: destTR || (cli ? cli.address : null),
+                    ClienteDireccion: tr ? tr.destino : (cli ? cli.address : null),
+                    SucursalDestino: tr ? tr.destino : null,
+                    Comentarios: tr ? tr.comentarios : (cli ? cli.comentarios : null),
                     PesoTotal: r.PesoTotal, OperarioNombre: r.OperarioNombre,
                     FechaPicking: r.UltimoPick || null,
                     RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []

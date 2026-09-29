@@ -930,11 +930,12 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
             try {
                 const cRes = await reqC.query(`
                     SELECT o.DocNum AS OV, MAX(c.CardName) AS CardName,
-                           MAX(ISNULL(NULLIF(o.Address2, ''), o.Address)) AS ShipTo
+                           MAX(ISNULL(NULLIF(o.Address2, ''), o.Address)) AS ShipTo,
+                           MAX(o.Comments) AS Comentarios
                     FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
                     LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
                     WHERE o.DocNum IN (${inParams}) GROUP BY o.DocNum`);
-                cRes.recordset.forEach(row => { clientes[String(row.OV)] = { name: row.CardName, address: row.ShipTo }; });
+                cRes.recordset.forEach(row => { clientes[String(row.OV)] = { name: row.CardName, address: row.ShipTo, comentarios: row.Comentarios }; });
             } catch (e) { console.error('packing producto cliente SAP:', e.message); }
         }
 
@@ -948,11 +949,12 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
             const inParams = trInts.map((v, i) => { reqT.input('tr' + i, sql.Int, v); return '@tr' + i; }).join(',');
             try {
                 const tRes = await reqT.query(`
-                    SELECT o.DocNum AS TR, MAX(o.ToWhsCode) AS ToWhs, MAX(wh.WhsName) AS Destino
+                    SELECT o.DocNum AS TR, MAX(o.ToWhsCode) AS ToWhs, MAX(wh.WhsName) AS Destino,
+                           MAX(o.Comments) AS Comentarios
                     FROM [server-sql].[${sapDb}].dbo.OWTQ o WITH (NOLOCK)
                     LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
                     WHERE o.DocNum IN (${inParams}) GROUP BY o.DocNum`);
-                tRes.recordset.forEach(row => { destinosTR[String(row.TR)] = row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null); });
+                tRes.recordset.forEach(row => { destinosTR[String(row.TR)] = { destino: row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null), comentarios: row.Comentarios || null }; });
             } catch (e) { console.error('packing producto TR destino SAP:', e.message); }
         }
 
@@ -960,11 +962,13 @@ router.get('/despacho/packing/:routeNumber', async (req, res) => {
         for (const r of lineasRes.recordset) {
             if (!pedidosMap.has(r.OV_Number)) {
                 const cli = clientes[String(r.OV_Number)] || null;
-                const destTR = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
+                const tr = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
                 pedidosMap.set(r.OV_Number, {
                     OV_Number: r.OV_Number, DocType: r.DocType,
                     ClienteNombre: cli ? cli.name : null,
-                    ClienteDireccion: destTR || (cli ? cli.address : null),
+                    ClienteDireccion: tr ? tr.destino : (cli ? cli.address : null),
+                    SucursalDestino: tr ? tr.destino : null,
+                    Comentarios: tr ? tr.comentarios : (cli ? cli.comentarios : null),
                     OperarioNombre: r.OperarioNombre, FechaPicking: r.UltimoPick || null,
                     RouteNumber: ruta.RouteNumber, RouteName: ruta.RouteName, lineas: []
                 });
