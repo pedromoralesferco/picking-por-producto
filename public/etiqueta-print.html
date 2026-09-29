@@ -70,6 +70,7 @@
     <div class="toolbar">
         <button onclick="enviarZebra(false)"><i class="bi bi-printer"></i> Imprimir en Zebra</button>
         <button onclick="descargarZPL()"><i class="bi bi-download"></i> Descargar ZPL</button>
+        <button onclick="descargarCSV()"><i class="bi bi-filetype-csv"></i> Descargar CSV (BarTender)</button>
         <button onclick="window.print()" title="Fallback por navegador"><i class="bi bi-file-earmark"></i> Navegador</button>
         <button onclick="window.close()"><i class="bi bi-x-lg"></i> Cerrar</button>
     </div>
@@ -166,6 +167,40 @@
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = 'etiquetas-' + (ETQ_RUTA.RouteNumber || 'cuadro') + '.zpl';
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+
+        // CSV para BarTender: una fila por bulto. La plantilla .btw se conecta a
+        // este CSV (columnas del encabezado) y toma un registro por etiqueta.
+        function descargarCSV() {
+            if (!ETQ_LABELS.length) return;
+            const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            const cols = ['Cuadro', 'Ruta', 'OV', 'Tipo', 'Cliente', 'Destino', 'Direccion',
+                'Picker', 'FechaPicking', 'Bulto', 'TotalBultos', 'BultoEnOV', 'BultosDeOV', 'Barcode'];
+            const rows = [cols.join(',')];
+            ETQ_LABELS.forEach(L => {
+                const p = L.p;
+                const esTR = p.DocType === 'TR';
+                const destino = esTR ? (p.SucursalDestino || p.ClienteDireccion || '') : '';
+                rows.push([
+                    ETQ_RUTA.RouteNumber || '',
+                    (p.RouteName || ETQ_RUTA.RouteName || ''),
+                    p.OV_Number || '',
+                    p.DocType || '',
+                    p.ClienteNombre || (esTR ? 'Traslado interno' : ''),
+                    destino,
+                    p.ClienteDireccion || '',
+                    p.OperarioNombre || '',
+                    ffecha(p.FechaPicking),
+                    L.g, L.total, L.i, L.X,
+                    p.OV_Number || ''
+                ].map(q).join(','));
+            });
+            // BOM para que Excel/BarTender lean bien los acentos
+            const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'etiquetas-' + (ETQ_RUTA.RouteNumber || 'cuadro') + '.csv';
             document.body.appendChild(a); a.click(); a.remove();
         }
 
