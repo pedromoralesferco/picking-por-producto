@@ -18,14 +18,16 @@
         }
         .toolbar button:hover { background: #d4a826; color: #222; }
 
-        /* Etiqueta 2in x 3in (ancho x alto), vertical (TEMPORAL) */
+        /* Material físico 3in x 2in (horizontal); contenido VERTICAL rotado 90° */
         .label {
-            width: 2in; height: 3in; background: #fff; margin: 0 auto 0.6rem;
-            padding: 0.1in 0.12in; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            display: flex; flex-direction: column; overflow: hidden;
+            width: 3in; height: 2in; background: #fff; margin: 0 auto 0.6rem;
+            position: relative; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
         }
-        .lb-brand { font-size: 5pt; font-weight: 800; letter-spacing: 1px; color: #b8891a;
-            margin-bottom: 1.5pt; }
+        .lb-inner {
+            width: 2in; height: 3in; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            padding: 0.1in 0.12in; display: flex; flex-direction: column;
+        }
         .lb-cuadro { border-bottom: 1.5px solid var(--ink); padding-bottom: 2pt; margin-bottom: 3pt; }
         .lb-cuadro .num { font-size: 16pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
         .lb-cuadro .num small { font-size: 5.5pt; font-weight: 700; }
@@ -57,7 +59,7 @@
             .toolbar { display: none; }
             .label { box-shadow: none; margin: 0; page-break-after: always; }
             .label:last-child { page-break-after: auto; }
-            @page { size: 2in 3in; margin: 0; }
+            @page { size: 3in 2in; margin: 0; }
         }
     </style>
 </head>
@@ -145,37 +147,39 @@
 
                 return `
                     <div class="label">
-                        <div class="lb-cuadro">
-                            <div class="num"><small>CUADRO DE RUTA</small><br>${esc(cuadro)}</div>
-                            ${rutaNombre ? '<div class="ruta">' + esc(rutaNombre) + '</div>' : ''}
-                        </div>
+                        <div class="lb-inner">
+                            <div class="lb-cuadro">
+                                <div class="num"><small>CUADRO DE RUTA</small><br>${esc(cuadro)}</div>
+                                ${rutaNombre ? '<div class="ruta">' + esc(rutaNombre) + '</div>' : ''}
+                            </div>
 
-                        <div class="lb-bultos">
-                            <span class="lbl">Bulto</span>
-                            <span class="cnt">${L.g} / ${L.total}</span>
-                        </div>
-                        <div class="lb-bultos-sub">OV ${esc(p.OV_Number)} &nbsp;·&nbsp; ${L.i}/${L.X} bultos</div>
+                            <div class="lb-bultos">
+                                <span class="lbl">Bulto</span>
+                                <span class="cnt">${L.g} / ${L.total}</span>
+                            </div>
+                            <div class="lb-bultos-sub">OV ${esc(p.OV_Number)} &nbsp;·&nbsp; ${L.i}/${L.X} bultos</div>
 
-                        <div class="lb-field big">
-                            <span class="k">OV:</span> <span class="v">${esc(p.OV_Number)}</span>
-                        </div>
-                        <div class="lb-field">
-                            <span class="k">Cliente:</span>
-                            <span class="v multi">${cliente}</span>
-                        </div>
-                        <div class="lb-field">
-                            <span class="k">${dirLabel}</span>
-                            <span class="v multi">${direccion}</span>
-                        </div>
-                        <div class="lb-field">
-                            <span class="k">Picker:</span> <span class="v">${picker}</span>
-                        </div>
-                        <div class="lb-field">
-                            <span class="k">Fecha picking:</span> <span class="v">${ffecha(p.FechaPicking)}</span>
-                        </div>
+                            <div class="lb-field big">
+                                <span class="k">OV:</span> <span class="v">${esc(p.OV_Number)}</span>
+                            </div>
+                            <div class="lb-field">
+                                <span class="k">Cliente:</span>
+                                <span class="v multi">${cliente}</span>
+                            </div>
+                            <div class="lb-field">
+                                <span class="k">${dirLabel}</span>
+                                <span class="v multi">${direccion}</span>
+                            </div>
+                            <div class="lb-field">
+                                <span class="k">Picker:</span> <span class="v">${picker}</span>
+                            </div>
+                            <div class="lb-field">
+                                <span class="k">Fecha picking:</span> <span class="v">${ffecha(p.FechaPicking)}</span>
+                            </div>
 
-                        <div class="lb-barcode">
-                            <svg class="bc" data-ov="${esc(p.OV_Number)}" id="bc-${idx}"></svg>
+                            <div class="lb-barcode">
+                                <svg class="bc" data-ov="${esc(p.OV_Number)}" id="bc-${idx}"></svg>
+                            </div>
                         </div>
                     </div>
                 `;
