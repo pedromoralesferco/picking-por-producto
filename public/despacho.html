@@ -1092,9 +1092,9 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span></div>
                         </div>
-                        <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos de esta OV (se guarda; BarTender imprime una etiqueta por bulto)">
+                        <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
                             <label>Bultos</label>
-                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" data-id="${d.ID_OrderPicking}" value="${d.Bultos || 1}" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()" onchange="guardarBultoPedido(this)">
+                            <input type="number" min="1" step="1" class="bultos-input" data-ov="${esc(d.OV_Number)}" value="1" onclick="event.stopPropagation()" oninput="actualizarBultosTotal()">
                         </div>
                         <button class="btn-print-pedido" title="Imprimir packing list de este pedido" onclick="event.stopPropagation(); printPackingOrder(${d.ID_OrderPicking})">
                             <i class="bi bi-printer"></i>
@@ -1284,26 +1284,6 @@
             });
             try { localStorage.setItem('etiquetasBultos', JSON.stringify(map)); } catch (e) {}
         }
-
-        // Persistir bultos del pedido en la base (order) para que BarTender los use.
-        async function guardarBultoPedido(inp) {
-            const id = inp.getAttribute('data-id');
-            let n = parseInt(inp.value, 10);
-            if (!id) return;
-            if (!Number.isFinite(n) || n < 1) { n = 1; inp.value = 1; }
-            try {
-                await fetch('/api/order/pedidos/' + id + '/bultos', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ bultos: n })
-                });
-                inp.style.borderColor = '#2e7d32';
-                setTimeout(() => { inp.style.borderColor = ''; }, 700);
-            } catch (e) {
-                inp.style.borderColor = '#c62828';
-            }
-        }
-
         function printEtiquetasOrder(idRoutePlan) {
             guardarBultos();
             window.open('/etiqueta-print.html?mode=order&idRoutePlan=' + idRoutePlan, '_blank');

@@ -804,7 +804,6 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.Estado,
                     opm.ID_Operario,
                     o.Nombre AS OperarioNombre,
-                    ISNULL(opm.Bultos, 1) AS Bultos,
                     (SELECT COUNT(*) FROM OrderPickingTask
                      WHERE ID_OrderPicking = opm.ID_OrderPicking AND CantidadPendiente = 0) AS LineasFinalizadas
                 FROM OrderPickingManagement opm
@@ -819,29 +818,6 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
     } catch (err) {
         console.error('GET /api/order/despacho/rutas/:id/documentos error:', err);
         res.status(500).json({ error: 'Error interno' });
-    }
-});
-
-// POST /api/order/pedidos/:id/bultos — Persistir la cantidad de bultos de un pedido
-// (lo usa BarTender vía SP_EtiquetasCuadro para imprimir una etiqueta por bulto).
-router.post('/pedidos/:id/bultos', async (req, res) => {
-    try {
-        const idOrderPicking = parseInt(req.params.id);
-        let bultos = parseInt(req.body && req.body.bultos);
-        if (!idOrderPicking || !Number.isFinite(bultos)) {
-            return res.status(400).json({ error: 'idOrderPicking y bultos requeridos' });
-        }
-        if (bultos < 1) bultos = 1;
-        if (bultos > 999) bultos = 999;
-        const pool = getPool();
-        await pool.request()
-            .input('id', sql.Int, idOrderPicking)
-            .input('bultos', sql.Int, bultos)
-            .query(`UPDATE OrderPickingManagement SET Bultos = @bultos WHERE ID_OrderPicking = @id`);
-        res.json({ ok: true, bultos });
-    } catch (err) {
-        console.error('POST /api/order/pedidos/:id/bultos error:', err);
-        res.status(500).json({ error: 'Error al guardar bultos' });
     }
 });
 
