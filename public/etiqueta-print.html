@@ -68,13 +68,9 @@
 </head>
 <body>
     <div class="toolbar">
-        <button onclick="enviarZebra(false)"><i class="bi bi-printer"></i> Imprimir en Zebra</button>
-        <button onclick="descargarZPL()"><i class="bi bi-download"></i> Descargar ZPL</button>
-        <button onclick="descargarCSV()"><i class="bi bi-filetype-csv"></i> Descargar CSV (BarTender)</button>
-        <button onclick="window.print()" title="Fallback por navegador"><i class="bi bi-file-earmark"></i> Navegador</button>
+        <button onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
         <button onclick="window.close()"><i class="bi bi-x-lg"></i> Cerrar</button>
     </div>
-    <div id="zstatus" style="max-width:4in;margin:0 auto 0.6rem;text-align:center;font-size:0.8rem;color:#888"></div>
     <div id="content"><div class="loading"><i class="bi bi-hourglass-split"></i> Cargando etiquetas...</div></div>
 
     <script>
@@ -90,132 +86,6 @@
             if (isNaN(d)) return '—';
             return d.toLocaleString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         };
-
-        // ── ZPL (Zebra ZD421, 3x2 @ 203dpi = 609x406 dots) ──
-        let ETQ_LABELS = [];   // [{ p, i, X, g, total }]
-        let ETQ_RUTA = {};
-        const zsan = s => String(s == null ? '' : s).replace(/[\^~]/g, ' ').trim();
-
-        function zplForLabel(L) {
-            const p = L.p;
-            const cuadro = zsan(ETQ_RUTA.RouteNumber || '');
-            const ruta = zsan((p.RouteName || ETQ_RUTA.RouteName || '')).toUpperCase().slice(0, 34);
-            const ov = zsan(p.OV_Number);
-            const esTR = p.DocType === 'TR';
-            const cliente = zsan(p.ClienteNombre || (esTR ? 'Traslado interno' : ''));
-            const dirLabel = esTR ? 'Destino:' : 'Direccion:';
-            const direccion = zsan(p.ClienteDireccion || '');
-            const picker = zsan(p.OperarioNombre || '-');
-            const fecha = zsan(ffecha(p.FechaPicking));
-            // Material 3x2 (609x406) landscape; contenido ROTADO (R) para leer VERTICAL.
-            return [
-                '^XA', '^CI28', '^PW609', '^LL406', '^LH0,0',
-                `^FO580,14^A0R,20,20^FDCUADRO DE RUTA^FS`,
-                `^FO515,14^A0R,60,60^FD${cuadro}^FS`,
-                `^FO486,14^A0R,24,24^FB384,1,0,L^FD${ruta}^FS`,
-                `^FO478,10^GB1,232,3^FS`,
-                `^FO438,262^GB44,140,2^FS`,
-                `^FO464,274^A0R,18,18^FDBULTO^FS`,
-                `^FO446,305^A0R,40,40^FD${L.g} / ${L.total}^FS`,
-                `^FO444,14^A0R,32,32^FDOV: ${ov}^FS`,
-                `^FO420,14^A0R,18,18^FDCliente:^FS`,
-                `^FO372,14^A0R,22,22^FB380,2,0,L^FD${cliente}^FS`,
-                `^FO350,14^A0R,18,18^FD${dirLabel}^FS`,
-                `^FO306,14^A0R,20,20^FB380,2,0,L^FD${direccion}^FS`,
-                `^FO282,14^A0R,18,18^FDPicker: ${picker}^FS`,
-                `^FO258,14^A0R,18,18^FDFecha: ${fecha}^FS`,
-                `^FO180,14^BY2,2,70^BCR,70,Y,N,N^FD${ov}^FS`,
-                '^XZ'
-            ].join('\n');
-        }
-        function buildAllZPL() { return ETQ_LABELS.map(zplForLabel).join('\n'); }
-
-        // ── Envío a la Zebra vía Zebra Browser Print (servicio local en la PC) ──
-        // Intenta HTTPS 9101 (donde dispara el prompt de "permitir host" tras
-        // aceptar el certificado) y cae a HTTP 9100.
-        const BP_BASES = ['https://127.0.0.1:9101', 'http://127.0.0.1:9100'];
-        let BP_BASE = null;
-        async function bpFetch(path, opts) {
-            let lastErr;
-            const bases = BP_BASE ? [BP_BASE] : BP_BASES;
-            for (const b of bases) {
-                try {
-                    const r = await fetch(b + path, opts);
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    BP_BASE = b; return r;
-                } catch (e) { lastErr = e; }
-            }
-            throw lastErr || new Error('sin conexión con Browser Print');
-        }
-        async function bpDefault() {
-            const r = await bpFetch('/default?type=printer', { method: 'GET' });
-            return r.json();
-        }
-        async function bpWrite(device, data) {
-            // text/plain evita el preflight CORS; Browser Print igual parsea el JSON
-            await bpFetch('/write', {
-                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-                body: JSON.stringify({ device, data })
-            });
-        }
-        async function enviarZebra(auto) {
-            const st = document.getElementById('zstatus');
-            if (!ETQ_LABELS.length) { return; }
-            try {
-                st.textContent = 'Conectando con la impresora…'; st.style.color = '#888';
-                const device = await bpDefault();
-                if (!device || (!device.uid && !device.name)) throw new Error('sin impresora predeterminada');
-                await bpWrite(device, buildAllZPL());
-                st.textContent = '✓ Enviado a ' + (device.name || 'Zebra') + ' (' + ETQ_LABELS.length + ' etiquetas)';
-                st.style.color = '#2e7d32';
-            } catch (e) {
-                st.innerHTML = '⚠ No se pudo imprimir por Browser Print (' + esc(e.message) +
-                    '). Usá <b>Descargar ZPL</b> o revisá que Zebra Browser Print esté instalado y con este sitio permitido.';
-                st.style.color = '#c62828';
-            }
-        }
-        function descargarZPL() {
-            if (!ETQ_LABELS.length) return;
-            const blob = new Blob([buildAllZPL()], { type: 'text/plain' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'etiquetas-' + (ETQ_RUTA.RouteNumber || 'cuadro') + '.zpl';
-            document.body.appendChild(a); a.click(); a.remove();
-        }
-
-        // CSV para BarTender: una fila por bulto. La plantilla .btw se conecta a
-        // este CSV (columnas del encabezado) y toma un registro por etiqueta.
-        function descargarCSV() {
-            if (!ETQ_LABELS.length) return;
-            const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-            const cols = ['Cuadro', 'Ruta', 'OV', 'Tipo', 'Cliente', 'Destino', 'Direccion',
-                'Picker', 'FechaPicking', 'Bulto', 'TotalBultos', 'BultoEnOV', 'BultosDeOV', 'Barcode'];
-            const rows = [cols.join(',')];
-            ETQ_LABELS.forEach(L => {
-                const p = L.p;
-                const esTR = p.DocType === 'TR';
-                const destino = esTR ? (p.SucursalDestino || p.ClienteDireccion || '') : '';
-                rows.push([
-                    ETQ_RUTA.RouteNumber || '',
-                    (p.RouteName || ETQ_RUTA.RouteName || ''),
-                    p.OV_Number || '',
-                    p.DocType || '',
-                    p.ClienteNombre || (esTR ? 'Traslado interno' : ''),
-                    destino,
-                    p.ClienteDireccion || '',
-                    p.OperarioNombre || '',
-                    ffecha(p.FechaPicking),
-                    L.g, L.total, L.i, L.X,
-                    p.OV_Number || ''
-                ].map(q).join(','));
-            });
-            // BOM para que Excel/BarTender lean bien los acentos
-            const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'etiquetas-' + (ETQ_RUTA.RouteNumber || 'cuadro') + '.csv';
-            document.body.appendChild(a); a.click(); a.remove();
-        }
 
         async function load() {
             let url;
@@ -266,8 +136,6 @@
                 const X = bultosDe(p.OV_Number);
                 for (let i = 1; i <= X; i++) { g++; labels.push({ p, i, X, g, total: totalBultos }); }
             });
-            // Exponer para ZPL / Browser Print
-            ETQ_LABELS = labels; ETQ_RUTA = ruta;
 
             document.getElementById('content').innerHTML = labels.map((L, idx) => {
                 const p = L.p;
@@ -332,9 +200,7 @@
                 } catch (e) { /* OV no numérica u otro: dejar vacío */ }
             });
 
-            // Auto-envío a la Zebra (ZPL vía Browser Print). Si falla, quedan los
-            // botones "Descargar ZPL" y "Navegador" como respaldo.
-            setTimeout(() => enviarZebra(true), 400);
+            setTimeout(() => window.print(), 500);
         }
 
         load();
