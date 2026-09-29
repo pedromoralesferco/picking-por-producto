@@ -131,19 +131,32 @@
         function buildAllZPL() { return ETQ_LABELS.map(zplForLabel).join('\n'); }
 
         // ── Envío a la Zebra vía Zebra Browser Print (servicio local en la PC) ──
-        const BP = 'http://127.0.0.1:9100';
+        // Intenta HTTPS 9101 (donde dispara el prompt de "permitir host" tras
+        // aceptar el certificado) y cae a HTTP 9100.
+        const BP_BASES = ['https://127.0.0.1:9101', 'http://127.0.0.1:9100'];
+        let BP_BASE = null;
+        async function bpFetch(path, opts) {
+            let lastErr;
+            const bases = BP_BASE ? [BP_BASE] : BP_BASES;
+            for (const b of bases) {
+                try {
+                    const r = await fetch(b + path, opts);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    BP_BASE = b; return r;
+                } catch (e) { lastErr = e; }
+            }
+            throw lastErr || new Error('sin conexión con Browser Print');
+        }
         async function bpDefault() {
-            const r = await fetch(BP + '/default?type=printer', { method: 'GET' });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const r = await bpFetch('/default?type=printer', { method: 'GET' });
             return r.json();
         }
         async function bpWrite(device, data) {
             // text/plain evita el preflight CORS; Browser Print igual parsea el JSON
-            const r = await fetch(BP + '/write', {
+            await bpFetch('/write', {
                 method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
                 body: JSON.stringify({ device, data })
             });
-            if (!r.ok) throw new Error('write HTTP ' + r.status);
         }
         async function enviarZebra(auto) {
             const st = document.getElementById('zstatus');
