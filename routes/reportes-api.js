@@ -213,4 +213,111 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
     }
 });
 
+// Cliente/asesor/monto de OVs desde SAP
+async function getDocInfoSAP(pool, pais, ovNumbers) {
+    const map = {};
+    const ints = [...new Set(ovNumbers.map(v => parseInt(v)).filter(v => !isNaN(v)))];
+    if (ints.length === 0) return map;
+    const db = getSapDb(pais);
+    const req = pool.request();
+    const inParams = ints.map((v, i) => { req.input('o' + i, sql.Int, v); return '@o' + i; }).join(',');
+    try {
+        const r = await req.query(`
+            SELECT o.DocNum AS OV, MAX(c.CardName) AS Cliente,
+                   MAX(s.SlpName) AS Asesor, MAX(o.DocTotal) AS Monto
+            FROM [server-sql].[${db}].dbo.ORDR o WITH (NOLOCK)
+            LEFT JOIN [server-sql].[${db}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
+            LEFT JOIN [server-sql].[${db}].dbo.OSLP s WITH (NOLOCK) ON s.SlpCode = o.SlpCode
+            WHERE o.DocNum IN (${inParams}) GROUP BY o.DocNum`);
+        r.recordset.forEach(row => { map[String(row.OV)] = { cliente: row.Cliente, asesor: row.Asesor, monto: row.Monto }; });
+    } catch (e) { console.error('getDocInfoSAP error:', e.message); }
+    return map;
+}
+
+// Destino de traslados (OWTQ) desde SAP
+async function getTrDestinoSAP(pool, pais, trNumbers) {
+    const map = {};
+    const ints = [...new Set(trNumbers.map(v => parseInt(v)).filter(v => !isNaN(v)))];
+    if (ints.length === 0) return map;
+    const db = getSapDb(pais);
+    const req = pool.request();
+    const inParams = ints.map((v, i) => { req.input('t' + i, sql.Int, v); return '@t' + i; }).join(',');
+    try {
+        const r = await req.query(`
+            SELECT o.DocNum AS TR, MAX(o.ToWhsCode) AS ToWhs, MAX(wh.WhsName) AS Destino
+            FROM [server-sql].[${db}].dbo.OWTQ o WITH (NOLOCK)
+            LEFT JOIN [server-sql].[${db}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
+            WHERE o.DocNum IN (${inParams}) GROUP BY o.DocNum`);
+        r.recordset.forEach(row => { map[String(row.TR)] = row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null); });
+    } catch (e) { console.error('getTrDestinoSAP error:', e.message); }
+    return map;
+}
+
+// GET /api/reportes/plan-despachos/detalle — sección 3: documentos por cuadro (para el PDF)
+router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
+    try {
+        const u = req.session.user;
+        const centro = u.selectedCentro;
+        const modo = u.selectedModo || (['SV', 'HN'].includes(u.selectedPais) ? 'order' : 'product');
+        const pais = u.selectedPais || 'GT';
+        if (!centro) return res.status(400).json({ error: 'Seleccioná un centro primero' });
+        const pool = getPool();
+
+        let docs = [];
+        if (modo === 'order') {
+            const r = await pool.request().input('centro', sql.Int, centro).query(`
+                SELECT orp.RouteNumber AS Cuadro, orp.RouteName AS Ruta, orp.Prioridad,
+                       opm.OV_Number, opm.DocType, ISNULL(opm.PesoTotal, 0) AS PesoKg
+                FROM OrderPickingManagement opm
+                INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+                WHERE orp.ID_Centro = @centro
+                  AND ( orp.Estado IN ('Pendiente', 'Iniciado')
+                        OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
+                        OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
+                ORDER BY CASE WHEN orp.Prioridad IS NULL THEN 1 ELSE 0 END, orp.Prioridad, orp.RouteNumber, opm.OV_Number
+            `);
+            docs = r.recordset;
+        } else {
+            const r = await pool.request().query(`
+                ;WITH prod AS (
+                    SELECT t.Route_Number AS Cuadro, t.OV_Number, t.InternIdProduct,
+                           MAX(t.DocType) AS DocType,
+                           MAX(ISNULL(t.Cantidad, 0)) * MAX(ISNULL(t.UnitWeight, 0)) AS Peso
+                    FROM RoutePickingTask t GROUP BY t.Route_Number, t.OV_Number, t.InternIdProduct
+                )
+                SELECT p.Cuadro, rp.RouteName AS Ruta, rp.Prioridad, p.OV_Number,
+                       MAX(p.DocType) AS DocType, SUM(p.Peso) AS PesoKg
+                FROM prod p INNER JOIN RoutePlan rp ON rp.RouteNumber = p.Cuadro
+                WHERE ( rp.Estado IN ('Pendiente', 'Iniciado')
+                        OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
+                        OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
+                GROUP BY p.Cuadro, rp.RouteName, rp.Prioridad, p.OV_Number
+                ORDER BY CASE WHEN rp.Prioridad IS NULL THEN 1 ELSE 0 END, rp.Prioridad, p.Cuadro, p.OV_Number
+            `);
+            docs = r.recordset;
+        }
+
+        const info = await getDocInfoSAP(pool, pais, docs.filter(d => d.DocType === 'OV').map(d => d.OV_Number));
+        const dest = await getTrDestinoSAP(pool, pais, docs.filter(d => d.DocType === 'TR').map(d => d.OV_Number));
+
+        const map = new Map();
+        for (const d of docs) {
+            if (!map.has(d.Cuadro)) map.set(d.Cuadro, { Cuadro: d.Cuadro, Ruta: d.Ruta, Prioridad: d.Prioridad, docs: [], subtotalPeso: 0, subtotalMonto: 0 });
+            const g = map.get(d.Cuadro);
+            const i = d.DocType === 'OV' ? (info[String(d.OV_Number)] || {}) : {};
+            const cliente = d.DocType === 'TR'
+                ? ('Traslado → ' + (dest[String(d.OV_Number)] || 'destino s/d'))
+                : (i.cliente || '');
+            const monto = d.DocType === 'OV' ? (i.monto != null ? Number(i.monto) : null) : null;
+            const peso = Number(d.PesoKg) || 0;
+            g.docs.push({ OV_Number: d.OV_Number, DocType: d.DocType, Cliente: cliente, Asesor: i.asesor || '', PesoKg: peso, Monto: monto });
+            g.subtotalPeso += peso; g.subtotalMonto += (monto || 0);
+        }
+        res.json({ modo, cuadros: Array.from(map.values()) });
+    } catch (err) {
+        console.error('GET /api/reportes/plan-despachos/detalle error:', err);
+        res.status(500).json({ error: 'Error al obtener el detalle' });
+    }
+});
+
 module.exports = router;

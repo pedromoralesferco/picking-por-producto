@@ -63,6 +63,16 @@
         .bar > span { display: block; height: 100%; background: var(--blue); }
         .bar.done > span { background: var(--success); }
 
+        .sec-title { font-size: 0.95rem; font-weight: 800; margin: 1.1rem 0 0.4rem; padding-left: 0.5rem; border-left: 4px solid var(--primary); }
+        .sec-title.ejec { border-color: var(--success); color: var(--success); }
+        .sec-title.pend { border-color: var(--dark); color: var(--dark); }
+        tbody tr.total-row td { background: #f3efe0; font-weight: 800; border-top: 2px solid var(--dark); }
+        tbody td.acum { color: #999; font-variant-numeric: tabular-nums; }
+        thead.ejec th { background: var(--success); }
+        .pill.incompleto { background: #fdecea; color: var(--red); }
+        table.det3 { font-size: 0.74rem; margin-bottom: 0.5rem; }
+        table.det3 thead th { background: #555; padding: 0.35rem 0.5rem; }
+        table.det3 td { padding: 0.28rem 0.5rem; }
         .detalle-row td { background: #fbfbfb; padding: 0; }
         .detalle-box { padding: 0.6rem 1rem 0.9rem; }
         .detalle-box table { box-shadow: none; font-size: 0.76rem; }
@@ -106,7 +116,7 @@
                     <option value="avance">Orden: Avance</option>
                     <option value="ton">Orden: Tonelaje</option>
                 </select>
-                <button class="btn-print" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir / PDF</button>
+                <button class="btn-print" onclick="imprimir(this)"><i class="bi bi-printer"></i> Imprimir / PDF</button>
             </div>
         </div>
 
@@ -202,47 +212,76 @@
             return a;
         }
 
-        function render() {
-            if (!DATA) return;
-            kpiCards();
-            const cuadros = sortCuadros(DATA.cuadros);
-            if (cuadros.length === 0) {
-                document.getElementById('tablero').innerHTML = '<div class="empty">Sin cuadros para hoy en este centro.</div>';
-                return;
-            }
-            const rows = cuadros.map(c => {
-                const done = c.EstadoPicking === 'Finalizado';
-                const isOpen = openRows.has(c.Cuadro);
-                return `
-                    <tr class="cuadro-row" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
-                        <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
-                        <td class="cuadro-num">${esc(c.Cuadro)}</td>
-                        <td class="ruta-name">${esc(c.Ruta || '')}</td>
-                        <td class="r">${ton(c.PesoEstimadoKg)}</td>
-                        <td>${estadoPickingPill(c)}<div class="bar ${done ? 'done' : ''}"><span style="width:${c.AvancePct}%"></span></div>
-                            <span style="font-size:0.66rem;color:#999">${c.AvancePct}% · ${num(c.UnidadesPick)}/${num(c.UnidadesTot)} u</span></td>
-                        <td>${estadoCargaPill(c)}</td>
-                        <td>${c.EstadoDespacho === 'Finalizado' ? hora(c.FechaDespacho) : '—'}</td>
-                        <td class="op-col">${esc(c.TipoUnidad || '—')}</td>
-                        <td class="op-col">${esc(c.Placa || '—')}</td>
-                        <td class="op-col">${esc(c.Transportista || '—')}</td>
-                        <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
-                    </tr>
-                    <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="11"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
-            }).join('');
+        const fmtTon = t => (Number(t) || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        function statusCargaHtml(c) {
+            if (c.EstadoDespacho === 'Finalizado') return '<span class="pill fin">Finalizado</span>';
+            if (c.EstadoDespacho === 'Listo para Carga') return '<span class="pill listo">Listo</span>';
+            return '<span class="pill pend">No iniciado</span>';
+        }
+        function despachadoHtml(c) {
+            if (c.EstadoDespacho !== 'Finalizado') return '<span style="color:#bbb">—</span>';
+            return (c.AvancePct >= 100)
+                ? '<span class="pill fin">Completo</span>'
+                : '<span class="pill incompleto">Incompleto</span>';
+        }
 
-            document.getElementById('tablero').innerHTML = `
+        function filaCuadro(c, acum) {
+            const done = c.EstadoPicking === 'Finalizado';
+            const isOpen = openRows.has(c.Cuadro);
+            return `
+                <tr class="cuadro-row" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                    <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
+                    <td class="cuadro-num">${esc(c.Cuadro)}</td>
+                    <td class="ruta-name">${esc(c.Ruta || '')}</td>
+                    <td class="r">${fmtTon((c.PesoEstimadoKg || 0) / 1000)}</td>
+                    <td class="r acum">${fmtTon(acum)}</td>
+                    <td>${estadoPickingPill(c)}${done ? '' : `<div class="bar"><span style="width:${c.AvancePct}%"></span></div><span style="font-size:0.66rem;color:#999">${c.AvancePct}% · ${num(c.UnidadesPick)}/${num(c.UnidadesTot)} u</span>`}</td>
+                    <td>${statusCargaHtml(c)}</td>
+                    <td>${despachadoHtml(c)}</td>
+                    <td>${c.EstadoDespacho === 'Finalizado' ? hora(c.FechaDespacho) : '—'}</td>
+                    <td class="op-col">${esc(c.TipoUnidad || '—')}</td>
+                    <td class="op-col">${esc(c.Placa || '—')}</td>
+                    <td class="op-col">${esc(c.Transportista || '—')}</td>
+                    <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
+                </tr>
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="13"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+        }
+
+        function sectionTable(titulo, cls, cuadros) {
+            if (!cuadros.length) return `<h3 class="sec-title ${cls}">${titulo}</h3><div class="empty" style="padding:0.8rem">Sin cuadros.</div>`;
+            let acum = 0;
+            const rows = cuadros.map(c => { acum += (c.PesoEstimadoKg || 0) / 1000; return filaCuadro(c, acum); }).join('');
+            const totalTon = cuadros.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
+            const totalRow = `<tr class="total-row">
+                <td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
+                <td class="r">${fmtTon(totalTon)}</td><td class="r">${fmtTon(totalTon)}</td>
+                <td colspan="8"></td></tr>`;
+            return `<h3 class="sec-title ${cls}">${titulo}</h3>
                 <table>
-                    <thead><tr>
-                        <th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">Ton</th>
-                        <th>Picking</th><th>Carga</th><th>Despachado</th>
+                    <thead class="${cls}"><tr>
+                        <th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">Ton</th><th class="r">Acum. TN</th>
+                        <th>Status Picking</th><th>Status Carga</th><th>Despachado</th><th>Hora desp.</th>
                         <th class="op-col">Tipo unidad</th><th class="op-col">Placa</th><th class="op-col">Transportista</th>
                         <th class="c"></th>
                     </tr></thead>
-                    <tbody>${rows}</tbody>
+                    <tbody>${rows}${totalRow}</tbody>
                 </table>`;
+        }
 
-            // re-cargar detalles abiertos
+        function render() {
+            if (!DATA) return;
+            kpiCards();
+            if (!DATA.cuadros.length) {
+                document.getElementById('tablero').innerHTML = '<div class="empty">Sin cuadros para hoy en este centro.</div>';
+                return;
+            }
+            const ejec = sortCuadros(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado'));
+            const pend = sortCuadros(DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado'));
+            document.getElementById('tablero').innerHTML =
+                sectionTable('1. Ejecutados (picking finalizado / despachados)', 'ejec', ejec) +
+                sectionTable('2. Pendientes / en proceso (orden de prioridad)', 'pend', pend) +
+                '<div id="detalleSection"></div>';
+
             openRows.forEach(cn => {
                 const c = DATA.cuadros.find(x => x.Cuadro === cn);
                 if (c) loadDetalle(c.Cuadro, c.ID_RoutePlan);
@@ -282,6 +321,45 @@
             } catch (e) {
                 box.innerHTML = '<div style="color:#c62828;font-size:0.75rem;padding:0.3rem">Error al cargar documentos.</div>';
             }
+        }
+
+        // Imprimir: carga la sección 3 (detalle de documentos por cuadro) y luego imprime
+        async function imprimir(btn) {
+            const box = document.getElementById('detalleSection');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Preparando…'; }
+            try {
+                const det = await (await fetch('/api/reportes/plan-despachos/detalle')).json();
+                renderDetalle(det);
+            } catch (e) {
+                if (box) box.innerHTML = '<div class="empty">No se pudo cargar el detalle de documentos.</div>';
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-printer"></i> Imprimir / PDF'; }
+            }
+            setTimeout(() => window.print(), 300);
+        }
+
+        function renderDetalle(det) {
+            const box = document.getElementById('detalleSection');
+            if (!box) return;
+            if (!det.cuadros || !det.cuadros.length) { box.innerHTML = ''; return; }
+            let html = '<h3 class="sec-title pend" style="margin-top:1.4rem">3. Detalle de documentos por cuadro</h3>';
+            det.cuadros.forEach(c => {
+                html += `<div style="font-weight:700;margin:0.7rem 0 0.2rem;font-size:0.85rem">Cuadro ${esc(c.Cuadro)} — ${esc(c.Ruta || '')}${c.Prioridad != null ? ' (Prioridad ' + c.Prioridad + ')' : ''}</div>`;
+                html += `<table class="det3"><thead><tr>
+                    <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th><th>Asesor</th>
+                    <th class="r">Peso (kg)</th><th class="r">Monto (OV)</th></tr></thead><tbody>`;
+                c.docs.forEach(d => {
+                    html += `<tr><td>${esc(d.OV_Number)}</td><td>${esc(d.DocType)}</td>
+                        <td>${esc(d.Cliente || '')}</td><td>${esc(d.Asesor || '')}</td>
+                        <td class="r">${num(Math.round(d.PesoKg || 0))}</td>
+                        <td class="r">${d.Monto != null ? 'Q ' + num(Math.round(d.Monto)) : ''}</td></tr>`;
+                });
+                html += `<tr class="total-row"><td colspan="4">Subtotal (${c.docs.length})</td>
+                    <td class="r">${num(Math.round(c.subtotalPeso))}</td>
+                    <td class="r">${c.subtotalMonto ? 'Q ' + num(Math.round(c.subtotalMonto)) : ''}</td></tr>`;
+                html += '</tbody></table>';
+            });
+            box.innerHTML = html;
         }
 
         // Auto-refresh (no pisa la vista/orden ni los detalles abiertos)
