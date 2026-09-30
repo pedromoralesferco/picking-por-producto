@@ -79,7 +79,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                         OR orp.EstadoDespacho = 'Listo para Carga'
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
-                ORDER BY CASE WHEN orp.Prioridad IS NULL THEN 1 ELSE 0 END, orp.Prioridad, orp.RouteNumber
+                ORDER BY CASE WHEN orp.FechaFin IS NULL THEN 1 ELSE 0 END, orp.FechaFin, orp.RouteNumber
             `);
 
             // Avance por cuadro (desde tareas; Cantidad se repite por fila → MAX por producto)
@@ -115,6 +115,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     ID_RoutePlan: r.ID_RoutePlan, Cuadro: r.RouteNumber, Ruta: r.RouteName,
                     Prioridad: r.Prioridad, Carril: r.CarrilNombre,
                     EstadoPicking: r.Estado, EstadoDespacho: r.EstadoDespacho,
+                    FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
                     PesoEstimadoKg: r.PesoEstimado,
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,
@@ -135,7 +136,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                         OR rp.EstadoDespacho = 'Listo para Carga'
                         OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
-                ORDER BY CASE WHEN rp.Prioridad IS NULL THEN 1 ELSE 0 END, rp.Prioridad, rp.RouteNumber
+                ORDER BY CASE WHEN rp.FechaFin IS NULL THEN 1 ELSE 0 END, rp.FechaFin, rp.RouteNumber
             `);
             const av = await pool.request().query(`
                 ;WITH prod AS (
@@ -166,6 +167,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     ID_RoutePlan: null, Cuadro: r.RouteNumber, Ruta: r.RouteName,
                     Prioridad: r.Prioridad, Carril: r.CarrilNombre,
                     EstadoPicking: r.Estado, EstadoDespacho: r.EstadoDespacho,
+                    FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
                     PesoEstimadoKg: r.PesoEstimado,
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,
@@ -277,7 +279,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                         OR orp.EstadoDespacho = 'Listo para Carga'
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
-                ORDER BY CASE WHEN orp.Prioridad IS NULL THEN 1 ELSE 0 END, orp.Prioridad, orp.RouteNumber, opm.OV_Number
+                ORDER BY CASE WHEN orp.FechaFin IS NULL THEN 1 ELSE 0 END, orp.FechaFin, orp.RouteNumber, opm.OV_Number
             `);
             docs = r.recordset;
         } else {
@@ -296,7 +298,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                         OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 GROUP BY p.Cuadro, rp.RouteName, rp.Prioridad, p.OV_Number
-                ORDER BY CASE WHEN rp.Prioridad IS NULL THEN 1 ELSE 0 END, rp.Prioridad, p.Cuadro, p.OV_Number
+                ORDER BY CASE WHEN MIN(rp.FechaFin) IS NULL THEN 1 ELSE 0 END, MIN(rp.FechaFin), p.Cuadro, p.OV_Number
             `);
             docs = r.recordset;
         }
