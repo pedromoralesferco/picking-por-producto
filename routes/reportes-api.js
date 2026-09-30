@@ -279,7 +279,11 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                         OR orp.EstadoDespacho = 'Listo para Carga'
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
-                ORDER BY CASE WHEN orp.FechaFin IS NULL THEN 1 ELSE 0 END, orp.FechaFin, orp.RouteNumber, opm.OV_Number
+                ORDER BY CASE WHEN orp.Estado = 'Finalizado' THEN 0 ELSE 1 END,
+                         CASE WHEN orp.Estado = 'Finalizado' THEN orp.FechaFin END,
+                         CASE WHEN orp.Estado <> 'Finalizado' AND orp.Prioridad IS NULL THEN 1 ELSE 0 END,
+                         CASE WHEN orp.Estado <> 'Finalizado' THEN orp.Prioridad END,
+                         orp.RouteNumber, opm.OV_Number
             `);
             docs = r.recordset;
         } else {
@@ -298,7 +302,11 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                         OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 GROUP BY p.Cuadro, rp.RouteName, rp.Prioridad, p.OV_Number
-                ORDER BY CASE WHEN MIN(rp.FechaFin) IS NULL THEN 1 ELSE 0 END, MIN(rp.FechaFin), p.Cuadro, p.OV_Number
+                ORDER BY CASE WHEN MIN(rp.Estado) = 'Finalizado' THEN 0 ELSE 1 END,
+                         CASE WHEN MIN(rp.Estado) = 'Finalizado' THEN MIN(rp.FechaFin) END,
+                         CASE WHEN MIN(rp.Estado) <> 'Finalizado' AND rp.Prioridad IS NULL THEN 1 ELSE 0 END,
+                         CASE WHEN MIN(rp.Estado) <> 'Finalizado' THEN rp.Prioridad END,
+                         p.Cuadro, p.OV_Number
             `);
             docs = r.recordset;
         }

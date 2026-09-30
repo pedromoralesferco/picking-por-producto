@@ -111,12 +111,6 @@
                     <button data-v="operativa" class="active" onclick="setVista('operativa')">Operativa</button>
                     <button data-v="comercial" onclick="setVista('comercial')">Comercial</button>
                 </div>
-                <select id="sortSel" onchange="render()">
-                    <option value="fin">Orden: Fin de picking (antigüedad)</option>
-                    <option value="prioridad">Orden: Prioridad</option>
-                    <option value="avance">Orden: Avance</option>
-                    <option value="ton">Orden: Tonelaje</option>
-                </select>
                 <button class="btn-print" onclick="imprimir(this)"><i class="bi bi-printer"></i> Imprimir / PDF</button>
             </div>
         </div>
@@ -201,22 +195,21 @@
             return '<span class="pill pend">Pendiente</span>';
         }
 
-        function sortCuadros(arr) {
-            const s = document.getElementById('sortSel').value;
-            const a = arr.slice();
-            if (s === 'avance') a.sort((x, y) => (y.AvancePct - x.AvancePct));
-            else if (s === 'ton') a.sort((x, y) => (y.PesoEstimadoKg - x.PesoEstimadoKg));
-            else if (s === 'prioridad') a.sort((x, y) => {
-                const px = x.Prioridad == null ? 9999 : x.Prioridad, py = y.Prioridad == null ? 9999 : y.Prioridad;
-                return px - py || x.Cuadro - y.Cuadro;
-            });
-            else a.sort((x, y) => {
-                // Fin de picking: más antiguo primero; los que aún no terminan (sin fecha) al final
+        // Ejecutados ("lo de arriba"): por fin de picking, del más antiguo al más nuevo.
+        // Los que aún no tienen fecha van al final.
+        function sortByFin(arr) {
+            return arr.slice().sort((x, y) => {
                 const fx = x.FechaFin ? new Date(x.FechaFin).getTime() : Infinity;
                 const fy = y.FechaFin ? new Date(y.FechaFin).getTime() : Infinity;
                 return fx - fy || x.Cuadro - y.Cuadro;
             });
-            return a;
+        }
+        // Pendientes / en proceso: SIEMPRE por la prioridad definida (sin prioridad al final).
+        function sortByPrioridad(arr) {
+            return arr.slice().sort((x, y) => {
+                const px = x.Prioridad == null ? 9999 : x.Prioridad, py = y.Prioridad == null ? 9999 : y.Prioridad;
+                return px - py || x.Cuadro - y.Cuadro;
+            });
         }
 
         const fmtTon = t => (Number(t) || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -282,11 +275,11 @@
                 document.getElementById('tablero').innerHTML = '<div class="empty">Sin cuadros para hoy en este centro.</div>';
                 return;
             }
-            const ejec = sortCuadros(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado'));
-            const pend = sortCuadros(DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado'));
+            const ejec = sortByFin(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado'));
+            const pend = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado'));
             document.getElementById('tablero').innerHTML =
-                sectionTable('1. Ejecutados (picking finalizado / despachados)', 'ejec', ejec) +
-                sectionTable('2. Pendientes / en proceso (por antigüedad de fin de picking)', 'pend', pend) +
+                sectionTable('1. Ejecutados (picking finalizado / despachados) — por antigüedad de fin de picking', 'ejec', ejec) +
+                sectionTable('2. Pendientes / en proceso (orden de prioridad)', 'pend', pend) +
                 '<div id="detalleSection"></div>';
 
             openRows.forEach(cn => {
