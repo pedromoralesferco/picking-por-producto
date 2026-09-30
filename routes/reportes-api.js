@@ -76,6 +76,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
                 WHERE orp.ID_Centro = @centro
                   AND ( orp.Estado IN ('Pendiente', 'Iniciado')
+                        OR orp.EstadoDespacho = 'Listo para Carga'
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 ORDER BY CASE WHEN orp.Prioridad IS NULL THEN 1 ELSE 0 END, orp.Prioridad, orp.RouteNumber
@@ -131,6 +132,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 FROM RoutePlan rp
                 LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
                 WHERE ( rp.Estado IN ('Pendiente', 'Iniciado')
+                        OR rp.EstadoDespacho = 'Listo para Carga'
                         OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 ORDER BY CASE WHEN rp.Prioridad IS NULL THEN 1 ELSE 0 END, rp.Prioridad, rp.RouteNumber
@@ -272,6 +274,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                 INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                 WHERE orp.ID_Centro = @centro
                   AND ( orp.Estado IN ('Pendiente', 'Iniciado')
+                        OR orp.EstadoDespacho = 'Listo para Carga'
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 ORDER BY CASE WHEN orp.Prioridad IS NULL THEN 1 ELSE 0 END, orp.Prioridad, orp.RouteNumber, opm.OV_Number
@@ -289,6 +292,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                        MAX(p.DocType) AS DocType, SUM(p.Peso) AS PesoKg
                 FROM prod p INNER JOIN RoutePlan rp ON rp.RouteNumber = p.Cuadro
                 WHERE ( rp.Estado IN ('Pendiente', 'Iniciado')
+                        OR rp.EstadoDespacho = 'Listo para Carga'
                         OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 GROUP BY p.Cuadro, rp.RouteName, rp.Prioridad, p.OV_Number
