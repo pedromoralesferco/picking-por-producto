@@ -23,6 +23,11 @@ BEGIN
     EXEC dbo.SP_UpdateOrderPickingLisa_PorPais @Pais = 'HN', @LisaDb = 'lisa_sbopym',       @SapDb = 'sbopym';
     EXEC dbo.SP_UpdateOrderPickingLisa_PorPais @Pais = 'GT', @LisaDb = 'lisa_sboferco',     @SapDb = 'sboferco';
 
+    -- Sync de "No Despachada" (Escuintla): marca/desmarca OVs según sigan o no
+    -- en el cuadro de SAP. ANTES del cierre, para que una OV recién marcada no
+    -- bloquee el cierre del cuadro en esta misma corrida.
+    EXEC dbo.SP_SyncNoDespachadaEscuintla;
+
     -- ================================================
     -- Cierre 1: OrderPickingTask con CantidadPendiente = 0
     -- ================================================
@@ -97,10 +102,14 @@ BEGIN
             SET orp.Estado = 'Finalizado', orp.FechaFin = GETDATE()
             FROM dbo.OrderRoutePlan orp
             INNER JOIN (
+                -- Las OVs marcadas No Despachada se excluyen: no bloquean el cierre.
                 SELECT opt.RouteNumber, opt.Pais
                 FROM dbo.OrderPickingTask opt WITH (NOLOCK)
+                INNER JOIN dbo.OrderPickingManagement opm WITH (NOLOCK)
+                        ON opm.ID_OrderPicking = opt.ID_OrderPicking
                 WHERE EXISTS (SELECT 1 FROM #RoutesProcessed rp
                               WHERE rp.RouteNumber = opt.RouteNumber AND rp.Pais = opt.Pais)
+                  AND opm.NoDespachada = 0
                 GROUP BY opt.RouteNumber, opt.Pais
                 HAVING SUM(ISNULL(opt.CantidadPendiente, 0)) = 0
             ) tareas ON tareas.RouteNumber = orp.RouteNumber AND tareas.Pais = orp.Pais
@@ -160,6 +169,7 @@ BEGIN
           SELECT 1 FROM dbo.OrderPickingManagement opm
           INNER JOIN dbo.OrderPickingTask t ON t.ID_OrderPicking = opm.ID_OrderPicking
           WHERE opm.ID_RoutePlan = orp.ID_RoutePlan
+            AND opm.NoDespachada = 0
             AND ISNULL(t.CantidadPendiente, 0) > 0);
     SET @msg = 'Cierre catch-all cerrados: ' + CONVERT(VARCHAR, @@ROWCOUNT);
     RAISERROR(@msg, 0, 0) WITH NOWAIT;

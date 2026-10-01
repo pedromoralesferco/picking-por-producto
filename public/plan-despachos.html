@@ -458,14 +458,14 @@
                     <table><thead><tr>
                         <th>Documento</th><th>Tipo</th><th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Operario</th><th>Estado</th>
                     </tr></thead><tbody>
-                    ${docs.map(d => `<tr>
+                    ${docs.map(d => `<tr${d.NoDespachada ? ' style="color:#8a6d3b"' : ''}>
                         <td><b>${esc(d.OV_Number)}</b></td>
                         <td>${esc(d.DocType || '')}</td>
                         <td class="r">${num(d.TotalLineas ?? d.TotalProductos ?? '')}</td>
                         <td class="r">${num(d.TotalUnidades ?? '')}</td>
-                        <td class="r">${num(Math.round(d.PesoTotal || 0))}</td>
+                        <td class="r">${d.NoDespachada ? '—' : num(Math.round(d.PesoTotal || 0))}</td>
                         <td>${esc(d.OperarioNombre || '—')}</td>
-                        <td>${esc(d.Estado || '')}</td>
+                        <td>${d.NoDespachada ? 'No despachada' : esc(d.Estado || '')}</td>
                     </tr>`).join('')}
                     </tbody></table>`;
             } catch (e) {
@@ -499,9 +499,10 @@
                     <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th><th>Asesor</th>
                     <th class="r">Peso (kg)</th></tr></thead><tbody>`;
                 c.docs.forEach(d => {
-                    html += `<tr><td>${esc(d.OV_Number)}</td><td>${esc(d.DocType)}</td>
+                    const nd = d.NoDespachada;
+                    html += `<tr${nd ? ' style="color:#8a6d3b"' : ''}><td>${esc(d.OV_Number)}${nd ? ' · <b>NO DESPACHADA</b>' : ''}</td><td>${esc(d.DocType)}</td>
                         <td>${esc(d.Cliente || '')}</td><td>${esc(d.Asesor || '')}</td>
-                        <td class="r">${num(Math.round(d.PesoKg || 0))}</td></tr>`;
+                        <td class="r">${nd ? '—' : num(Math.round(d.PesoKg || 0))}</td></tr>`;
                 });
                 html += `<tr class="total-row"><td colspan="4">Subtotal (${c.docs.length})</td>
                     <td class="r">${num(Math.round(c.subtotalPeso))}</td></tr>`;

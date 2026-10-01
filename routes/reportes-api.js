@@ -90,7 +90,8 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                            MAX(ISNULL(t.CantidadPendiente, 0)) AS Pend,
                            MAX(ISNULL(t.UnitWeight, 0)) AS UW
                     FROM OrderPickingTask t
-                    WHERE t.ID_Centro = @centro
+                    INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
+                    WHERE t.ID_Centro = @centro AND opm.NoDespachada = 0
                     GROUP BY t.RouteNumber, t.ID_OrderPicking, t.InternIdProduct
                 )
                 SELECT RouteNumber,
@@ -104,7 +105,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             const ped = await pool.request().input('centro', sql.Int, centro).query(`
                 SELECT RouteNumber, COUNT(*) AS PedidosTot,
                        SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFin
-                FROM OrderPickingManagement WHERE ID_Centro = @centro GROUP BY RouteNumber
+                FROM OrderPickingManagement WHERE ID_Centro = @centro AND NoDespachada = 0 GROUP BY RouteNumber
             `);
             const pedMap = {}; ped.recordset.forEach(r => { pedMap[r.RouteNumber] = r; });
 
@@ -281,7 +282,8 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
         if (modo === 'order') {
             const r = await pool.request().input('centro', sql.Int, centro).query(`
                 SELECT orp.RouteNumber AS Cuadro, orp.RouteName AS Ruta, orp.Prioridad,
-                       opm.OV_Number, opm.DocType, ISNULL(opm.PesoTotal, 0) AS PesoKg
+                       opm.OV_Number, opm.DocType, ISNULL(opm.PesoTotal, 0) AS PesoKg,
+                       opm.NoDespachada
                 FROM OrderPickingManagement opm
                 INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                 WHERE orp.ID_Centro = @centro
@@ -334,8 +336,10 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                 : (i.cliente || '');
             const monto = d.DocType === 'OV' ? (i.monto != null ? Number(i.monto) : null) : null;
             const peso = Number(d.PesoKg) || 0;
-            g.docs.push({ OV_Number: d.OV_Number, DocType: d.DocType, Cliente: cliente, Asesor: i.asesor || '', PesoKg: peso, Monto: monto });
-            g.subtotalPeso += peso; g.subtotalMonto += (monto || 0);
+            const noDesp = !!d.NoDespachada;
+            g.docs.push({ OV_Number: d.OV_Number, DocType: d.DocType, Cliente: cliente, Asesor: i.asesor || '', PesoKg: peso, Monto: monto, NoDespachada: noDesp });
+            // Las no despachadas no suman al cuadro (van en otro cuadro).
+            if (!noDesp) { g.subtotalPeso += peso; g.subtotalMonto += (monto || 0); }
         }
         res.json({ modo, cuadros: Array.from(map.values()) });
     } catch (err) {

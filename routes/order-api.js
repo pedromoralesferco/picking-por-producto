@@ -126,6 +126,7 @@ router.get('/rutas', async (req, res) => {
                        SUM(ISNULL(PesoTotal, 0)) AS PesoTotal,
                        SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFinalizados
                 FROM OrderPickingManagement
+                WHERE NoDespachada = 0   -- las no despachadas no cuentan en el avance
                 GROUP BY ID_RoutePlan
             ) opm ON opm.ID_RoutePlan = orp.ID_RoutePlan
             WHERE (orp.Estado IN ('Pendiente', 'Iniciado')
@@ -165,6 +166,8 @@ router.get('/rutas/:id/pedidos', async (req, res) => {
                     opm.TotalUnidades,
                     opm.PesoTotal,
                     opm.Estado,
+                    opm.NoDespachada,
+                    opm.FechaNoDespachada,
                     opm.ID_Operario,
                     opm.FechaAsignacion,
                     opm.FechaInicio,
@@ -216,6 +219,7 @@ router.get('/rutas/:id/resumen', async (req, res) => {
                     SUM(ISNULL(PesoTotal, 0)) AS PesoTotal
                 FROM OrderPickingManagement
                 WHERE ID_RoutePlan = @idRoutePlan
+                  AND NoDespachada = 0
             `);
         const resumen = result.recordset[0] || {};
 
@@ -233,6 +237,7 @@ router.get('/rutas/:id/resumen', async (req, res) => {
                         FROM OrderPickingTask opt
                         INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = opt.ID_OrderPicking
                         WHERE opm.ID_RoutePlan = @idRoutePlan
+                          AND opm.NoDespachada = 0
                         GROUP BY opt.ID_OrderPicking, opt.InternIdProduct
                     )
                     SELECT
@@ -272,7 +277,7 @@ router.get('/pickers-activos', async (req, res) => {
             INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
             INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
             INNER JOIN Operario o ON o.ID_Operario = t.ID_Operario
-            WHERE t.ID_Operario IS NOT NULL AND orp.Estado = 'Iniciado'${centroFilter}
+            WHERE t.ID_Operario IS NOT NULL AND orp.Estado = 'Iniciado' AND opm.NoDespachada = 0${centroFilter}
             GROUP BY o.ID_Operario, o.Nombre
             HAVING SUM(CASE WHEN t.Estado <> 'Finalizado' THEN 1 ELSE 0 END) > 0
             ORDER BY MAX(t.UltimaActualizacion) ASC
@@ -802,6 +807,7 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.TotalUnidades,
                     opm.PesoTotal,
                     opm.Estado,
+                    opm.NoDespachada,
                     opm.ID_Operario,
                     o.Nombre AS OperarioNombre,
                     (SELECT COUNT(*) FROM OrderPickingTask
@@ -914,6 +920,7 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
                 INNER JOIN OrderPickingTask t ON t.ID_OrderPicking = opm.ID_OrderPicking
                 LEFT JOIN Operario o ON o.ID_Operario = opm.ID_Operario
                 WHERE opm.ID_RoutePlan = @idRoutePlan
+                  AND opm.NoDespachada = 0   -- no imprimir packing de OVs no despachadas
                 GROUP BY opm.ID_OrderPicking, opm.OV_Number, opm.DocType, opm.IDCustomerOrder,
                          opm.PesoTotal, o.Nombre, t.InternIdProduct
                 ORDER BY opm.OV_Number, t.InternIdProduct

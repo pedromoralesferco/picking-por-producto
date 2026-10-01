@@ -621,7 +621,8 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pi
 }
 
 function renderPedido(idRoutePlan, p) {
-    const estadoClean = (p.Estado || 'Pendiente').replace(' ', '');
+    const noDesp = !!p.NoDespachada;
+    const estadoClean = noDesp ? 'NoDespachada' : (p.Estado || 'Pendiente').replace(' ', '');
     const isFinalizado = p.Estado === 'Finalizado';
     const ultimoPickHtml = (!isFinalizado && p.UltimaTransaccion)
         ? `<div class="timer-item"><i class="bi bi-box-arrow-in-down"></i> Último pick hace: <span data-timer-start="${p.UltimaTransaccion}">${formatElapsed(p.UltimaTransaccion)}</span></div>`
@@ -639,7 +640,9 @@ function renderPedido(idRoutePlan, p) {
     const docLabel = p.DocType === 'OV' ? 'OV' : p.DocType;
 
     let buttonsHtml = '';
-    if (!isFinalizado && !p.OperarioNombre) {
+    if (noDesp) {
+        buttonsHtml = '';   // no despachada: no se asigna ni se pickea
+    } else if (!isFinalizado && !p.OperarioNombre) {
         buttonsHtml = `
             <button class="btn-action btn-asignar" onclick="openPickerModalOrder(${p.ID_OrderPicking})" title="Asignar operario">
                 <i class="bi bi-person-plus"></i></button>`;
@@ -659,7 +662,7 @@ function renderPedido(idRoutePlan, p) {
         <div class="pedido-card estado-${estadoClean}">
             <div class="pedido-header">
                 <div class="pedido-info">
-                    <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${p.Estado || 'Pendiente'}</span></div>
+                    <div class="pedido-doc">${docLabel} ${p.OV_Number} <span class="estado estado-${estadoClean}" style="font-size:0.7rem">${noDesp ? 'No despachada' : (p.Estado || 'Pendiente')}</span></div>
                     <div class="pedido-meta">${p.TotalLineas || 0} lineas | ${p.TotalUnidades || 0} uds | ${formatNumber(p.PesoTotal || 0)} kg</div>
                     ${operarioHtml}
                     ${p.FechaAsignacion ? `<div class="timer-item${isFinalizado ? ' finalizado' : ''}">
