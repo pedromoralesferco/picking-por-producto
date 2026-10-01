@@ -343,6 +343,10 @@ router.get('/plan-despachos/buscar', requireReportes, async (req, res) => {
         if (!q) return res.json({ resultados: [] });
         const qi = /^\d+$/.test(q) ? parseInt(q) : null;
         const pool = getPool();
+        // SAP db para buscar la OV en el cuadro aunque la ruta aún no se haya
+        // iniciado (los cuadros Pendientes no tienen filas en OrderPickingManagement).
+        const sapDb = getSapDb(u.selectedPais || 'GT');
+        const sapDbProd = getSapDb('GT');
         let rows;
         if (modo === 'order') {
             rows = (await pool.request().input('centro', sql.Int, centro).input('q', sql.NVarChar, q)
@@ -351,12 +355,19 @@ router.get('/plan-despachos/buscar', requireReportes, async (req, res) => {
                        orp.EstadoDespacho, orp.FechaDespachoFin AS FechaDespacho,
                        CAST(NULL AS NVARCHAR(50)) AS OV, 'cuadro' AS Tipo
                 FROM OrderRoutePlan orp WHERE orp.ID_Centro = @centro AND orp.RouteNumber = @qi
-                UNION ALL
+                UNION
                 SELECT orp.RouteNumber, orp.RouteName, orp.Estado, orp.EstadoDespacho, orp.FechaDespachoFin,
                        opm.OV_Number, 'ov'
                 FROM OrderPickingManagement opm
                 INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
-                WHERE orp.ID_Centro = @centro AND opm.OV_Number = @q
+                WHERE orp.ID_Centro = @centro AND LTRIM(RTRIM(opm.OV_Number)) = @q
+                UNION
+                SELECT orp.RouteNumber, orp.RouteName, orp.Estado, orp.EstadoDespacho, orp.FechaDespachoFin,
+                       LTRIM(RTRIM(d.U_No_OV)), 'ov'
+                FROM [server-sql].[${sapDb}].dbo.[@CUADRO_RUTA_E] e WITH (NOLOCK)
+                INNER JOIN [server-sql].[${sapDb}].dbo.[@CUADRO_RUTA_D] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
+                INNER JOIN OrderRoutePlan orp ON orp.RouteNumber = e.DocNum AND orp.ID_Centro = @centro
+                WHERE LTRIM(RTRIM(d.U_No_OV)) = @q
             `)).recordset;
         } else {
             rows = (await pool.request().input('q', sql.NVarChar, q).input('qi', sql.Int, qi).query(`
@@ -364,11 +375,18 @@ router.get('/plan-despachos/buscar', requireReportes, async (req, res) => {
                        rp.EstadoDespacho, rp.FechaDespachoFin AS FechaDespacho,
                        CAST(NULL AS NVARCHAR(50)) AS OV, 'cuadro' AS Tipo
                 FROM RoutePlan rp WHERE rp.RouteNumber = @qi
-                UNION ALL
+                UNION
                 SELECT rp.RouteNumber, rp.RouteName, rp.Estado, rp.EstadoDespacho, rp.FechaDespachoFin,
                        t.OV_Number, 'ov'
-                FROM (SELECT DISTINCT Route_Number, OV_Number FROM RoutePickingTask WHERE OV_Number = @q) t
+                FROM (SELECT DISTINCT Route_Number, OV_Number FROM RoutePickingTask WHERE LTRIM(RTRIM(OV_Number)) = @q) t
                 INNER JOIN RoutePlan rp ON rp.RouteNumber = t.Route_Number
+                UNION
+                SELECT rp.RouteNumber, rp.RouteName, rp.Estado, rp.EstadoDespacho, rp.FechaDespachoFin,
+                       LTRIM(RTRIM(d.U_No_OV)), 'ov'
+                FROM [server-sql].[${sapDbProd}].dbo.[@CUADRO_RUTA_E] e WITH (NOLOCK)
+                INNER JOIN [server-sql].[${sapDbProd}].dbo.[@CUADRO_RUTA_D] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
+                INNER JOIN RoutePlan rp ON rp.RouteNumber = e.DocNum
+                WHERE LTRIM(RTRIM(d.U_No_OV)) = @q
             `)).recordset;
         }
         // Dedup por Cuadro+OV
