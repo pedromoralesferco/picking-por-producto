@@ -71,6 +71,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             const cab = await pool.request().input('centro', sql.Int, centro).query(`
                 SELECT orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Prioridad,
                        orp.Estado, orp.EstadoDespacho, orp.FechaFin, orp.FechaDespachoFin,
+                       orp.FechaPlanDespacho,
                        ISNULL(orp.PesoEstimado, 0) AS PesoEstimado, c.Nombre AS CarrilNombre
                 FROM OrderRoutePlan orp
                 LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
@@ -116,6 +117,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     EstadoPicking: r.Estado, EstadoDespacho: r.EstadoDespacho,
                     FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
+                    FechaPlanDespacho: r.FechaPlanDespacho,
                     PesoEstimadoKg: r.PesoEstimado,
                     // Tonelaje pendiente: remanente por pickear si ya inició; si no tiene
                     // tareas aún (cuadro Pendiente), es el estimado completo.
@@ -210,8 +212,11 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
         kpis.avancePctGlobal = pct(kpis.unidadesPick, kpis.unidadesTot);
         kpis.tonPendiente = kpis.tonTotal - kpis.tonDespachada;
 
+        // ¿Puede definir fecha planificada / repriorizar? (solo priorizacion en Escuintla)
+        const puedePriorizar = (u.rol === 'Admin' || (u.permisos && u.permisos.includes('priorizacion'))) && modo === 'order' && centro === 3;
+
         res.json({
-            modo, verOperativo,
+            modo, verOperativo, puedePriorizar, esEscuintla: centro === 3,
             centro: { id: centro, nombre: u.selectedCentroNombre || null, pais },
             generado: new Date(),
             kpis, cuadros
@@ -407,6 +412,40 @@ router.get('/plan-despachos/buscar', requireReportes, async (req, res) => {
     } catch (err) {
         console.error('GET /api/reportes/plan-despachos/buscar error:', err);
         res.status(500).json({ error: 'Error en la búsqueda' });
+    }
+});
+
+// Acceso para definir fecha plan / repriorizar: permiso 'priorizacion' o Admin
+function requirePriorizar(req, res, next) {
+    const u = req.session && req.session.user;
+    if (!u) return res.status(401).json({ error: 'No autenticado' });
+    if (u.rol === 'Admin' || (u.permisos && u.permisos.includes('priorizacion'))) return next();
+    return res.status(403).json({ error: 'Sin permiso de priorización' });
+}
+
+// POST /api/reportes/plan-despachos/fecha-plan — fija la Fecha Planificada de un cuadro (Escuintla)
+router.post('/plan-despachos/fecha-plan', requirePriorizar, async (req, res) => {
+    try {
+        const id = parseInt(req.body.id_routePlan);
+        if (!id) return res.status(400).json({ error: 'id_routePlan requerido' });
+        const raw = req.body.fecha;
+        let fecha = null; // vacío = quitar
+        if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+            fecha = String(raw).trim().slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'Fecha inválida (YYYY-MM-DD)' });
+        }
+        const pool = getPool();
+        const r = await pool.request()
+            .input('id', sql.Int, id).input('f', sql.Date, fecha).input('centro', sql.Int, 3)
+            .query(`
+                UPDATE OrderRoutePlan SET FechaPlanDespacho = @f
+                WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND Estado IN ('Pendiente', 'Iniciado')
+            `);
+        if (r.rowsAffected[0] === 0) return res.status(404).json({ error: 'Ruta no encontrada, no es de Escuintla o ya finalizó' });
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('POST /api/reportes/plan-despachos/fecha-plan error:', err);
+        res.status(500).json({ error: 'Error al guardar la fecha' });
     }
 });
 
