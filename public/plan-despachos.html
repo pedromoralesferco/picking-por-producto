@@ -66,6 +66,8 @@
         .sec-title { font-size: 0.95rem; font-weight: 800; margin: 1.1rem 0 0.4rem; padding-left: 0.5rem; border-left: 4px solid var(--primary); }
         .sec-title.listo { border-color: var(--blue); color: var(--blue); }
         .sub-title { font-size: 0.78rem; font-weight: 700; color: #777; margin: 0.6rem 0 0.25rem; padding-left: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        tbody tr.grp-row td { background: #eef3ea; font-weight: 700; color: var(--success); text-transform: capitalize;
+            font-size: 0.74rem; padding: 0.35rem 0.6rem; border-top: 1px solid #dfe7da; }
         .sec-title.ejec { border-color: var(--success); color: var(--success); }
         .sec-title.pend { border-color: var(--dark); color: var(--dark); }
         tbody tr.total-row td { background: #f3efe0; font-weight: 800; border-top: 2px solid var(--dark); }
@@ -315,6 +317,40 @@
             return 'Pendiente';
         }
 
+        function fechaLabel(dt) {
+            const d = new Date(dt);
+            const hoy = new Date(), ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+            const f = d.toLocaleDateString('es-GT', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+            if (esMismoDia(dt, hoy)) return f + ' · HOY';
+            if (esMismoDia(dt, ayer)) return f + ' · AYER';
+            return f;
+        }
+        // Despachado: una sola tabla, con fila separadora por fecha de despacho
+        function sectionTableDespachado(titulo, cuadros) {
+            const head = `<h3 class="sec-title ejec">${titulo}</h3>`;
+            if (!cuadros.length) return head + '<div class="empty" style="padding:0.8rem">Sin despachos.</div>';
+            let acum = 0, lastKey = null, body = '';
+            cuadros.forEach(c => {
+                const key = c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin';
+                if (key !== lastKey) {
+                    lastKey = key;
+                    body += `<tr class="grp-row"><td colspan="13"><i class="bi bi-calendar-check"></i> ${c.FechaDespacho ? fechaLabel(c.FechaDespacho) : 'Sin fecha'}</td></tr>`;
+                }
+                acum += (c.PesoEstimadoKg || 0) / 1000;
+                body += filaCuadro(c, acum);
+            });
+            const totalTon = cuadros.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
+            const totalRow = `<tr class="total-row"><td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
+                <td class="r">${fmtTon(totalTon)}</td><td class="r">${fmtTon(totalTon)}</td><td colspan="8"></td></tr>`;
+            return head + `<table>
+                <thead class="ejec"><tr>
+                    <th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">Ton</th><th class="r">Acum. TN</th>
+                    <th>Status Picking</th><th>Status Carga</th><th>Despachado</th><th>Hora desp.</th>
+                    <th class="op-col">Tipo unidad</th><th class="op-col">Placa</th><th class="op-col">Transportista</th>
+                    <th class="c"></th>
+                </tr></thead><tbody>${body}${totalRow}</tbody></table>`;
+        }
+
         function render() {
             if (!DATA) return;
             kpiCards();
@@ -322,17 +358,12 @@
                 document.getElementById('tablero').innerHTML = '<div class="empty">Sin cuadros para este centro.</div>';
                 return;
             }
-            const hoy = new Date(), ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
-            const despachados = DATA.cuadros.filter(c => c.EstadoDespacho === 'Finalizado');
-            const despHoy = sortByDespDesc(despachados.filter(c => esMismoDia(c.FechaDespacho, hoy)));
-            const despAyer = sortByDespDesc(despachados.filter(c => esMismoDia(c.FechaDespacho, ayer)));
+            const despachados = sortByDespDesc(DATA.cuadros.filter(c => c.EstadoDespacho === 'Finalizado'));
             const listos = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado' && c.EstadoDespacho !== 'Finalizado'));
             const pendientes = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado'));
 
             document.getElementById('tablero').innerHTML =
-                '<h3 class="sec-title ejec">1. Despachado</h3>' +
-                sectionTable('Despachado hoy', 'ejec', despHoy, true) +
-                sectionTable('Despachado ayer', 'ejec', despAyer, true) +
+                sectionTableDespachado('1. Despachado (agrupado por fecha)', despachados) +
                 sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos) +
                 sectionTable('3. Pendientes', 'pend', pendientes) +
                 '<div id="detalleSection"></div>';
