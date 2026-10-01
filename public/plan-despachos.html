@@ -554,14 +554,23 @@
             } catch (e) { alert('Error al guardar la fecha'); }
             load();
         }
-        // Guardar / repriorizar (mismo endpoint que Gestión; normaliza 1..N)
+        // Guardar / repriorizar (mismo endpoint que Gestión; normaliza 1..N).
+        // Al fijar una prioridad, la Fecha Planificada se alinea con el día del
+        // cuadro que queda encima ("subir prio = traer a hoy").
         async function setPrioridad(idRoutePlan, val) {
+            const tienePrio = String(val ?? '').trim() !== '';
             try {
                 const r = await fetch('/api/order/priorizacion/set', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id_routePlan: idRoutePlan, prioridad: val })
                 });
-                if (!r.ok) { const d = await r.json(); alert(d.error || 'Error al guardar prioridad'); }
+                if (!r.ok) { const d = await r.json(); alert(d.error || 'Error al guardar prioridad'); load(); return; }
+                if (tienePrio) {
+                    await fetch('/api/reportes/plan-despachos/sync-fecha', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id_routePlan: idRoutePlan })
+                    });
+                }
             } catch (e) { alert('Error al guardar prioridad'); }
             load();
         }

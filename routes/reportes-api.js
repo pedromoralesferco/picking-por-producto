@@ -449,4 +449,36 @@ router.post('/plan-despachos/fecha-plan', requirePriorizar, async (req, res) => 
     }
 });
 
+// POST /api/reportes/plan-despachos/sync-fecha — alinea la Fecha Planificada con la prioridad.
+// Se llama DESPUÉS de repriorizar: el cuadro hereda la fecha del que le queda justo encima
+// en la cola (Prioridad - 1). Si queda de #1 o encima no tiene fecha, cae a HOY.
+// "Subir prio = traer a hoy". Solo Escuintla, Pendiente/Iniciado, con permiso de priorización.
+router.post('/plan-despachos/sync-fecha', requirePriorizar, async (req, res) => {
+    try {
+        const id = parseInt(req.body.id_routePlan);
+        if (!id) return res.status(400).json({ error: 'id_routePlan requerido' });
+        const pool = getPool();
+        const r = await pool.request()
+            .input('id', sql.Int, id).input('centro', sql.Int, 3)
+            .query(`
+                UPDATE orp
+                SET orp.FechaPlanDespacho = COALESCE(prev.FechaPlanDespacho, CAST(GETDATE() AS DATE))
+                FROM OrderRoutePlan orp
+                OUTER APPLY (
+                    SELECT TOP 1 p.FechaPlanDespacho
+                    FROM OrderRoutePlan p
+                    WHERE p.ID_Centro = @centro AND p.Estado IN ('Pendiente', 'Iniciado')
+                      AND p.Prioridad IS NOT NULL AND p.Prioridad < orp.Prioridad
+                    ORDER BY p.Prioridad DESC
+                ) prev
+                WHERE orp.ID_RoutePlan = @id AND orp.ID_Centro = @centro
+                  AND orp.Estado IN ('Pendiente', 'Iniciado') AND orp.Prioridad IS NOT NULL
+            `);
+        res.json({ ok: true, updated: r.rowsAffected[0] });
+    } catch (err) {
+        console.error('POST /api/reportes/plan-despachos/sync-fecha error:', err);
+        res.status(500).json({ error: 'Error al sincronizar la fecha' });
+    }
+});
+
 module.exports = router;
