@@ -127,7 +127,10 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,
                     UnidadesTot: a.UnidadesTot || 0, UnidadesPick: a.UnidadesPick || 0,
                     LineasTot: a.LineasTot || 0, LineasFin: a.LineasFin || 0,
-                    AvancePct: pct(a.UnidadesPick || 0, a.UnidadesTot || 0)
+                    // Cuadro Finalizado SIN tareas (nació despachado con placa: ya se
+                    // pickeó en el cuadro original) = completo por diseño, no 0%.
+                    AvancePct: (r.Estado === 'Finalizado' && (a.LineasTot || 0) === 0)
+                        ? 100 : pct(a.UnidadesPick || 0, a.UnidadesTot || 0)
                 };
             });
         } else {
@@ -181,7 +184,10 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,
                     UnidadesTot: a.UnidadesTot || 0, UnidadesPick: a.UnidadesPick || 0,
                     LineasTot: a.LineasTot || 0, LineasFin: a.LineasFin || 0,
-                    AvancePct: pct(a.UnidadesPick || 0, a.UnidadesTot || 0)
+                    // Cuadro Finalizado SIN tareas (nació despachado con placa: ya se
+                    // pickeó en el cuadro original) = completo por diseño, no 0%.
+                    AvancePct: (r.Estado === 'Finalizado' && (a.LineasTot || 0) === 0)
+                        ? 100 : pct(a.UnidadesPick || 0, a.UnidadesTot || 0)
                 };
             });
         }

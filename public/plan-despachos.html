@@ -69,6 +69,9 @@
         tbody tr.grp-row td { background: #eef3ea; font-weight: 700; color: var(--success); text-transform: capitalize;
             font-size: 0.74rem; padding: 0.35rem 0.6rem; border-top: 1px solid #dfe7da; }
         tbody tr.grp-row.pend td { background: #f3efe0; color: var(--dark); border-color: #e7dcc0; }
+        tbody tr.grp-row.ayer-grp { cursor: pointer; }
+        tbody tr.grp-row.ayer-grp:hover td { background: #e3ebdd; }
+        .grp-caret { transition: transform 0.1s; }
         .fp-input { border: 1px solid #c9b86a; border-radius: 6px; padding: 0.2rem 0.3rem; font-size: 0.72rem; background: #fffdf5; width: 120px; }
         .prio-input { width: 42px; text-align: center; border: 1px solid #c9b86a; border-radius: 6px; padding: 0.2rem; font-size: 0.78rem; font-weight: 700; background: #fffdf5; }
         .sec-title.ejec { border-color: var(--success); color: var(--success); }
@@ -252,12 +255,14 @@
                 : '<span class="pill incompleto">Incompleto</span>';
         }
 
-        function filaCuadro(c, acum, tonHtml) {
+        function filaCuadro(c, acum, tonHtml, hiddenGrp) {
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
             const tonCell = (tonHtml == null ? fmtTon((c.PesoEstimadoKg || 0) / 1000) : tonHtml);
+            const grpAttr = hiddenGrp ? ` data-despgrp="${hiddenGrp}"` : '';
+            const hideStyle = hiddenGrp ? ' style="display:none"' : '';
             return `
-                <tr class="cuadro-row" id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                <tr class="cuadro-row"${grpAttr}${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
@@ -272,7 +277,7 @@
                     <td class="op-col">${esc(c.Transportista || '—')}</td>
                     <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
                 </tr>
-                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="13"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !hiddenGrp ? '' : 'display:none'}"><td colspan="13"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
 
         function sectionTable(titulo, cls, cuadros, sub, opts) {
@@ -338,15 +343,27 @@
         function sectionTableDespachado(titulo, cuadros) {
             const head = `<h3 class="sec-title ejec">${titulo}</h3>`;
             if (!cuadros.length) return head + '<div class="empty" style="padding:0.8rem">Sin despachos.</div>';
-            let acum = 0, lastKey = null, body = '';
+            let acum = 0, lastKey = null, body = '', grpIdx = 0, curGrp = null;
             cuadros.forEach(c => {
                 const key = c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin';
                 if (key !== lastKey) {
                     lastKey = key;
-                    body += `<tr class="grp-row"><td colspan="13"><i class="bi bi-calendar-check"></i> ${c.FechaDespacho ? fechaLabel(c.FechaDespacho) : 'Sin fecha'}</td></tr>`;
+                    const esHoy = c.FechaDespacho ? esMismoDia(c.FechaDespacho, new Date()) : false;
+                    const lbl = c.FechaDespacho ? fechaLabel(c.FechaDespacho) : 'Sin fecha';
+                    if (esHoy) {
+                        curGrp = null;   // hoy: visible, sin colapsar
+                        body += `<tr class="grp-row"><td colspan="13"><i class="bi bi-calendar-check"></i> ${lbl}</td></tr>`;
+                    } else {
+                        // Ayer / anteriores: colapsado por defecto, con botón para expandir
+                        grpIdx++; curGrp = 'despgrp-' + grpIdx;
+                        const n = cuadros.filter(x => (x.FechaDespacho ? new Date(x.FechaDespacho).toDateString() : 'sin') === key).length;
+                        body += `<tr class="grp-row ayer-grp" onclick="toggleDespGrp('${curGrp}', this)"><td colspan="13">
+                            <i class="bi bi-chevron-right grp-caret"></i> <i class="bi bi-calendar-check"></i> ${lbl}
+                            <span style="font-weight:600;color:#888">· ${n} cuadro(s) — click para ver</span></td></tr>`;
+                    }
                 }
                 acum += (c.PesoEstimadoKg || 0) / 1000;
-                body += filaCuadro(c, acum);
+                body += filaCuadro(c, acum, null, curGrp);
             });
             const totalTon = cuadros.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
             const totalRow = `<tr class="total-row"><td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
@@ -358,6 +375,16 @@
                     <th class="op-col">Tipo unidad</th><th class="op-col">Placa</th><th class="op-col">Transportista</th>
                     <th class="c"></th>
                 </tr></thead><tbody>${body}${totalRow}</tbody></table>`;
+        }
+
+        // Expandir/colapsar un grupo de despachos (ayer / anteriores)
+        function toggleDespGrp(grpId, el) {
+            const rows = document.querySelectorAll(`tr.cuadro-row[data-despgrp="${grpId}"]`);
+            if (!rows.length) return;
+            const oculto = rows[0].style.display === 'none';
+            rows.forEach(r => { r.style.display = oculto ? '' : 'none'; });
+            const caret = el.querySelector('.grp-caret');
+            if (caret) caret.className = 'bi bi-chevron-' + (oculto ? 'down' : 'right') + ' grp-caret';
         }
 
         // ── Pendientes: plan diario (agrupado por Fecha Planificada), con prioridad editable ──
@@ -532,6 +559,13 @@
                     if (c && !openRows.has(c.Cuadro)) { openRows.add(c.Cuadro); render(); }
                     const row = document.getElementById('row-cuadro-' + enTablero.Cuadro);
                     if (row) {
+                        // Si cayó en un grupo de despacho colapsado (ayer), expandirlo
+                        const grp = row.getAttribute('data-despgrp');
+                        if (grp && row.style.display === 'none') {
+                            document.querySelectorAll(`tr.cuadro-row[data-despgrp="${grp}"]`).forEach(r => { r.style.display = ''; });
+                            const caret = document.querySelector(`tr.ayer-grp[onclick*="${grp}"] .grp-caret`);
+                            if (caret) caret.className = 'bi bi-chevron-down grp-caret';
+                        }
                         document.querySelectorAll('tr.cuadro-row.hl').forEach(e => e.classList.remove('hl'));
                         row.classList.add('hl');
                         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
