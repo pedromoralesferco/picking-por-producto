@@ -77,8 +77,20 @@ BEGIN
     -- Guatemala / Escuintla (sboferco, bodega 138, Pais GT) — modo pedido
     -- (Zona 5 / 01 NO entra aquí; sigue en modo producto)
     -- ========================================
-    INSERT INTO dbo.OrderRoutePlan (RouteNumber, RouteName, FechaPlanificacion, AlmacenOrigen, ID_Centro, Pais, PesoEstimado)
-    SELECT src.DocNum, ISNULL(src.U_NombreR, 'Ruta ' + CAST(src.DocNum AS NVARCHAR(20))), GETDATE(), '138', cd.ID_Centro, 'GT', ISNULL(peso.PesoEstimado, 0)
+    -- Cuadro de reacomodo (último minuto): si NACE con placa, su mercadería ya se
+    -- pickeó en el cuadro original; entra CERRADO (Finalizado + Despachado), no a la
+    -- cola de picking. El trigger TR_OrderRoutePlan_EstadosFechas es AFTER UPDATE, así
+    -- que un INSERT directo en 'Finalizado' NO dispara SP_AddOrderRouteTasks (sin tareas
+    -- fantasma). Solo GT/Escuintla. Un cuadro que gana placa DESPUÉS sigue el flujo
+    -- normal (picking -> SP_AutoDespachoEscuintla).
+    INSERT INTO dbo.OrderRoutePlan (RouteNumber, RouteName, FechaPlanificacion, AlmacenOrigen, ID_Centro, Pais, PesoEstimado,
+                                    Estado, EstadoDespacho, FechaInicio, FechaFin, FechaDespachoFin)
+    SELECT src.DocNum, ISNULL(src.U_NombreR, 'Ruta ' + CAST(src.DocNum AS NVARCHAR(20))), GETDATE(), '138', cd.ID_Centro, 'GT', ISNULL(peso.PesoEstimado, 0),
+           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN 'Finalizado' ELSE 'Pendiente' END,
+           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN 'Finalizado' ELSE 'Pendiente' END,
+           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN GETDATE() ELSE NULL END,
+           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN GETDATE() ELSE NULL END,
+           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN GETDATE() ELSE NULL END
     FROM [server-sql].sboferco.dbo.[@cuadro_ruta_e] AS src WITH (NOLOCK)
     CROSS JOIN dbo.CentroDistribucion cd
     LEFT JOIN (
