@@ -77,20 +77,26 @@ BEGIN
     -- Guatemala / Escuintla (sboferco, bodega 138, Pais GT) — modo pedido
     -- (Zona 5 / 01 NO entra aquí; sigue en modo producto)
     -- ========================================
-    -- Cuadro de reacomodo (último minuto): si NACE con placa, su mercadería ya se
-    -- pickeó en el cuadro original; entra CERRADO (Finalizado + Despachado), no a la
-    -- cola de picking. El trigger TR_OrderRoutePlan_EstadosFechas es AFTER UPDATE, así
-    -- que un INSERT directo en 'Finalizado' NO dispara SP_AddOrderRouteTasks (sin tareas
-    -- fantasma). Solo GT/Escuintla. Un cuadro que gana placa DESPUÉS sigue el flujo
-    -- normal (picking -> SP_AutoDespachoEscuintla).
+    -- Cuadro de reacomodo (último minuto): si NACE despachado entra CERRADO
+    -- (Finalizado + Despachado), no a la cola de picking — su mercadería ya se pickeó
+    -- en el cuadro original. "Nace despachado" = u_estado '03' (ya salió; en 138 todos
+    -- los '03' traen placa) O ya trae placa. OJO: por eso la ingestión abajo incluye
+    -- u_estado IN ('02','03') — los '03' que saltan la ventana de '02' (reacomodos
+    -- rápidos) entraban antes NUNCA; ahora entran cerrados.
+    -- Fecha de cierre = src.CreateDate (día real del cuadro), NO GETDATE: así un
+    -- backfill de cuadros de días previos cae en su día y no infla el despacho de hoy.
+    -- El trigger TR_OrderRoutePlan_EstadosFechas es AFTER UPDATE, así que un INSERT
+    -- directo en 'Finalizado' NO dispara SP_AddOrderRouteTasks (sin tareas fantasma).
+    -- Solo GT/Escuintla. Un cuadro que gana placa DESPUÉS (ya ingestado en '02') sigue
+    -- el flujo normal (picking -> SP_AutoDespachoEscuintla).
     INSERT INTO dbo.OrderRoutePlan (RouteNumber, RouteName, FechaPlanificacion, AlmacenOrigen, ID_Centro, Pais, PesoEstimado,
                                     Estado, EstadoDespacho, FechaInicio, FechaFin, FechaDespachoFin)
     SELECT src.DocNum, ISNULL(src.U_NombreR, 'Ruta ' + CAST(src.DocNum AS NVARCHAR(20))), GETDATE(), '138', cd.ID_Centro, 'GT', ISNULL(peso.PesoEstimado, 0),
-           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN 'Finalizado' ELSE 'Pendiente' END,
-           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN 'Finalizado' ELSE 'Pendiente' END,
-           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN GETDATE() ELSE NULL END,
-           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN GETDATE() ELSE NULL END,
-           CASE WHEN LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN GETDATE() ELSE NULL END
+           CASE WHEN src.u_estado = '03' OR LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN 'Finalizado' ELSE 'Pendiente' END,
+           CASE WHEN src.u_estado = '03' OR LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN 'Finalizado' ELSE 'Pendiente' END,
+           CASE WHEN src.u_estado = '03' OR LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN src.CreateDate ELSE NULL END,
+           CASE WHEN src.u_estado = '03' OR LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN src.CreateDate ELSE NULL END,
+           CASE WHEN src.u_estado = '03' OR LTRIM(RTRIM(ISNULL(src.U_Placa, ''))) <> '' THEN src.CreateDate ELSE NULL END
     FROM [server-sql].sboferco.dbo.[@cuadro_ruta_e] AS src WITH (NOLOCK)
     CROSS JOIN dbo.CentroDistribucion cd
     LEFT JOIN (
@@ -115,7 +121,7 @@ BEGIN
         ) z GROUP BY z.DocNum
     ) peso ON peso.DocNum = src.DocNum
     WHERE cd.Pais = 'GT' AND cd.Codigo = '138'
-      AND src.u_estado = '02' AND src.CreateDate > GETDATE() - 5
+      AND src.u_estado IN ('02', '03') AND src.CreateDate > GETDATE() - 5
       AND src.U_Almacen_Origen = '138'
       AND NOT EXISTS (SELECT 1 FROM dbo.OrderRoutePlan orp WHERE orp.RouteNumber = src.DocNum AND orp.Pais = 'GT');
 END;
