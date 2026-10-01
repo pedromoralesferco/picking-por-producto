@@ -64,6 +64,8 @@
         .bar.done > span { background: var(--success); }
 
         .sec-title { font-size: 0.95rem; font-weight: 800; margin: 1.1rem 0 0.4rem; padding-left: 0.5rem; border-left: 4px solid var(--primary); }
+        .sec-title.listo { border-color: var(--blue); color: var(--blue); }
+        .sub-title { font-size: 0.78rem; font-weight: 700; color: #777; margin: 0.6rem 0 0.25rem; padding-left: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; }
         .sec-title.ejec { border-color: var(--success); color: var(--success); }
         .sec-title.pend { border-color: var(--dark); color: var(--dark); }
         tbody tr.total-row td { background: #f3efe0; font-weight: 800; border-top: 2px solid var(--dark); }
@@ -81,10 +83,22 @@
 
         .print-only { display: none; }
 
+        /* Buscador */
+        .buscador { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem;
+            background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.8rem; }
+        .buscador > i { color: var(--primary-dark); }
+        .buscador input { flex: 0 1 280px; border: 1px solid #d9d9d9; border-radius: 8px; padding: 0.45rem 0.7rem; font-size: 0.85rem; }
+        .buscador button { background: var(--dark); color: var(--primary); border: none; border-radius: 8px;
+            padding: 0.45rem 0.9rem; font-weight: 600; font-size: 0.82rem; cursor: pointer; }
+        .buscar-result { font-size: 0.82rem; color: #555; }
+        .buscar-result b { color: var(--dark); }
+        tr.cuadro-row.hl > td { background: #fff3cd !important; animation: hlfade 3s ease-out; }
+        @keyframes hlfade { 0% { background: #ffe08a; } 100% { background: #fff3cd; } }
+
         @media print {
             @page { size: landscape; margin: 1cm; }
             body { background: #fff; }
-            .navbar-app, .toolbar, .refresh-note, .detalle-row { display: none !important; }
+            .navbar-app, .toolbar, .refresh-note, .detalle-row, .no-print { display: none !important; }
             .wrap { max-width: none; padding: 0; }
             .print-only { display: block; margin-bottom: 0.5rem; }
             .kpi-row { grid-template-columns: repeat(5, 1fr); }
@@ -113,6 +127,14 @@
                 </div>
                 <button class="btn-print" onclick="imprimir(this)"><i class="bi bi-printer"></i> Imprimir / PDF</button>
             </div>
+        </div>
+
+        <div class="buscador no-print">
+            <i class="bi bi-search"></i>
+            <input id="buscarInput" type="search" placeholder="Buscar OV o cuadro de ruta…"
+                   onkeydown="if(event.key==='Enter')buscarDoc()">
+            <button onclick="buscarDoc()">Buscar</button>
+            <span id="buscarResult" class="buscar-result"></span>
         </div>
 
         <div class="kpi-row" id="kpis"></div>
@@ -229,7 +251,7 @@
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
             return `
-                <tr class="cuadro-row" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                <tr class="cuadro-row" id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
@@ -247,8 +269,9 @@
                 <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="13"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
 
-        function sectionTable(titulo, cls, cuadros) {
-            if (!cuadros.length) return `<h3 class="sec-title ${cls}">${titulo}</h3><div class="empty" style="padding:0.8rem">Sin cuadros.</div>`;
+        function sectionTable(titulo, cls, cuadros, sub) {
+            const head = sub ? `<h4 class="sub-title">${titulo}</h4>` : `<h3 class="sec-title ${cls}">${titulo}</h3>`;
+            if (!cuadros.length) return `${head}<div class="empty" style="padding:0.6rem;font-size:0.8rem">Sin cuadros.</div>`;
             let acum = 0;
             const rows = cuadros.map(c => { acum += (c.PesoEstimadoKg || 0) / 1000; return filaCuadro(c, acum); }).join('');
             const totalTon = cuadros.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
@@ -256,7 +279,7 @@
                 <td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
                 <td class="r">${fmtTon(totalTon)}</td><td class="r">${fmtTon(totalTon)}</td>
                 <td colspan="8"></td></tr>`;
-            return `<h3 class="sec-title ${cls}">${titulo}</h3>
+            return `${head}
                 <table>
                     <thead class="${cls}"><tr>
                         <th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">Ton</th><th class="r">Acum. TN</th>
@@ -268,18 +291,50 @@
                 </table>`;
         }
 
+        function esMismoDia(dt, ref) {
+            if (!dt) return false;
+            const d = new Date(dt); if (isNaN(d)) return false;
+            return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
+        }
+        function sortByDespDesc(arr) {
+            return arr.slice().sort((x, y) => {
+                const fx = x.FechaDespacho ? new Date(x.FechaDespacho).getTime() : 0;
+                const fy = y.FechaDespacho ? new Date(y.FechaDespacho).getTime() : 0;
+                return fy - fx || x.Cuadro - y.Cuadro;
+            });
+        }
+        // Sección a la que pertenece un cuadro (para el buscador)
+        function seccionDe(c) {
+            if (c.EstadoDespacho === 'Finalizado') {
+                const hoy = new Date(), ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+                if (esMismoDia(c.FechaDespacho, hoy)) return 'Despachado hoy';
+                if (esMismoDia(c.FechaDespacho, ayer)) return 'Despachado ayer';
+                return 'Despachado';
+            }
+            if (c.EstadoPicking === 'Finalizado') return 'Picking finalizado / Listo para despachar';
+            return 'Pendiente';
+        }
+
         function render() {
             if (!DATA) return;
             kpiCards();
             if (!DATA.cuadros.length) {
-                document.getElementById('tablero').innerHTML = '<div class="empty">Sin cuadros para hoy en este centro.</div>';
+                document.getElementById('tablero').innerHTML = '<div class="empty">Sin cuadros para este centro.</div>';
                 return;
             }
-            const ejec = sortByFin(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado'));
-            const pend = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado'));
+            const hoy = new Date(), ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+            const despachados = DATA.cuadros.filter(c => c.EstadoDespacho === 'Finalizado');
+            const despHoy = sortByDespDesc(despachados.filter(c => esMismoDia(c.FechaDespacho, hoy)));
+            const despAyer = sortByDespDesc(despachados.filter(c => esMismoDia(c.FechaDespacho, ayer)));
+            const listos = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado' && c.EstadoDespacho !== 'Finalizado'));
+            const pendientes = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado'));
+
             document.getElementById('tablero').innerHTML =
-                sectionTable('1. Ejecutados (picking finalizado / despachados) — por antigüedad de fin de picking', 'ejec', ejec) +
-                sectionTable('2. Pendientes / en proceso (orden de prioridad)', 'pend', pend) +
+                '<h3 class="sec-title ejec">1. Despachado</h3>' +
+                sectionTable('Despachado hoy', 'ejec', despHoy, true) +
+                sectionTable('Despachado ayer', 'ejec', despAyer, true) +
+                sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos) +
+                sectionTable('3. Pendientes', 'pend', pendientes) +
                 '<div id="detalleSection"></div>';
 
             openRows.forEach(cn => {
@@ -347,19 +402,50 @@
                 html += `<div style="font-weight:700;margin:0.7rem 0 0.2rem;font-size:0.85rem">Cuadro ${esc(c.Cuadro)} — ${esc(c.Ruta || '')}${c.Prioridad != null ? ' (Prioridad ' + c.Prioridad + ')' : ''}</div>`;
                 html += `<table class="det3"><thead><tr>
                     <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th><th>Asesor</th>
-                    <th class="r">Peso (kg)</th><th class="r">Monto (OV)</th></tr></thead><tbody>`;
+                    <th class="r">Peso (kg)</th></tr></thead><tbody>`;
                 c.docs.forEach(d => {
                     html += `<tr><td>${esc(d.OV_Number)}</td><td>${esc(d.DocType)}</td>
                         <td>${esc(d.Cliente || '')}</td><td>${esc(d.Asesor || '')}</td>
-                        <td class="r">${num(Math.round(d.PesoKg || 0))}</td>
-                        <td class="r">${d.Monto != null ? 'Q ' + num(Math.round(d.Monto)) : ''}</td></tr>`;
+                        <td class="r">${num(Math.round(d.PesoKg || 0))}</td></tr>`;
                 });
                 html += `<tr class="total-row"><td colspan="4">Subtotal (${c.docs.length})</td>
-                    <td class="r">${num(Math.round(c.subtotalPeso))}</td>
-                    <td class="r">${c.subtotalMonto ? 'Q ' + num(Math.round(c.subtotalMonto)) : ''}</td></tr>`;
+                    <td class="r">${num(Math.round(c.subtotalPeso))}</td></tr>`;
                 html += '</tbody></table>';
             });
             box.innerHTML = html;
+        }
+
+        // Buscar OV o cuadro y ubicarlo en el tablero
+        async function buscarDoc() {
+            const out = document.getElementById('buscarResult');
+            const q = (document.getElementById('buscarInput').value || '').trim();
+            if (!q) { out.textContent = ''; return; }
+            out.textContent = 'Buscando…';
+            try {
+                const r = await (await fetch('/api/reportes/plan-despachos/buscar?q=' + encodeURIComponent(q))).json();
+                const res = r.resultados || [];
+                if (!res.length) { out.innerHTML = 'No se encontró <b>' + esc(q) + '</b> en este centro.'; return; }
+                const partes = res.map(x => {
+                    const quien = x.Tipo === 'ov' ? ('OV ' + esc(x.OV)) : ('Cuadro ' + esc(x.Cuadro));
+                    return `${quien} → <b>Cuadro ${esc(x.Cuadro)}</b> ${esc(x.Ruta || '')} · <b>${seccionDe(x)}</b>`;
+                });
+                out.innerHTML = partes.join(' &nbsp;·&nbsp; ');
+                const enTablero = res.find(x => document.getElementById('row-cuadro-' + x.Cuadro));
+                if (enTablero) {
+                    const c = DATA && DATA.cuadros.find(cc => cc.Cuadro === enTablero.Cuadro);
+                    if (c && !openRows.has(c.Cuadro)) { openRows.add(c.Cuadro); render(); }
+                    const row = document.getElementById('row-cuadro-' + enTablero.Cuadro);
+                    if (row) {
+                        document.querySelectorAll('tr.cuadro-row.hl').forEach(e => e.classList.remove('hl'));
+                        row.classList.add('hl');
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                } else {
+                    out.innerHTML += ' <span style="color:#c62828">(fuera del tablero actual)</span>';
+                }
+            } catch (e) {
+                out.textContent = 'Error en la búsqueda.';
+            }
         }
 
         // Auto-refresh (no pisa la vista/orden ni los detalles abiertos)

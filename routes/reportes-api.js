@@ -76,9 +76,8 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
                 WHERE orp.ID_Centro = @centro
                   AND ( orp.Estado IN ('Pendiente', 'Iniciado')
-                        OR orp.EstadoDespacho = 'Listo para Carga'
-                        OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
-                        OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
+                        OR (orp.Estado = 'Finalizado' AND orp.EstadoDespacho <> 'Finalizado')
+                        OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)) )
                 ORDER BY CASE WHEN orp.FechaFin IS NULL THEN 1 ELSE 0 END, orp.FechaFin, orp.RouteNumber
             `);
 
@@ -133,9 +132,8 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 FROM RoutePlan rp
                 LEFT JOIN Carril c ON c.ID_Carril = rp.ID_Carril
                 WHERE ( rp.Estado IN ('Pendiente', 'Iniciado')
-                        OR rp.EstadoDespacho = 'Listo para Carga'
-                        OR (rp.Estado = 'Finalizado' AND CAST(rp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
-                        OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
+                        OR (rp.Estado = 'Finalizado' AND rp.EstadoDespacho <> 'Finalizado')
+                        OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)) )
                 ORDER BY CASE WHEN rp.FechaFin IS NULL THEN 1 ELSE 0 END, rp.FechaFin, rp.RouteNumber
             `);
             const av = await pool.request().query(`
@@ -331,6 +329,59 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
     } catch (err) {
         console.error('GET /api/reportes/plan-despachos/detalle error:', err);
         res.status(500).json({ error: 'Error al obtener el detalle' });
+    }
+});
+
+// GET /api/reportes/plan-despachos/buscar?q= — ubica una OV o un cuadro en el centro
+router.get('/plan-despachos/buscar', requireReportes, async (req, res) => {
+    try {
+        const u = req.session.user;
+        const centro = u.selectedCentro;
+        const modo = u.selectedModo || (['SV', 'HN'].includes(u.selectedPais) ? 'order' : 'product');
+        if (!centro) return res.status(400).json({ error: 'Seleccioná un centro primero' });
+        const q = String(req.query.q || '').trim();
+        if (!q) return res.json({ resultados: [] });
+        const qi = /^\d+$/.test(q) ? parseInt(q) : null;
+        const pool = getPool();
+        let rows;
+        if (modo === 'order') {
+            rows = (await pool.request().input('centro', sql.Int, centro).input('q', sql.NVarChar, q)
+                .input('qi', sql.Int, qi).query(`
+                SELECT orp.RouteNumber AS Cuadro, orp.RouteName AS Ruta, orp.Estado AS EstadoPicking,
+                       orp.EstadoDespacho, orp.FechaDespachoFin AS FechaDespacho,
+                       CAST(NULL AS NVARCHAR(50)) AS OV, 'cuadro' AS Tipo
+                FROM OrderRoutePlan orp WHERE orp.ID_Centro = @centro AND orp.RouteNumber = @qi
+                UNION ALL
+                SELECT orp.RouteNumber, orp.RouteName, orp.Estado, orp.EstadoDespacho, orp.FechaDespachoFin,
+                       opm.OV_Number, 'ov'
+                FROM OrderPickingManagement opm
+                INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+                WHERE orp.ID_Centro = @centro AND opm.OV_Number = @q
+            `)).recordset;
+        } else {
+            rows = (await pool.request().input('q', sql.NVarChar, q).input('qi', sql.Int, qi).query(`
+                SELECT rp.RouteNumber AS Cuadro, rp.RouteName AS Ruta, rp.Estado AS EstadoPicking,
+                       rp.EstadoDespacho, rp.FechaDespachoFin AS FechaDespacho,
+                       CAST(NULL AS NVARCHAR(50)) AS OV, 'cuadro' AS Tipo
+                FROM RoutePlan rp WHERE rp.RouteNumber = @qi
+                UNION ALL
+                SELECT rp.RouteNumber, rp.RouteName, rp.Estado, rp.EstadoDespacho, rp.FechaDespachoFin,
+                       t.OV_Number, 'ov'
+                FROM (SELECT DISTINCT Route_Number, OV_Number FROM RoutePickingTask WHERE OV_Number = @q) t
+                INNER JOIN RoutePlan rp ON rp.RouteNumber = t.Route_Number
+            `)).recordset;
+        }
+        // Dedup por Cuadro+OV
+        const seen = new Set(); const resultados = [];
+        for (const r of rows) {
+            const k = r.Cuadro + '|' + (r.OV || '');
+            if (seen.has(k)) continue; seen.add(k);
+            resultados.push(r);
+        }
+        res.json({ q, resultados });
+    } catch (err) {
+        console.error('GET /api/reportes/plan-despachos/buscar error:', err);
+        res.status(500).json({ error: 'Error en la búsqueda' });
     }
 });
 
