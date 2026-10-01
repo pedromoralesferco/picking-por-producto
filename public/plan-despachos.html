@@ -249,15 +249,16 @@
                 : '<span class="pill incompleto">Incompleto</span>';
         }
 
-        function filaCuadro(c, acum) {
+        function filaCuadro(c, acum, tonKg) {
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
+            const ton = (tonKg == null ? (c.PesoEstimadoKg || 0) : tonKg);
             return `
                 <tr class="cuadro-row" id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
-                    <td class="r">${fmtTon((c.PesoEstimadoKg || 0) / 1000)}</td>
+                    <td class="r">${fmtTon(ton / 1000)}</td>
                     <td class="r acum">${fmtTon(acum)}</td>
                     <td>${estadoPickingPill(c)}${done ? '' : `<div class="bar"><span style="width:${c.AvancePct}%"></span></div><span style="font-size:0.66rem;color:#999">${c.AvancePct}% · ${num(c.UnidadesPick)}/${num(c.UnidadesTot)} u</span>`}</td>
                     <td>${statusCargaHtml(c)}</td>
@@ -271,12 +272,13 @@
                 <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="13"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
 
-        function sectionTable(titulo, cls, cuadros, sub) {
+        function sectionTable(titulo, cls, cuadros, sub, weightFn) {
+            const wf = weightFn || (c => (c.PesoEstimadoKg || 0));
             const head = sub ? `<h4 class="sub-title">${titulo}</h4>` : `<h3 class="sec-title ${cls}">${titulo}</h3>`;
             if (!cuadros.length) return `${head}<div class="empty" style="padding:0.6rem;font-size:0.8rem">Sin cuadros.</div>`;
             let acum = 0;
-            const rows = cuadros.map(c => { acum += (c.PesoEstimadoKg || 0) / 1000; return filaCuadro(c, acum); }).join('');
-            const totalTon = cuadros.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
+            const rows = cuadros.map(c => { const w = wf(c); acum += w / 1000; return filaCuadro(c, acum, w); }).join('');
+            const totalTon = cuadros.reduce((s, c) => s + wf(c), 0) / 1000;
             const totalRow = `<tr class="total-row">
                 <td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
                 <td class="r">${fmtTon(totalTon)}</td><td class="r">${fmtTon(totalTon)}</td>
@@ -365,7 +367,8 @@
             document.getElementById('tablero').innerHTML =
                 sectionTableDespachado('1. Despachado (agrupado por fecha)', despachados) +
                 sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos) +
-                sectionTable('3. Pendientes', 'pend', pendientes) +
+                sectionTable('3. Pendientes (acumulado = tonelaje pendiente por priorizar)', 'pend', pendientes, false,
+                    c => (c.PesoPendienteKg != null ? c.PesoPendienteKg : (c.PesoEstimadoKg || 0))) +
                 '<div id="detalleSection"></div>';
 
             openRows.forEach(cn => {

@@ -117,6 +117,9 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
                     PesoEstimadoKg: r.PesoEstimado,
+                    // Tonelaje pendiente: remanente por pickear si ya inició; si no tiene
+                    // tareas aún (cuadro Pendiente), es el estimado completo.
+                    PesoPendienteKg: (a.PesoTot || 0) > 0 ? Math.max(0, (a.PesoTot || 0) - (a.PesoPick || 0)) : (r.PesoEstimado || 0),
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,
                     UnidadesTot: a.UnidadesTot || 0, UnidadesPick: a.UnidadesPick || 0,
                     LineasTot: a.LineasTot || 0, LineasFin: a.LineasFin || 0,
@@ -147,6 +150,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 )
                 SELECT RouteNumber,
                        SUM(Cant) AS UnidadesTot, SUM(Cant - Pend) AS UnidadesPick,
+                       SUM(Cant * UW) AS PesoTot, SUM((Cant - Pend) * UW) AS PesoPick,
                        COUNT(*) AS LineasTot, SUM(CASE WHEN Pend = 0 THEN 1 ELSE 0 END) AS LineasFin
                 FROM prod GROUP BY RouteNumber
             `);
@@ -168,6 +172,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
                     PesoEstimadoKg: r.PesoEstimado,
+                    PesoPendienteKg: (a.PesoTot || 0) > 0 ? Math.max(0, (a.PesoTot || 0) - (a.PesoPick || 0)) : (r.PesoEstimado || 0),
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,
                     UnidadesTot: a.UnidadesTot || 0, UnidadesPick: a.UnidadesPick || 0,
                     LineasTot: a.LineasTot || 0, LineasFin: a.LineasFin || 0,
