@@ -435,10 +435,12 @@ router.post('/plan-despachos/fecha-plan', requirePriorizar, async (req, res) => 
             if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'Fecha inválida (YYYY-MM-DD)' });
         }
         const pool = getPool();
+        // Pasar la fecha como texto y convertirla en SQL (estilo 23 = ISO yyyy-mm-dd).
+        // Con sql.Date el driver (useUTC:false) la interpreta en hora local y resta un día.
         const r = await pool.request()
-            .input('id', sql.Int, id).input('f', sql.Date, fecha).input('centro', sql.Int, 3)
+            .input('id', sql.Int, id).input('f', sql.VarChar(10), fecha).input('centro', sql.Int, 3)
             .query(`
-                UPDATE OrderRoutePlan SET FechaPlanDespacho = @f
+                UPDATE OrderRoutePlan SET FechaPlanDespacho = CONVERT(date, @f, 23)
                 WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND Estado IN ('Pendiente', 'Iniciado')
             `);
         if (r.rowsAffected[0] === 0) return res.status(404).json({ error: 'Ruta no encontrada, no es de Escuintla o ya finalizó' });
