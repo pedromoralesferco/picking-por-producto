@@ -71,7 +71,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             const cab = await pool.request().input('centro', sql.Int, centro).query(`
                 SELECT orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Prioridad,
                        orp.Estado, orp.EstadoDespacho, orp.FechaFin, orp.FechaDespachoFin,
-                       orp.FechaPlanDespacho,
+                       orp.FechaPlanDespacho, orp.Comprometida,
                        ISNULL(orp.PesoEstimado, 0) AS PesoEstimado, c.Nombre AS CarrilNombre
                 FROM OrderRoutePlan orp
                 LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
@@ -119,6 +119,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
                     FechaPlanDespacho: r.FechaPlanDespacho,
+                    Comprometida: !!r.Comprometida,
                     PesoEstimadoKg: r.PesoEstimado,
                     // Tonelaje pendiente: remanente por pickear si ya inició; si no tiene
                     // tareas aún (cuadro Pendiente), es el estimado completo.
@@ -432,6 +433,25 @@ function requirePriorizar(req, res, next) {
     if (u.rol === 'Admin' || (u.permisos && u.permisos.includes('priorizacion'))) return next();
     return res.status(403).json({ error: 'Sin permiso de priorización' });
 }
+
+// POST /api/reportes/plan-despachos/comprometida — marca/desmarca un cuadro como
+// "Comprometida" (entrega comprometida a destacar). Mismo permiso que priorizar.
+router.post('/plan-despachos/comprometida', requirePriorizar, async (req, res) => {
+    try {
+        const id = parseInt(req.body.id_routePlan);
+        if (!id) return res.status(400).json({ error: 'id_routePlan requerido' });
+        const val = req.body.comprometida ? 1 : 0;
+        const pool = getPool();
+        const r = await pool.request()
+            .input('id', sql.Int, id).input('v', sql.Bit, val).input('centro', sql.Int, 3)
+            .query(`UPDATE OrderRoutePlan SET Comprometida = @v WHERE ID_RoutePlan = @id AND ID_Centro = @centro`);
+        if (r.rowsAffected[0] === 0) return res.status(404).json({ error: 'Ruta no encontrada o no es de Escuintla' });
+        res.json({ ok: true, comprometida: !!val });
+    } catch (err) {
+        console.error('POST /api/reportes/plan-despachos/comprometida error:', err);
+        res.status(500).json({ error: 'Error al marcar comprometida' });
+    }
+});
 
 // POST /api/reportes/plan-despachos/fecha-plan — fija la Fecha Planificada de un cuadro (Escuintla)
 router.post('/plan-despachos/fecha-plan', requirePriorizar, async (req, res) => {
