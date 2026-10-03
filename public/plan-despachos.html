@@ -74,11 +74,14 @@
         .grp-caret { transition: transform 0.1s; }
         .fp-input { border: 1px solid #c9b86a; border-radius: 6px; padding: 0.2rem 0.3rem; font-size: 0.72rem; background: #fffdf5; width: 120px; }
         .prio-input { width: 42px; text-align: center; border: 1px solid #c9b86a; border-radius: 6px; padding: 0.2rem; font-size: 0.78rem; font-weight: 700; background: #fffdf5; }
-        /* Comprometida: botón "!" y sombreado */
-        .comp-btn { border: 1px solid #d99; background: #fff; color: #c0392b; border-radius: 5px; width: 20px; height: 20px; line-height: 1; padding: 0; font-weight: 800; cursor: pointer; vertical-align: middle; }
-        .comp-btn:hover { background: #fdecea; }
-        .comp-btn.on { background: #c0392b; border-color: #c0392b; color: #fff; }
-        .comp-badge { display: inline-block; width: 18px; height: 18px; line-height: 18px; text-align: center; background: #c0392b; color: #fff; border-radius: 5px; font-weight: 800; font-size: 0.72rem; vertical-align: middle; }
+        /* Comprometida: tag en columna + sombreado */
+        .comp-col { white-space: nowrap; }
+        .comp-tag { font-size: 0.66rem; font-weight: 700; border-radius: 999px; padding: 0.14rem 0.6rem; cursor: pointer; white-space: nowrap; letter-spacing: 0.02em; }
+        .comp-tag.on { background: #c0392b; color: #fff; border: 1px solid #c0392b; }
+        button.comp-tag.on:hover { background: #a93226; }
+        .comp-tag.off { background: #fff; color: #c99; border: 1px dashed #e0b8b5; opacity: 0.55; }
+        .comp-tag.off:hover { opacity: 1; color: #c0392b; border-color: #c0392b; }
+        span.comp-tag { cursor: default; }
         tbody tr.cuadro-row.comprometida > td { background: #fde2e0 !important; }
         tbody tr.cuadro-row.comprometida > td.cuadro-num { box-shadow: inset 4px 0 0 #c0392b; }
         tbody tr.cuadro-row.comprometida:hover > td { background: #fbd5d2 !important; }
@@ -273,7 +276,7 @@
             return `
                 <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${grpAttr}${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
-                    <td class="cuadro-num">${compBtnHtml(c, !!DATA.puedePriorizar)}${esc(c.Cuadro)}</td>
+                    <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
                     <td class="r">${tonCell}</td>
                     <td class="r acum">${fmtTon(acum)}</td>
@@ -403,13 +406,18 @@
                 return pa - pb || a.Cuadro - b.Cuadro;
             });
         }
-        // Botón "!" Comprometida (editable solo con permiso de priorizar; si no, badge si está marcada)
-        function compBtnHtml(c, puede) {
+        // Tag "Comprometida" (columna). Editable solo con permiso de priorizar;
+        // si no tiene permiso, solo ve el tag cuando está marcada.
+        function compTagHtml(c, puede) {
             const comp = !!c.Comprometida;
-            if (puede) {
-                return `<button class="comp-btn ${comp ? 'on' : ''}" title="${comp ? 'Comprometida — clic para quitar' : 'Marcar como Comprometida'}" onclick="event.stopPropagation();toggleComprometida(${c.ID_RoutePlan}, ${comp ? 1 : 0})"><i class="bi bi-exclamation-lg"></i></button> `;
+            if (comp) {
+                return puede
+                    ? `<button class="comp-tag on" title="Comprometida — clic para quitar" onclick="event.stopPropagation();toggleComprometida(${c.ID_RoutePlan}, 1)">Comprometida</button>`
+                    : `<span class="comp-tag on">Comprometida</span>`;
             }
-            return comp ? `<span class="comp-badge" title="Entrega comprometida"><i class="bi bi-exclamation-lg"></i></span> ` : '';
+            return puede
+                ? `<button class="comp-tag off" title="Marcar como Comprometida" onclick="event.stopPropagation();toggleComprometida(${c.ID_RoutePlan}, 0)">Comprometer</button>`
+                : '';
         }
         function filaPendiente(c, acum, pendKg, totKg, puede) {
             const isOpen = openRows.has(c.Cuadro);
@@ -425,14 +433,15 @@
                 <tr class="cuadro-row ${comp ? 'comprometida' : ''}" id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td onclick="event.stopPropagation()">${fechaCell}</td>
                     <td class="c">${prioCell}</td>
-                    <td class="cuadro-num">${compBtnHtml(c, puede)}${esc(c.Cuadro)}</td>
+                    <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
+                    <td class="c comp-col" onclick="event.stopPropagation()">${compTagHtml(c, puede)}</td>
                     <td class="r"><b>${fmtTon(pendKg / 1000)}</b> <span style="color:#999">/ ${fmtTon(totKg / 1000)}</span></td>
                     <td class="r acum">${fmtTon(acum)}</td>
                     <td>${estadoPickingPill(c)}${c.EstadoPicking === 'Finalizado' ? '' : `<div class="bar"><span style="width:${c.AvancePct}%"></span></div><span style="font-size:0.66rem;color:#999">${c.AvancePct}%</span>`}</td>
                     <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
                 </tr>
-                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="8"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="9"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
         function sectionPendientes(titulo, cuadros) {
             const head = `<h3 class="sec-title pend">${titulo}</h3>`;
@@ -448,14 +457,14 @@
             keys.forEach(k => {
                 const rows = sortGrupoPrio(grupos.get(k));
                 const lbl = k === 'sin' ? 'Sin fecha planificada' : fechaLabel(k + 'T00:00:00');
-                body += `<tr class="grp-row pend"><td colspan="8"><i class="bi bi-calendar-event"></i> ${lbl} · ${rows.length} cuadro(s)</td></tr>`;
+                body += `<tr class="grp-row pend"><td colspan="9"><i class="bi bi-calendar-event"></i> ${lbl} · ${rows.length} cuadro(s)</td></tr>`;
                 let acum = 0, sub = 0;
                 rows.forEach(c => { const w = pend(c); acum += w / 1000; sub += w / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede); });
-                body += `<tr class="total-row"><td colspan="4">Subtotal ${k === 'sin' ? '(sin fecha)' : ''}</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
+                body += `<tr class="total-row"><td colspan="5">Subtotal ${k === 'sin' ? '(sin fecha)' : ''}</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
             });
             return head + `<table>
                 <thead class="pend"><tr>
-                    <th>Fecha Plan.</th><th class="c">Prio</th><th>Cuadro</th><th>Ruta</th>
+                    <th>Fecha Plan.</th><th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="c">Comprometida</th>
                     <th class="r">Ton (Pend/Tot)</th><th class="r">Acum. TN Pend.</th><th>Status Picking</th><th class="c"></th>
                 </tr></thead><tbody>${body}</tbody></table>`;
         }
