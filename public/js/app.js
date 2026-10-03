@@ -537,7 +537,9 @@ function renderDetalleOrder(idRoutePlan, routeNumber, ruta, pedidos, resumen, pi
     let actionBtn = '';
     if (estado === 'Pendiente') {
         actionBtn = `<button class="btn-iniciar" onclick="iniciarRutaOrder(${idRoutePlan})">
-            <i class="bi bi-play-circle"></i> Iniciar Ruta</button>`;
+            <i class="bi bi-play-circle"></i> Iniciar Ruta</button>
+            <button class="btn-reimportar" onclick="reimportarRutaOrder(${idRoutePlan})" title="Actualiza líneas/pedidos con el cuadro de ruta actual en SAP">
+            <i class="bi bi-arrow-repeat"></i> Re-importar líneas</button>`;
     } else if (estado === 'Iniciado') {
         actionBtn = `<button class="btn-finalizar" onclick="finalizarRutaOrder(${idRoutePlan})">
             <i class="bi bi-check-circle"></i> Finalizar Ruta</button>

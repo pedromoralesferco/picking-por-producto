@@ -1,24 +1,13 @@
--- ============================================================
--- SP_ReimportOrderRouteLines  (modo pedido / order: SV, HN, GT-138)
---
--- Re-sincroniza las líneas/pedidos de una ruta YA INICIADA contra
--- el cuadro de ruta actual en SAP/Lisa:
---   - Agrega pedidos y líneas nuevos que no existían.
---   - Elimina líneas/pedidos que se quitaron del cuadro.
---   - Recalcula totales (TotalLineas/Unidades/Peso) por pedido.
---   - Reabre pedidos 'Finalizado' que vuelvan a tener pendientes.
---   - Los artículos NO INVENTARIABLES (OITM.InvntItem='N', p.ej. flete)
---     entran ya completados (CantidadPendiente=0, Estado='Finalizado').
--- NO toca el progreso de las líneas que permanecen.
---
--- Candado de seguridad: si el cuadro no devuelve líneas (p.ej. falla
--- el linked server), ABORTA sin borrar nada.
--- ============================================================
+-- SP_ReimportOrderRouteLines — reconcilia lineas de un cuadro (order) contra SAP.
+-- Agrega nuevas, quita eliminadas, preserva progreso, reabre finalizados, candado
+-- de integridad (linea sin match en Lisa revierte). @EmitResult=0 para llamarlo
+-- desde el trigger/ingesta sin devolver resultset.
 IF OBJECT_ID('dbo.SP_ReimportOrderRouteLines') IS NOT NULL
     DROP PROCEDURE dbo.SP_ReimportOrderRouteLines;
 GO
 CREATE PROCEDURE [dbo].[SP_ReimportOrderRouteLines]
-    @ID_RoutePlan INT
+    @ID_RoutePlan INT,
+    @EmitResult  BIT = 1   -- 0 = no devolver resultset (para trigger/ingesta)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -228,7 +217,8 @@ BEGIN
 
     DROP TABLE #src;
 
-    SELECT @addPed AS PedidosAgregados, @addTask AS LineasAgregadas,
-           @delTask AS LineasEliminadas, @delPed AS PedidosEliminados;
+    IF @EmitResult = 1
+        SELECT @addPed AS PedidosAgregados, @addTask AS LineasAgregadas,
+               @delTask AS LineasEliminadas, @delPed AS PedidosEliminados;
 END;
 GO

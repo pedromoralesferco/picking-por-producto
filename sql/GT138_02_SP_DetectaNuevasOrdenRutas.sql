@@ -124,5 +124,10 @@ BEGIN
       AND src.u_estado IN ('02', '03') AND src.CreateDate > GETDATE() - 5
       AND src.U_Almacen_Origen = '138'
       AND NOT EXISTS (SELECT 1 FROM dbo.OrderRoutePlan orp WHERE orp.RouteNumber = src.DocNum AND orp.Pais = 'GT');
+
+    -- Materializar líneas/documentos de los cuadros GT/Escuintla recién ingestados
+    -- (y de cualquier Pendiente que aún no las tenga), vía reimport. Así se ven los
+    -- documentos, líneas y peso ANTES de iniciar, para priorizar.
+    EXEC dbo.SP_MaterializeOrderLinesEscuintla;
 END;
 GO
