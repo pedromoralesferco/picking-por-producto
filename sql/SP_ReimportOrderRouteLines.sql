@@ -117,6 +117,22 @@ BEGIN
         LEFT JOIN [server-sql].lisa_sboferco.dbo.[Product] t4 WITH (NOLOCK) ON t4.IdProduct = t3.IdProduct
         LEFT JOIN [server-sql].sboferco.dbo.OITM oi WITH (NOLOCK) ON oi.ItemCode COLLATE DATABASE_DEFAULT = t4.InternIdProduct COLLATE DATABASE_DEFAULT
         WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento IN ('TR', 'RESURTIDO');
+
+        -- RMA (devoluciones): se operan desde cualquier almacén. Cantidad = RMAQty,
+        -- solo las líneas ABIERTAS (Status='O'). Nombre/peso desde Lisa por ItemCode.
+        INSERT INTO #src
+        SELECT t0.DocNum, t1.U_No_Ov, 'RMA',
+               CAST(rma.CallID AS NVARCHAR(50)), CAST(rma.CallID AS NVARCHAR(50)), rma.LineNum, t4.IdProduct,
+               rma.ItemCode, ISNULL(t4.ProductName, rma.ItemCode), rma.RMAQty, rma.RMAQty, ISNULL(t4.UnitMass, 0), ISNULL(oi.InvntItem, 'Y')
+        FROM [server-sql].sboferco.dbo.[@cuadro_ruta_e] t0 WITH (NOLOCK)
+        LEFT JOIN [server-sql].sboferco.dbo.[@cuadro_ruta_d] t1 WITH (NOLOCK) ON t1.DocEntry = t0.DocEntry
+        JOIN [server-sql].sboferco.dbo.NWR_RMASTATUS rma WITH (NOLOCK)
+             ON rma.CallID = CAST(t1.U_No_OV AS INT) AND rma.[Status] = 'O'
+        LEFT JOIN [server-sql].lisa_sboferco.dbo.[Product] t4 WITH (NOLOCK)
+             ON t4.InternIdProduct COLLATE DATABASE_DEFAULT = rma.ItemCode COLLATE DATABASE_DEFAULT
+        LEFT JOIN [server-sql].sboferco.dbo.OITM oi WITH (NOLOCK)
+             ON oi.ItemCode COLLATE DATABASE_DEFAULT = rma.ItemCode COLLATE DATABASE_DEFAULT
+        WHERE t0.DocNum = @RouteNumber AND t1.U_Tipo_Documento = 'RMA';
     END
 
     -- ── Candado de seguridad: no borrar todo si el cuadro vino vacío ──
