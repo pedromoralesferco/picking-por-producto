@@ -122,9 +122,8 @@
                 return (Number.isFinite(n) && n >= 1) ? n : 1;
             };
 
-            // Numeración CORRIDA por todo el cuadro (los bultos del camión):
-            // 1/TOTAL, 2/TOTAL … TOTAL/TOTAL a lo largo de todas las OVs.
-            // Cada etiqueta muestra además su posición dentro de su OV (i de X).
+            // Una etiqueta por bulto. El contador grande es POR OV (i de X bultos
+            // de esa OV), no corrido por el cuadro.
             const totalBultos = pedidos.reduce((s, p) => s + bultosDe(p.OV_Number), 0) || 1;
             const labels = [];
             let g = 0;
@@ -154,9 +153,9 @@
 
                             <div class="lb-bultos">
                                 <span class="lbl">Bulto</span>
-                                <span class="cnt">${L.g} / ${L.total}</span>
+                                <span class="cnt">${L.i} / ${L.X}</span>
                             </div>
-                            <div class="lb-bultos-sub">OV ${esc(p.OV_Number)} &nbsp;·&nbsp; ${L.i}/${L.X} bultos</div>
+                            <div class="lb-bultos-sub">Bultos de la OV ${esc(p.OV_Number)}</div>
 
                             <div class="lb-field big">
                                 <span class="k">OV:</span> <span class="v">${esc(p.OV_Number)}</span>

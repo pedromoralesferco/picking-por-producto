@@ -44,14 +44,17 @@ async function getTrasladosDestinoSAP(pool, pais, trNumbers) {
             SELECT o.DocNum AS TR,
                    MAX(o.ToWhsCode) AS ToWhs,
                    MAX(wh.WhsName) AS Destino,
+                   MAX(c.CardName) AS Cliente,
                    MAX(o.Comments) AS Comentarios
             FROM [server-sql].[${sapDb}].dbo.OWTQ o WITH (NOLOCK)
             LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
+            LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
             WHERE o.DocNum IN (${inParams})
             GROUP BY o.DocNum`);
         r.recordset.forEach(row => {
             map[String(row.TR)] = {
                 destino: row.Destino || (row.ToWhs ? ('Almacén ' + row.ToWhs) : null),
+                cliente: row.Cliente || null,
                 comentarios: row.Comentarios || null
             };
         });
@@ -940,7 +943,7 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
                 const tr = r.DocType === 'TR' ? (destinosTR[String(r.OV_Number)] || null) : null;
                 pedidosMap.set(r.ID_OrderPicking, {
                     ID_OrderPicking: r.ID_OrderPicking, OV_Number: r.OV_Number, DocType: r.DocType,
-                    ClienteNombre: cli ? cli.name : null,
+                    ClienteNombre: tr ? tr.cliente : (cli ? cli.name : null),
                     ClienteDireccion: tr ? tr.destino : (cli ? cli.address : null),
                     SucursalDestino: tr ? tr.destino : null,
                     Comentarios: tr ? tr.comentarios : (cli ? cli.comentarios : null),
