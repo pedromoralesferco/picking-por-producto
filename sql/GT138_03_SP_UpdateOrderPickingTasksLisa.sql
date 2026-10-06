@@ -182,6 +182,10 @@ BEGIN
     -- asignada en SAP salen del tablero como Despachados (cada 30s).
     EXEC dbo.SP_AutoDespachoEscuintla;
 
+    -- Limpiar huérfanos: cuadros activos cuyo cuadro en SAP ya no tiene líneas
+    -- (borrado o vaciado) -> salen del tablero.
+    EXEC dbo.SP_LimpiarHuerfanosEscuintla;
+
     IF OBJECT_ID('tempdb..#RoutesProcessed') IS NOT NULL DROP TABLE #RoutesProcessed;
     RAISERROR('SP completado.', 0, 0) WITH NOWAIT;
 END;
