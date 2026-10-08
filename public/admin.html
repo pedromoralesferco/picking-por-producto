@@ -271,6 +271,13 @@
             margin-top: 0.3rem;
         }
 
+        /* Lista vertical (para permisos, que no se vean apretados en fila) */
+        .checkbox-group.vertical {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
         .checkbox-group label {
             display: flex;
             align-items: center;
@@ -543,7 +550,7 @@
                 </div>
                 <div class="form-group" id="permisosGroup">
                     <label>Permisos (modulos)</label>
-                    <div class="checkbox-group">
+                    <div class="checkbox-group vertical">
                         <label><input type="checkbox" id="permGestion" value="gestion"> Gestion</label>
                         <label><input type="checkbox" id="permPriorizacion" value="priorizacion"> Priorizacion</label>
                         <label><input type="checkbox" id="permDespacho" value="despacho"> Despacho</label>

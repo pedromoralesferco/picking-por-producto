@@ -107,7 +107,7 @@ try {
     app.use('/api/escalamientos', escalamientosApiRoutes);
     app.get('/escalamientos', requireAuthPage, requireCentro, (req, res) => {
         const u = req.session.user;
-        const ok = u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo')));
+        const ok = u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo') || u.permisos.includes('priorizacion')));
         if (!ok) return res.redirect('/dashboard');
         res.sendFile(path.join(__dirname, 'public', 'escalamientos.html'));
     });

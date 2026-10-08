@@ -10,11 +10,21 @@ const { getSapDb } = require('../config/paises');
 
 const CENTRO = 3; // HUB Escuintla
 
-// Acceso al módulo: comercial (reportes), operativo (reportes_operativo) o Admin.
+// Acceso al módulo: comercial (reportes), operativo (reportes_operativo),
+// quien prioriza (priorizacion) o Admin.
+function tieneAcceso(u) {
+    return u && (u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo') || u.permisos.includes('priorizacion'))));
+}
+// Ve TODOS los escalamientos: quien prioriza, operativo o Admin. El resto ve solo los suyos.
+function verTodo(u) {
+    return u && (u.rol === 'Admin' || (u.permisos && (u.permisos.includes('priorizacion') || u.permisos.includes('reportes_operativo'))));
+}
+function identidad(u) { return (u && (u.nombre || u.usuario)) || 'Sistema'; }
+
 function requireEsc(req, res, next) {
     const u = req.session && req.session.user;
     if (!u) return res.status(401).json({ error: 'No autenticado' });
-    if (u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo')))) return next();
+    if (tieneAcceso(u)) return next();
     return res.status(403).json({ error: 'Sin permiso para escalamientos' });
 }
 
@@ -222,12 +232,17 @@ router.post('/', requireEsc, async (req, res) => {
 router.get('/', requireEsc, async (req, res) => {
     try {
         const pool = getPool();
-        const r = await pool.request().query(`
+        const u = req.session.user;
+        const soloMias = !verTodo(u);
+        const reqL = pool.request();
+        let filtro = 'e.Archivado = 0';
+        if (soloMias) { reqL.input('yo', sql.NVarChar(100), identidad(u)); filtro += ' AND e.CreadoPor = @yo'; }
+        const r = await reqL.query(`
             SELECT e.ID_Escalamiento, e.OV_Number, e.DocType, e.FechaRequerida, e.ClienteNombre,
                    e.Monto, e.PesoKg, e.TotalLineas, e.CreadoPor, e.FechaCreacion,
                    (SELECT COUNT(*) FROM dbo.EscalamientoComentarios c WHERE c.ID_Escalamiento = e.ID_Escalamiento) AS Comentarios
             FROM dbo.Escalamientos e
-            WHERE e.Archivado = 0
+            WHERE ${filtro}
             ORDER BY e.FechaRequerida ASC, e.FechaCreacion ASC`);
         const estados = await estadosDeOVs(pool, r.recordset.map(x => x.OV_Number));
         const cut = Date.now() - 24 * 3600 * 1000; // Finalizados: visibles solo 24h tras el despacho
@@ -252,6 +267,8 @@ router.get('/:id', requireEsc, async (req, res) => {
             .query(`SELECT * FROM dbo.Escalamientos WHERE ID_Escalamiento = @id`);
         if (!e.recordset.length) return res.status(404).json({ error: 'No encontrado' });
         const esc = e.recordset[0];
+        if (!verTodo(req.session.user) && esc.CreadoPor !== identidad(req.session.user))
+            return res.status(403).json({ error: 'Sin acceso a este escalamiento' });
         const coms = await pool.request().input('id', sql.Int, id)
             .query(`SELECT Comentario, Autor, Fecha FROM dbo.EscalamientoComentarios WHERE ID_Escalamiento = @id ORDER BY Fecha ASC`);
         const lineas = await getLineasDoc(pool, esc.OV_Number, esc.DocType);
@@ -281,6 +298,11 @@ router.post('/:id/comentario', requireEsc, async (req, res) => {
         const id = parseInt(req.params.id);
         const c = String(req.body.comentario || '').trim();
         if (!c) return res.status(400).json({ error: 'Comentario vacío' });
+        if (!verTodo(req.session.user)) {
+            const own = await pool.request().input('id', sql.Int, id).query('SELECT CreadoPor FROM dbo.Escalamientos WHERE ID_Escalamiento = @id');
+            if (!own.recordset.length || own.recordset[0].CreadoPor !== identidad(req.session.user))
+                return res.status(403).json({ error: 'Sin acceso a este escalamiento' });
+        }
         const autor = (req.session.user && (req.session.user.nombre || req.session.user.usuario)) || 'Sistema';
         await pool.request().input('id', sql.Int, id).input('c', sql.NVarChar(sql.MAX), c).input('a', sql.NVarChar(100), autor)
             .query(`INSERT INTO dbo.EscalamientoComentarios (ID_Escalamiento, Comentario, Autor) VALUES (@id, @c, @a)`);
@@ -294,6 +316,11 @@ router.post('/:id/archivar', requireEsc, async (req, res) => {
         const pool = getPool();
         const id = parseInt(req.params.id);
         const val = req.body.archivar === false ? 0 : 1;
+        if (!verTodo(req.session.user)) {
+            const own = await pool.request().input('id', sql.Int, id).query('SELECT CreadoPor FROM dbo.Escalamientos WHERE ID_Escalamiento = @id');
+            if (!own.recordset.length || own.recordset[0].CreadoPor !== identidad(req.session.user))
+                return res.status(403).json({ error: 'Sin acceso a este escalamiento' });
+        }
         await pool.request().input('id', sql.Int, id).input('v', sql.Bit, val)
             .query(`UPDATE dbo.Escalamientos SET Archivado = @v WHERE ID_Escalamiento = @id`);
         res.json({ ok: true });

@@ -289,6 +289,9 @@
                     title: 'Plan de Despachos',
                     desc: 'Tablero de control de despachos del centro (en vivo).'
                 });
+            }
+
+            if (isAdmin || permisos.includes('reportes') || permisos.includes('reportes_operativo') || permisos.includes('priorizacion')) {
                 modules.push({
                     href: '/escalamientos',
                     icon: 'bi-flag',
