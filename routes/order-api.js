@@ -189,6 +189,7 @@ router.get('/rutas/:id/pedidos', async (req, res) => {
                 FROM OrderPickingManagement opm
                 LEFT JOIN Operario o ON o.ID_Operario = opm.ID_Operario
                 WHERE opm.ID_RoutePlan = @idRoutePlan
+                  AND opm.NoDespachada = 0   -- No Despachada: no se muestran (quedaron fuera del cuadro en SAP)
                 ORDER BY
                     CASE opm.Estado
                         WHEN 'En Proceso' THEN 0
@@ -818,6 +819,7 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                 FROM OrderPickingManagement opm
                 LEFT JOIN Operario o ON o.ID_Operario = opm.ID_Operario
                 WHERE opm.ID_RoutePlan = @idRoutePlan
+                  AND opm.NoDespachada = 0   -- No Despachada: no se muestran (quedaron fuera del cuadro en SAP)
                 ORDER BY
                     CASE opm.Estado WHEN 'Finalizado' THEN 1 ELSE 0 END,
                     opm.OV_Number

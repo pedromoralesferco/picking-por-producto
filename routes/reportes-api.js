@@ -294,6 +294,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                 FROM OrderPickingManagement opm
                 INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                 WHERE orp.ID_Centro = @centro
+                  AND opm.NoDespachada = 0   -- No Despachada: no se muestran
                   AND ( orp.Estado IN ('Pendiente', 'Iniciado')
                         OR orp.EstadoDespacho = 'Listo para Carga'
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
