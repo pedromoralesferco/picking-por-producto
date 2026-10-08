@@ -150,6 +150,7 @@ async function estadosDeOVs(pool, ovs) {
             FROM OrderPickingManagement opm
             JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
             WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) IN (${inP})
+              AND ISNULL(opm.NoDespachada, 0) = 0
             GROUP BY LTRIM(RTRIM(opm.OV_Number))`);
         a.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
     } catch (e) { console.error('estadosDeOVs app:', e.message); }
@@ -283,6 +284,7 @@ router.get('/:id', requireEsc, async (req, res) => {
                 FROM OrderPickingManagement opm
                 JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                 WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) = @ov
+                  AND ISNULL(opm.NoDespachada, 0) = 0
                 ORDER BY CASE WHEN orp.EstadoDespacho='Finalizado' THEN 0 ELSE 1 END,
                          orp.FechaDespachoFin DESC, orp.RouteNumber DESC`);
             if (h.recordset.length) historial = h.recordset[0];
