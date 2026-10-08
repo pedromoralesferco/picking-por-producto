@@ -112,6 +112,7 @@ const esc = s => { const d=document.createElement('div'); d.textContent=s??''; r
 const num = n => (Number(n)||0).toLocaleString('es-GT');
 const money = n => n==null?'—':('Q '+(Number(n)||0).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}));
 function fdate(d){ if(!d) return '—'; const x=new Date(String(d).slice(0,10)+'T00:00:00'); return isNaN(x)?'—':x.toLocaleDateString('es-GT',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function fdatetime(d){ if(!d) return '—'; const x=new Date(d); return isNaN(x)?'—':x.toLocaleString('es-GT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 function cerrar(id){ document.getElementById(id).classList.remove('on'); }
 
 let DATA = [];
@@ -146,7 +147,8 @@ function card(e){
   if(e.PesoKg!=null) metas.push(`<span>${num(Math.round(e.PesoKg))} kg</span>`);
   if(e.TotalLineas!=null) metas.push(`<span>${e.TotalLineas} líneas</span>`);
   if(e.Comentarios) metas.push(`<span><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`);
-  if(e.Estado==='Finalizado' && e.FechaDespacho) metas.push(`<span style="color:var(--fin)"><i class="bi bi-truck"></i> Despachado ${fdate(e.FechaDespacho)}</span>`);
+  if(e.Estado==='Programado' && e.Cuadro) metas.push(`<span style="color:var(--prog);font-weight:700"><i class="bi bi-signpost-2"></i> Cuadro ${esc(e.Cuadro)}</span>`);
+  if(e.Estado==='Finalizado') metas.push(`<span style="color:var(--fin);font-weight:700"><i class="bi bi-truck"></i> Cuadro ${esc(e.Cuadro||'—')}${e.FechaDespacho?' · '+fdatetime(e.FechaDespacho):''}</span>`);
   metas.push(`<span><i class="bi bi-person"></i> ${esc(e.CreadoPor||'—')}</span>`);
   return `<div class="card ${cls}" onclick="verDetalle(${e.ID_Escalamiento})">
     <div class="doc">${esc(e.OV_Number)} <span class="tipo">${esc(e.DocType)}</span></div>
@@ -247,9 +249,22 @@ async function verDetalle(id){
     const coms = (d.comentarios&&d.comentarios.length)
       ? d.comentarios.map(c=>`<div class="com">${esc(c.Comentario)}<div class="who">${esc(c.Autor||'—')} · ${new Date(c.Fecha).toLocaleString('es-GT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')
       : '<div class="empty">Sin comentarios</div>';
+    const h = d.historial || {};
+    const step=(label,val,color)=>`<div style="display:flex;align-items:center;gap:0.5rem;padding:0.12rem 0">
+      <span style="width:11px;height:11px;border-radius:50%;background:${val?color:'#ccc'};flex:none"></span>
+      <span style="font-size:0.78rem;${val?'':'color:#aaa'}"><b>${label}</b>${val?' · '+fdatetime(val):' · —'}</span></div>`;
+    const tl=`
+      <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888;display:block;margin-top:0.2rem">Historial${d.cuadro?' · Cuadro '+esc(d.cuadro):''}</label>
+      <div style="border-left:2px solid #eee;margin:0.3rem 0 0.7rem;padding-left:0.6rem">
+        ${step('Escalado', e.FechaCreacion, '#8a6d3b')}
+        ${step('Planificado', h.Planificado, '#1565c0')}
+        ${step('Pickeado', h.Pickeado, '#1565c0')}
+        ${step('Despachado', h.Despachado, '#2e7d32')}
+      </div>`;
     document.getElementById('d-body').innerHTML=`
       <div style="font-size:0.85rem;margin-bottom:0.3rem"><b>${esc(e.ClienteNombre||'—')}</b> ${e.DocType==='OV'&&e.Monto!=null?' · '+money(e.Monto):''}</div>
       <div style="font-size:0.78rem;color:#666;margin-bottom:0.6rem"><i class="bi bi-calendar-event"></i> Requerida: ${fdate(e.FechaRequerida)} &nbsp;·&nbsp; ${e.PesoKg!=null?num(Math.round(e.PesoKg))+' kg':''} ${e.TotalLineas!=null?' · '+e.TotalLineas+' líneas':''} &nbsp;·&nbsp; creado por ${esc(e.CreadoPor||'—')}</div>
+      ${tl}
       <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888">Detalle del pedido</label>
       ${lin}
       <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888;display:block;margin-top:0.8rem">Comentarios</label>

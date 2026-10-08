@@ -118,12 +118,14 @@ async function getLineasDoc(pool, docRaw, docType) {
 // los finalizados), usada para ocultar del tablero 24h después.
 async function estadosDeOVs(pool, ovs) {
     const list = [...new Set(ovs.map(o => String(o).trim()).filter(Boolean))];
-    const map = {}; list.forEach(o => map[o] = { rank: 0, desp: null });
+    const map = {}; list.forEach(o => map[o] = { rank: 0, desp: null, cuadroFin: null, cuadroAny: null });
     if (!list.length) return map;
-    const merge = (k, rk, desp) => {
+    const merge = (k, rk, desp, cuadroFin, cuadroAny) => {
         const m = map[k]; if (!m) return;
         if (rk > m.rank) m.rank = rk;
         if (desp && (!m.desp || new Date(desp) > new Date(m.desp))) m.desp = desp;
+        if (cuadroFin && !m.cuadroFin) m.cuadroFin = cuadroFin;
+        if (cuadroAny && (!m.cuadroAny || cuadroAny > m.cuadroAny)) m.cuadroAny = cuadroAny;
     };
     // App: OPM de Escuintla
     try {
@@ -132,12 +134,14 @@ async function estadosDeOVs(pool, ovs) {
         const a = await req.query(`
             SELECT LTRIM(RTRIM(opm.OV_Number)) ov,
                    MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN 2 ELSE 1 END) rk,
-                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.FechaDespachoFin END) desp
+                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.FechaDespachoFin END) desp,
+                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.RouteNumber END) cuadroFin,
+                   MAX(orp.RouteNumber) cuadroAny
             FROM OrderPickingManagement opm
             JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
             WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) IN (${inP})
             GROUP BY LTRIM(RTRIM(opm.OV_Number))`);
-        a.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp));
+        a.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
     } catch (e) { console.error('estadosDeOVs app:', e.message); }
     // SAP: presencia en cuadros (@cuadro_ruta_d) + u_estado='03' = despachado
     try {
@@ -147,13 +151,17 @@ async function estadosDeOVs(pool, ovs) {
         const s = await req.query(`
             SELECT LTRIM(RTRIM(d.U_No_OV)) ov,
                    MAX(CASE WHEN e.u_estado='03' THEN 2 ELSE 1 END) rk,
-                   MAX(CASE WHEN e.u_estado='03' THEN e.UpdateDate END) desp
+                   MAX(CASE WHEN e.u_estado='03' THEN e.UpdateDate END) desp,
+                   MAX(CASE WHEN e.u_estado='03' THEN e.DocNum END) cuadroFin,
+                   MAX(e.DocNum) cuadroAny
             FROM [server-sql].[${db}].dbo.[@cuadro_ruta_e] e WITH (NOLOCK)
             JOIN [server-sql].[${db}].dbo.[@cuadro_ruta_d] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
             WHERE LTRIM(RTRIM(d.U_No_OV)) COLLATE DATABASE_DEFAULT IN (${inP})
             GROUP BY LTRIM(RTRIM(d.U_No_OV))`);
-        s.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp));
+        s.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
     } catch (e) { console.error('estadosDeOVs sap:', e.message); }
+    // Cuadro a mostrar: el despachado si está finalizado, si no cualquiera donde esté
+    Object.keys(map).forEach(k => { const m = map[k]; m.cuadro = m.rank === 2 ? (m.cuadroFin || m.cuadroAny) : m.cuadroAny; });
     return map;
 }
 const ESTADO_NOMBRE = { 0: 'Pendiente', 1: 'Programado', 2: 'Finalizado' };
@@ -224,8 +232,8 @@ router.get('/', requireEsc, async (req, res) => {
         const estados = await estadosDeOVs(pool, r.recordset.map(x => x.OV_Number));
         const cut = Date.now() - 24 * 3600 * 1000; // Finalizados: visibles solo 24h tras el despacho
         const data = r.recordset.map(x => {
-            const st = estados[String(x.OV_Number).trim()] || { rank: 0, desp: null };
-            return { ...x, Estado: ESTADO_NOMBRE[st.rank], FechaDespacho: st.desp };
+            const st = estados[String(x.OV_Number).trim()] || { rank: 0, desp: null, cuadro: null };
+            return { ...x, Estado: ESTADO_NOMBRE[st.rank], FechaDespacho: st.desp, Cuadro: st.cuadro };
         }).filter(x => {
             if (x.Estado !== 'Finalizado') return true;
             if (!x.FechaDespacho) return true; // sin fecha de despacho -> no se puede datar, se mantiene
@@ -248,8 +256,21 @@ router.get('/:id', requireEsc, async (req, res) => {
             .query(`SELECT Comentario, Autor, Fecha FROM dbo.EscalamientoComentarios WHERE ID_Escalamiento = @id ORDER BY Fecha ASC`);
         const lineas = await getLineasDoc(pool, esc.OV_Number, esc.DocType);
         const estados = await estadosDeOVs(pool, [esc.OV_Number]);
-        const st = estados[String(esc.OV_Number).trim()] || { rank: 0 };
-        res.json({ escalamiento: esc, estado: ESTADO_NOMBRE[st.rank], comentarios: coms.recordset, lineas });
+        const st = estados[String(esc.OV_Number).trim()] || { rank: 0, cuadro: null };
+        // Historial de la OV en su cuadro: planificado / pickeado / despachado
+        let historial = null;
+        try {
+            const h = await pool.request().input('ov', sql.VarChar(50), String(esc.OV_Number).trim()).query(`
+                SELECT TOP 1 orp.RouteNumber AS Cuadro, orp.FechaPlanificacion AS Planificado,
+                       ISNULL(opm.FechaFin, orp.FechaFin) AS Pickeado, orp.FechaDespachoFin AS Despachado
+                FROM OrderPickingManagement opm
+                JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+                WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) = @ov
+                ORDER BY CASE WHEN orp.EstadoDespacho='Finalizado' THEN 0 ELSE 1 END,
+                         orp.FechaDespachoFin DESC, orp.RouteNumber DESC`);
+            if (h.recordset.length) historial = h.recordset[0];
+        } catch (e) { console.error('historial:', e.message); }
+        res.json({ escalamiento: esc, estado: ESTADO_NOMBRE[st.rank], cuadro: st.cuadro, comentarios: coms.recordset, lineas, historial });
     } catch (err) { console.error('GET /escalamientos/:id', err); res.status(500).json({ error: 'Error al obtener detalle' }); }
 });
 
