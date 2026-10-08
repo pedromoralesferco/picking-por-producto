@@ -21,14 +21,14 @@ function requireEsc(req, res, next) {
 // Busca datos del documento (OV o TR) en SAP/Lisa: tipo, cliente, monto, peso, líneas.
 async function lookupDoc(pool, docRaw) {
     const num = parseInt(String(docRaw).replace(/\D/g, ''));
-    const out = { OV_Number: String(docRaw).trim(), DocType: null, ClienteNombre: null, Destino: null, Monto: null, PesoKg: null, TotalLineas: null, encontrado: false };
+    const out = { OV_Number: String(docRaw).trim(), DocType: null, ClienteNombre: null, Destino: null, Monto: null, PesoKg: null, TotalLineas: null, U_Estado2: null, enPrepa: false, encontrado: false };
     if (!num || isNaN(num)) return out;
     const db = getSapDb('GT');
     const lisa = 'lisa_' + db;
     // ¿OV?
     try {
         const ov = await pool.request().input('d', sql.Int, num).query(`
-            SELECT TOP 1 o.DocTotal AS Monto, c.CardName AS Cliente, s.SlpName AS Asesor
+            SELECT TOP 1 o.DocTotal AS Monto, c.CardName AS Cliente, s.SlpName AS Asesor, o.U_Estado2 AS Estado2
             FROM [server-sql].[${db}].dbo.ORDR o WITH (NOLOCK)
             LEFT JOIN [server-sql].[${db}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
             LEFT JOIN [server-sql].[${db}].dbo.OSLP s WITH (NOLOCK) ON s.SlpCode = o.SlpCode
@@ -38,13 +38,14 @@ async function lookupDoc(pool, docRaw) {
             out.ClienteNombre = ov.recordset[0].Cliente || null;
             out.Monto = ov.recordset[0].Monto != null ? Number(ov.recordset[0].Monto) : null;
             out.Asesor = ov.recordset[0].Asesor || null;
+            out.U_Estado2 = ov.recordset[0].Estado2 != null ? String(ov.recordset[0].Estado2).trim() : null;
         }
     } catch (e) { console.error('lookupDoc OV:', e.message); }
     // ¿TR?
     if (!out.DocType) {
         try {
             const tr = await pool.request().input('d', sql.Int, num).query(`
-                SELECT TOP 1 c.CardName AS Cliente, wh.WhsName AS Destino
+                SELECT TOP 1 c.CardName AS Cliente, wh.WhsName AS Destino, o.U_Estado2 AS Estado2
                 FROM [server-sql].[${db}].dbo.OWTQ o WITH (NOLOCK)
                 LEFT JOIN [server-sql].[${db}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
                 LEFT JOIN [server-sql].[${db}].dbo.OWHS wh WITH (NOLOCK) ON wh.WhsCode = o.ToWhsCode
@@ -53,9 +54,11 @@ async function lookupDoc(pool, docRaw) {
                 out.DocType = 'TR'; out.encontrado = true;
                 out.ClienteNombre = tr.recordset[0].Cliente || null;
                 out.Destino = tr.recordset[0].Destino || null;
+                out.U_Estado2 = tr.recordset[0].Estado2 != null ? String(tr.recordset[0].Estado2).trim() : null;
             }
         } catch (e) { console.error('lookupDoc TR:', e.message); }
     }
+    out.enPrepa = out.U_Estado2 === '03';
     // Peso + líneas desde Lisa
     try {
         const d = String(num);
@@ -110,22 +113,31 @@ async function getLineasDoc(pool, docRaw, docType) {
     } catch (e) { console.error('getLineasDoc:', e.message); return []; }
 }
 
-// Estado por OV (0=Pendiente, 1=Programado, 2=Finalizado) cruzando contra cuadros.
+// Estado por OV cruzando contra cuadros. Devuelve { rank, desp } por OV:
+// rank 0=Pendiente, 1=Programado, 2=Finalizado; desp = fecha de despacho (para
+// los finalizados), usada para ocultar del tablero 24h después.
 async function estadosDeOVs(pool, ovs) {
     const list = [...new Set(ovs.map(o => String(o).trim()).filter(Boolean))];
-    const map = {}; list.forEach(o => map[o] = 0);
+    const map = {}; list.forEach(o => map[o] = { rank: 0, desp: null });
     if (!list.length) return map;
+    const merge = (k, rk, desp) => {
+        const m = map[k]; if (!m) return;
+        if (rk > m.rank) m.rank = rk;
+        if (desp && (!m.desp || new Date(desp) > new Date(m.desp))) m.desp = desp;
+    };
     // App: OPM de Escuintla
     try {
         const req = pool.request();
         const inP = list.map((v, i) => { req.input('a' + i, sql.VarChar(50), v); return '@a' + i; }).join(',');
         const a = await req.query(`
-            SELECT LTRIM(RTRIM(opm.OV_Number)) ov, MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN 2 ELSE 1 END) rk
+            SELECT LTRIM(RTRIM(opm.OV_Number)) ov,
+                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN 2 ELSE 1 END) rk,
+                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.FechaDespachoFin END) desp
             FROM OrderPickingManagement opm
             JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
             WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) IN (${inP})
             GROUP BY LTRIM(RTRIM(opm.OV_Number))`);
-        a.recordset.forEach(r => { const k = String(r.ov).trim(); map[k] = Math.max(map[k] || 0, r.rk); });
+        a.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp));
     } catch (e) { console.error('estadosDeOVs app:', e.message); }
     // SAP: presencia en cuadros (@cuadro_ruta_d) + u_estado='03' = despachado
     try {
@@ -133,12 +145,14 @@ async function estadosDeOVs(pool, ovs) {
         const req = pool.request();
         const inP = list.map((v, i) => { req.input('s' + i, sql.VarChar(50), v); return '@s' + i; }).join(',');
         const s = await req.query(`
-            SELECT LTRIM(RTRIM(d.U_No_OV)) ov, MAX(CASE WHEN e.u_estado='03' THEN 2 ELSE 1 END) rk
+            SELECT LTRIM(RTRIM(d.U_No_OV)) ov,
+                   MAX(CASE WHEN e.u_estado='03' THEN 2 ELSE 1 END) rk,
+                   MAX(CASE WHEN e.u_estado='03' THEN e.UpdateDate END) desp
             FROM [server-sql].[${db}].dbo.[@cuadro_ruta_e] e WITH (NOLOCK)
             JOIN [server-sql].[${db}].dbo.[@cuadro_ruta_d] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
             WHERE LTRIM(RTRIM(d.U_No_OV)) COLLATE DATABASE_DEFAULT IN (${inP})
             GROUP BY LTRIM(RTRIM(d.U_No_OV))`);
-        s.recordset.forEach(r => { const k = String(r.ov).trim(); map[k] = Math.max(map[k] || 0, r.rk); });
+        s.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp));
     } catch (e) { console.error('estadosDeOVs sap:', e.message); }
     return map;
 }
@@ -164,6 +178,14 @@ router.post('/', requireEsc, async (req, res) => {
             ? String(req.body.fechaRequerida).slice(0, 10) : null;
         const comentario = String(req.body.comentario || '').trim();
         const info = await lookupDoc(pool, ov);
+        // No permitir escalar si el documento está pendiente de poner en preparación
+        // (U_Estado2 <> '03'). Si no se encontró en SAP, no se puede validar -> se permite.
+        if (info.encontrado && !info.enPrepa) {
+            return res.status(409).json({
+                error: `La ${info.DocType || 'OV'} ${ov} no está en preparación (U_Estado2=${info.U_Estado2 || '—'}). Ponla en preparación ('03') antes de escalar.`,
+                codigo: 'NO_PREPA'
+            });
+        }
         const docType = info.DocType || (String(req.body.docType || '').toUpperCase() === 'TR' ? 'TR' : 'OV');
         const autor = (req.session.user && (req.session.user.nombre || req.session.user.usuario)) || 'Sistema';
         const ins = await pool.request()
@@ -200,10 +222,15 @@ router.get('/', requireEsc, async (req, res) => {
             WHERE e.Archivado = 0
             ORDER BY e.FechaRequerida ASC, e.FechaCreacion ASC`);
         const estados = await estadosDeOVs(pool, r.recordset.map(x => x.OV_Number));
-        const data = r.recordset.map(x => ({
-            ...x,
-            Estado: ESTADO_NOMBRE[estados[String(x.OV_Number).trim()] || 0]
-        }));
+        const cut = Date.now() - 24 * 3600 * 1000; // Finalizados: visibles solo 24h tras el despacho
+        const data = r.recordset.map(x => {
+            const st = estados[String(x.OV_Number).trim()] || { rank: 0, desp: null };
+            return { ...x, Estado: ESTADO_NOMBRE[st.rank], FechaDespacho: st.desp };
+        }).filter(x => {
+            if (x.Estado !== 'Finalizado') return true;
+            if (!x.FechaDespacho) return true; // sin fecha de despacho -> no se puede datar, se mantiene
+            return new Date(x.FechaDespacho).getTime() >= cut;
+        });
         res.json(data);
     } catch (err) { console.error('GET /escalamientos', err); res.status(500).json({ error: 'Error al listar' }); }
 });
@@ -221,7 +248,8 @@ router.get('/:id', requireEsc, async (req, res) => {
             .query(`SELECT Comentario, Autor, Fecha FROM dbo.EscalamientoComentarios WHERE ID_Escalamiento = @id ORDER BY Fecha ASC`);
         const lineas = await getLineasDoc(pool, esc.OV_Number, esc.DocType);
         const estados = await estadosDeOVs(pool, [esc.OV_Number]);
-        res.json({ escalamiento: esc, estado: ESTADO_NOMBRE[estados[String(esc.OV_Number).trim()] || 0], comentarios: coms.recordset, lineas });
+        const st = estados[String(esc.OV_Number).trim()] || { rank: 0 };
+        res.json({ escalamiento: esc, estado: ESTADO_NOMBRE[st.rank], comentarios: coms.recordset, lineas });
     } catch (err) { console.error('GET /escalamientos/:id', err); res.status(500).json({ error: 'Error al obtener detalle' }); }
 });
 

@@ -65,6 +65,10 @@
     <a class="back" href="/dashboard"><i class="bi bi-arrow-left"></i> Dashboard</a>
     <h1><i class="bi bi-flag-fill" style="color:var(--gold)"></i> Escalamientos</h1>
     <div class="sp"></div>
+    <select id="filtroUsuario" onchange="render()" title="Filtrar por quién escaló"
+      style="border:1px solid #ccc;border-radius:7px;padding:0.45rem 0.6rem;font-size:0.82rem;background:#fff;color:#333;max-width:220px">
+      <option value="">Todos los usuarios</option>
+    </select>
     <button class="btn ghost" onclick="load()"><i class="bi bi-arrow-clockwise"></i></button>
     <button class="btn" onclick="abrirNuevo()"><i class="bi bi-plus-lg"></i> Nuevo escalamiento</button>
   </div>
@@ -110,14 +114,25 @@ const money = n => n==null?'—':('Q '+(Number(n)||0).toLocaleString('es-GT',{mi
 function fdate(d){ if(!d) return '—'; const x=new Date(String(d).slice(0,10)+'T00:00:00'); return isNaN(x)?'—':x.toLocaleDateString('es-GT',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function cerrar(id){ document.getElementById(id).classList.remove('on'); }
 
+let DATA = [];
 async function load(){
   try{
     const res = await fetch('/api/escalamientos');
     if(res.status===401){ location.href='/login'; return; }
     if(!res.ok) throw new Error('No se pudo cargar');
-    const data = await res.json();
-    render(data);
+    DATA = await res.json();
+    poblarFiltro();
+    render();
   }catch(e){ document.querySelector('.kanban').innerHTML='<div class="empty">Error al cargar escalamientos.</div>'; }
+}
+
+// Filtro por usuario que escaló (para trackeo)
+function poblarFiltro(){
+  const sel = document.getElementById('filtroUsuario');
+  const prev = sel.value;
+  const users = [...new Set(DATA.map(e => e.CreadoPor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = '<option value="">Todos los usuarios</option>' + users.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');
+  if(users.includes(prev)) sel.value = prev;
 }
 
 function card(e){
@@ -131,6 +146,8 @@ function card(e){
   if(e.PesoKg!=null) metas.push(`<span>${num(Math.round(e.PesoKg))} kg</span>`);
   if(e.TotalLineas!=null) metas.push(`<span>${e.TotalLineas} líneas</span>`);
   if(e.Comentarios) metas.push(`<span><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`);
+  if(e.Estado==='Finalizado' && e.FechaDespacho) metas.push(`<span style="color:var(--fin)"><i class="bi bi-truck"></i> Despachado ${fdate(e.FechaDespacho)}</span>`);
+  metas.push(`<span><i class="bi bi-person"></i> ${esc(e.CreadoPor||'—')}</span>`);
   return `<div class="card ${cls}" onclick="verDetalle(${e.ID_Escalamiento})">
     <div class="doc">${esc(e.OV_Number)} <span class="tipo">${esc(e.DocType)}</span></div>
     <div class="cli">${esc(e.ClienteNombre||'—')}</div>
@@ -138,7 +155,9 @@ function card(e){
   </div>`;
 }
 
-function render(data){
+function render(){
+  const filtro = document.getElementById('filtroUsuario').value;
+  const data = filtro ? DATA.filter(e => e.CreadoPor === filtro) : DATA;
   const g = { Pendiente:[], Programado:[], Finalizado:[] };
   data.forEach(e => (g[e.Estado]||g.Pendiente).push(e));
   const put=(id,arr)=>{ document.getElementById(id).innerHTML = arr.length?arr.map(card).join(''):'<div class="empty">Sin escalamientos</div>'; };
@@ -153,6 +172,7 @@ function abrirNuevo(){
   document.getElementById('pegar').value=''; document.getElementById('f-ov').value='';
   document.getElementById('f-fecha').value=''; document.getElementById('f-com').value='';
   document.getElementById('lookup').innerHTML='Escribí/pegá la OV para ver sus datos…';
+  document.getElementById('btnGuardar').disabled=false;
   document.getElementById('maskNuevo').classList.add('on');
 }
 function parsePegado(){
@@ -178,17 +198,23 @@ function doLookup(){
     const box=document.getElementById('lookup');
     if(!ov){ box.innerHTML='Escribí/pegá la OV para ver sus datos…'; return; }
     box.innerHTML='<i class="bi bi-hourglass-split"></i> Buscando…';
+    const btn=document.getElementById('btnGuardar');
     try{
       const r=await fetch('/api/escalamientos/lookup?ov='+encodeURIComponent(ov));
       const d=await r.json();
-      if(!d.encontrado){ box.innerHTML='<span style="color:#c0392b"><i class="bi bi-exclamation-triangle"></i> No se encontró en SAP (se guardará igual).</span>'; return; }
+      if(!d.encontrado){ box.innerHTML='<span style="color:#c0392b"><i class="bi bi-exclamation-triangle"></i> No se encontró en SAP (se guardará igual).</span>'; btn.disabled=false; return; }
       const parts=[`<b>${d.DocType}</b>`, `<b>${esc(d.ClienteNombre||'—')}</b>`];
       if(d.DocType==='OV' && d.Monto!=null) parts.push(money(d.Monto));
       if(d.Destino) parts.push('→ '+esc(d.Destino));
       if(d.PesoKg!=null) parts.push(num(Math.round(d.PesoKg))+' kg');
       if(d.TotalLineas!=null) parts.push(d.TotalLineas+' líneas');
-      box.innerHTML=parts.join(' &nbsp;·&nbsp; ');
-    }catch(e){ box.innerHTML='<span style="color:#c0392b">Error en la búsqueda</span>'; }
+      let html=parts.join(' &nbsp;·&nbsp; ');
+      if(!d.enPrepa){
+        html += `<div style="color:#c0392b;font-weight:700;margin-top:0.35rem"><i class="bi bi-exclamation-octagon"></i> No está en preparación (U_Estado2=${esc(d.U_Estado2||'—')}). Ponla en prepa antes de escalar.</div>`;
+        btn.disabled=true;
+      } else { btn.disabled=false; }
+      box.innerHTML=html;
+    }catch(e){ box.innerHTML='<span style="color:#c0392b">Error en la búsqueda</span>'; btn.disabled=false; }
   }, 350);
 }
 async function guardar(){
