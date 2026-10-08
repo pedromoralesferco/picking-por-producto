@@ -471,7 +471,7 @@ router.post('/plan-despachos/fecha-plan', requirePriorizar, async (req, res) => 
             .input('id', sql.Int, id).input('f', sql.VarChar(10), fecha).input('centro', sql.Int, 3)
             .query(`
                 UPDATE OrderRoutePlan SET FechaPlanDespacho = CONVERT(date, @f, 23)
-                WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND Estado IN ('Pendiente', 'Iniciado')
+                WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND EstadoDespacho <> 'Finalizado'
             `);
         if (r.rowsAffected[0] === 0) return res.status(404).json({ error: 'Ruta no encontrada, no es de Escuintla o ya finalizó' });
         res.json({ ok: true });

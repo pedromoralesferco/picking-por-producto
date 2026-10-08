@@ -266,15 +266,25 @@
                 : '<span class="pill incompleto">Incompleto</span>';
         }
 
-        function filaCuadro(c, acum, tonHtml, hiddenGrp) {
+        // Celda de Fecha Planificada (editable si puede priorizar; si no, texto). Arranca con la fecha prioritaria.
+        function fechaPlanCell(c, puede) {
+            const fISO = c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : '';
+            return puede
+                ? `<input type="date" class="fp-input" value="${fISO}" onclick="event.stopPropagation()" onchange="setFechaPlan(${c.ID_RoutePlan}, this.value)">`
+                : (fISO ? esc(new Date(fISO + 'T00:00:00').toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })) : '—');
+        }
+        function filaCuadro(c, acum, tonHtml, hiddenGrp, fechaEditable) {
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
             const tonCell = (tonHtml == null ? fmtTon((c.PesoEstimadoKg || 0) / 1000) : tonHtml);
             const grpAttr = hiddenGrp ? ` data-despgrp="${hiddenGrp}"` : '';
             const hideStyle = hiddenGrp ? ' style="display:none"' : '';
             const comp = !!c.Comprometida;
+            const fechaTd = fechaEditable ? `<td onclick="event.stopPropagation()">${fechaPlanCell(c, !!DATA.puedePriorizar)}</td>` : '';
+            const colsDet = fechaEditable ? 14 : 13;
             return `
                 <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${grpAttr}${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                    ${fechaTd}
                     <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
@@ -289,7 +299,7 @@
                     <td class="op-col">${esc(c.Transportista || '—')}</td>
                     <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
                 </tr>
-                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !hiddenGrp ? '' : 'display:none'}"><td colspan="13"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !hiddenGrp ? '' : 'display:none'}"><td colspan="${colsDet}"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
 
         function sectionTable(titulo, cls, cuadros, sub, opts) {
@@ -298,19 +308,20 @@
             const tonHtmlFn = opts.tonHtmlFn || (c => fmtTon((c.PesoEstimadoKg || 0) / 1000));
             const tonHeader = opts.tonHeader || 'Ton';
             const acumHeader = opts.acumHeader || 'Acum. TN';
+            const fechaEd = !!opts.fechaEditable;
             const head = sub ? `<h4 class="sub-title">${titulo}</h4>` : `<h3 class="sec-title ${cls}">${titulo}</h3>`;
             if (!cuadros.length) return `${head}<div class="empty" style="padding:0.6rem;font-size:0.8rem">Sin cuadros.</div>`;
             let acum = 0;
-            const rows = cuadros.map(c => { const w = wf(c); acum += w / 1000; return filaCuadro(c, acum, tonHtmlFn(c)); }).join('');
+            const rows = cuadros.map(c => { const w = wf(c); acum += w / 1000; return filaCuadro(c, acum, tonHtmlFn(c), null, fechaEd); }).join('');
             const totalTon = cuadros.reduce((s, c) => s + wf(c), 0) / 1000;
             const totalRow = `<tr class="total-row">
-                <td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
+                <td colspan="${fechaEd ? 4 : 3}">TOTAL (${cuadros.length} cuadros)</td>
                 <td class="r">${fmtTon(totalTon)}</td><td class="r">${fmtTon(totalTon)}</td>
                 <td colspan="8"></td></tr>`;
             return `${head}
                 <table>
                     <thead class="${cls}"><tr>
-                        <th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">${tonHeader}</th><th class="r">${acumHeader}</th>
+                        ${fechaEd ? '<th>Fecha Plan.</th>' : ''}<th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">${tonHeader}</th><th class="r">${acumHeader}</th>
                         <th>Status Picking</th><th>Status Carga</th><th>Despachado</th><th>Hora desp.</th>
                         <th class="op-col">Tipo unidad</th><th class="op-col">Placa</th><th class="op-col">Transportista</th>
                         <th class="c"></th>
@@ -482,7 +493,7 @@
 
             document.getElementById('tablero').innerHTML =
                 sectionTableDespachado('1. Despachado (agrupado por fecha)', despachados) +
-                sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos) +
+                sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos, false, { fechaEditable: true }) +
                 sectionPendientes('3. Pendientes — plan diario por fecha', pendientes) +
                 '<div id="detalleSection"></div>';
 
