@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escalamientos - Picking por Producto</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --ink:#1b1b1b; --gold:#d4a826; --pend:#8a6d3b; --prog:#1565c0; --fin:#2e7d32; --line:#e5e5e5; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; color:var(--ink); background:#f3f4f6; padding:1rem 1.2rem 3rem; }
+  .top { display:flex; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .top h1 { font-size:1.3rem; font-weight:800; letter-spacing:-0.02em; }
+  .top .sp { flex:1; }
+  .btn { background:#222; color:var(--gold); border:1px solid var(--gold); padding:0.5rem 0.9rem; border-radius:7px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+  .btn:hover { background:var(--gold); color:#222; }
+  .btn.ghost { background:#fff; color:#555; border-color:#ccc; }
+  a.back { color:#666; text-decoration:none; font-size:0.85rem; }
+
+  .kanban { display:grid; grid-template-columns:repeat(3,1fr); gap:0.9rem; align-items:start; }
+  .col { background:#eceef1; border-radius:10px; padding:0.6rem; min-height:60vh; }
+  .col h2 { font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; padding:0.2rem 0.4rem 0.6rem; display:flex; align-items:center; gap:0.4rem; }
+  .col .dot { width:10px; height:10px; border-radius:50%; }
+  .col.pend h2 .dot { background:var(--pend); } .col.prog h2 .dot { background:var(--prog); } .col.fin h2 .dot { background:var(--fin); }
+  .col .count { margin-left:auto; background:#fff; border-radius:20px; padding:0.05rem 0.5rem; font-size:0.72rem; color:#666; }
+
+  .card { background:#fff; border-radius:9px; padding:0.6rem 0.7rem; margin-bottom:0.6rem; box-shadow:0 1px 3px rgba(0,0,0,0.08); cursor:pointer; border-left:4px solid #ccc; }
+  .card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.14); }
+  .card.pend { border-left-color:var(--pend); } .card.prog { border-left-color:var(--prog); } .card.fin { border-left-color:var(--fin); }
+  .card .doc { font-weight:800; font-size:0.95rem; }
+  .card .doc .tipo { font-size:0.62rem; font-weight:700; background:#eee; color:#666; border-radius:4px; padding:0.05rem 0.35rem; vertical-align:middle; margin-left:0.3rem; }
+  .card .cli { font-size:0.8rem; color:#333; margin-top:0.15rem; }
+  .card .meta { display:flex; flex-wrap:wrap; gap:0.3rem 0.8rem; font-size:0.7rem; color:#777; margin-top:0.35rem; }
+  .card .req { font-weight:700; }
+  .card .req.vencida { color:#c0392b; }
+  .empty { color:#999; font-size:0.78rem; padding:0.6rem; text-align:center; }
+
+  /* Modal */
+  .mask { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:flex-start; justify-content:center; padding:2.5rem 1rem; z-index:50; overflow:auto; }
+  .mask.on { display:flex; }
+  .modal { background:#fff; border-radius:12px; width:100%; max-width:560px; padding:1.3rem; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+  .modal h3 { font-size:1.05rem; font-weight:800; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.5rem; }
+  .modal h3 .sp { flex:1; }
+  .modal label { display:block; font-size:0.68rem; font-weight:700; text-transform:uppercase; color:#888; letter-spacing:0.04em; margin:0.6rem 0 0.2rem; }
+  .modal input, .modal textarea { width:100%; border:1px solid #ccc; border-radius:7px; padding:0.45rem 0.55rem; font-size:0.9rem; font-family:inherit; }
+  .modal textarea { resize:vertical; min-height:80px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; }
+  .lookup { background:#faf8f2; border:1px solid #eee3c8; border-radius:8px; padding:0.5rem 0.7rem; font-size:0.78rem; margin-top:0.6rem; color:#555; min-height:1.5rem; }
+  .lookup b { color:#222; }
+  .modal-actions { display:flex; gap:0.6rem; justify-content:flex-end; margin-top:1rem; }
+  .close-x { background:none; border:none; font-size:1.2rem; cursor:pointer; color:#999; }
+  .pill { display:inline-block; font-size:0.66rem; font-weight:700; border-radius:20px; padding:0.1rem 0.6rem; color:#fff; }
+  .pill.pend { background:var(--pend); } .pill.prog { background:var(--prog); } .pill.fin { background:var(--fin); }
+  table.lin { width:100%; border-collapse:collapse; font-size:0.78rem; margin-top:0.4rem; }
+  table.lin th { text-align:left; color:#999; font-size:0.64rem; text-transform:uppercase; border-bottom:1px solid #eee; padding:0.2rem 0.3rem; }
+  table.lin td { padding:0.2rem 0.3rem; border-bottom:1px solid #f2f2f2; }
+  table.lin td.r { text-align:right; }
+  .coms { margin-top:0.6rem; }
+  .com { background:#f6f7f9; border-radius:7px; padding:0.4rem 0.6rem; margin-bottom:0.4rem; font-size:0.82rem; white-space:pre-wrap; }
+  .com .who { font-size:0.66rem; color:#999; margin-top:0.2rem; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="/dashboard"><i class="bi bi-arrow-left"></i> Dashboard</a>
+    <h1><i class="bi bi-flag-fill" style="color:var(--gold)"></i> Escalamientos</h1>
+    <div class="sp"></div>
+    <button class="btn ghost" onclick="load()"><i class="bi bi-arrow-clockwise"></i></button>
+    <button class="btn" onclick="abrirNuevo()"><i class="bi bi-plus-lg"></i> Nuevo escalamiento</button>
+  </div>
+
+  <div class="kanban">
+    <div class="col pend"><h2><span class="dot"></span> Pendientes <span class="count" id="c-pend">0</span></h2><div id="k-pend"></div></div>
+    <div class="col prog"><h2><span class="dot"></span> Programados <span class="count" id="c-prog">0</span></h2><div id="k-prog"></div></div>
+    <div class="col fin"><h2><span class="dot"></span> Finalizados <span class="count" id="c-fin">0</span></h2><div id="k-fin"></div></div>
+  </div>
+
+  <!-- Modal nuevo -->
+  <div class="mask" id="maskNuevo">
+    <div class="modal">
+      <h3><i class="bi bi-flag"></i> Nuevo escalamiento <span class="sp"></span><button class="close-x" onclick="cerrar('maskNuevo')">&times;</button></h3>
+      <label>Pegá el mensaje del comercial</label>
+      <textarea id="pegar" placeholder="Ej:&#10;200880368&#10;WELCO, S.A.&#10;Zona 9 capital&#10;16 días de atraso&#10;cliente solicita con urgencia...&#10;Fecha requerida 09/10" oninput="parsePegado()"></textarea>
+      <div class="row2">
+        <div><label>OV / TR</label><input id="f-ov" oninput="doLookup()" placeholder="200880368"></div>
+        <div><label>Fecha requerida</label><input id="f-fecha" type="date"></div>
+      </div>
+      <div class="lookup" id="lookup">Escribí/pegá la OV para ver sus datos…</div>
+      <label>Comentario inicial</label>
+      <textarea id="f-com" placeholder="Contexto del escalamiento"></textarea>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="cerrar('maskNuevo')">Cancelar</button>
+        <button class="btn" id="btnGuardar" onclick="guardar()">Crear escalamiento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal detalle -->
+  <div class="mask" id="maskDet">
+    <div class="modal">
+      <h3><span id="d-titulo">Escalamiento</span> <span class="sp"></span><button class="close-x" onclick="cerrar('maskDet')">&times;</button></h3>
+      <div id="d-body"><div class="empty">Cargando…</div></div>
+    </div>
+  </div>
+
+<script>
+const esc = s => { const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; };
+const num = n => (Number(n)||0).toLocaleString('es-GT');
+const money = n => n==null?'—':('Q '+(Number(n)||0).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}));
+function fdate(d){ if(!d) return '—'; const x=new Date(String(d).slice(0,10)+'T00:00:00'); return isNaN(x)?'—':x.toLocaleDateString('es-GT',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function cerrar(id){ document.getElementById(id).classList.remove('on'); }
+
+async function load(){
+  try{
+    const res = await fetch('/api/escalamientos');
+    if(res.status===401){ location.href='/login'; return; }
+    if(!res.ok) throw new Error('No se pudo cargar');
+    const data = await res.json();
+    render(data);
+  }catch(e){ document.querySelector('.kanban').innerHTML='<div class="empty">Error al cargar escalamientos.</div>'; }
+}
+
+function card(e){
+  const cls = e.Estado==='Finalizado'?'fin':(e.Estado==='Programado'?'prog':'pend');
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fr = e.FechaRequerida ? new Date(String(e.FechaRequerida).slice(0,10)+'T00:00:00') : null;
+  const vencida = fr && e.Estado!=='Finalizado' && fr < hoy;
+  const metas = [];
+  metas.push(`<span class="req ${vencida?'vencida':''}"><i class="bi bi-calendar-event"></i> Req: ${fdate(e.FechaRequerida)}</span>`);
+  if(e.DocType==='OV' && e.Monto!=null) metas.push(`<span>${money(e.Monto)}</span>`);
+  if(e.PesoKg!=null) metas.push(`<span>${num(Math.round(e.PesoKg))} kg</span>`);
+  if(e.TotalLineas!=null) metas.push(`<span>${e.TotalLineas} líneas</span>`);
+  if(e.Comentarios) metas.push(`<span><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`);
+  return `<div class="card ${cls}" onclick="verDetalle(${e.ID_Escalamiento})">
+    <div class="doc">${esc(e.OV_Number)} <span class="tipo">${esc(e.DocType)}</span></div>
+    <div class="cli">${esc(e.ClienteNombre||'—')}</div>
+    <div class="meta">${metas.join('')}</div>
+  </div>`;
+}
+
+function render(data){
+  const g = { Pendiente:[], Programado:[], Finalizado:[] };
+  data.forEach(e => (g[e.Estado]||g.Pendiente).push(e));
+  const put=(id,arr)=>{ document.getElementById(id).innerHTML = arr.length?arr.map(card).join(''):'<div class="empty">Sin escalamientos</div>'; };
+  put('k-pend', g.Pendiente); put('k-prog', g.Programado); put('k-fin', g.Finalizado);
+  document.getElementById('c-pend').textContent=g.Pendiente.length;
+  document.getElementById('c-prog').textContent=g.Programado.length;
+  document.getElementById('c-fin').textContent=g.Finalizado.length;
+}
+
+// ── Nuevo ──
+function abrirNuevo(){
+  document.getElementById('pegar').value=''; document.getElementById('f-ov').value='';
+  document.getElementById('f-fecha').value=''; document.getElementById('f-com').value='';
+  document.getElementById('lookup').innerHTML='Escribí/pegá la OV para ver sus datos…';
+  document.getElementById('maskNuevo').classList.add('on');
+}
+function parsePegado(){
+  const t = document.getElementById('pegar').value;
+  // OV/TR: primer número de 6+ dígitos
+  const mov = t.match(/\b(\d{6,})\b/);
+  if(mov && !document.getElementById('f-ov').value){ document.getElementById('f-ov').value=mov[1]; doLookup(); }
+  // Fecha requerida: busca "requerida ... dd/mm[/aaaa]" o cualquier dd/mm
+  let md = t.match(/requerid[ao][^\d]*(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/i) || t.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if(md){
+    let dd=md[1].padStart(2,'0'), mm=md[2].padStart(2,'0'), yy=md[3];
+    if(!yy) yy=String(new Date().getFullYear()); else if(yy.length===2) yy='20'+yy;
+    document.getElementById('f-fecha').value=`${yy}-${mm}-${dd}`;
+  }
+  // Comentario: el texto completo si está vacío
+  if(!document.getElementById('f-com').value) document.getElementById('f-com').value=t.trim();
+}
+let lookupTimer=null;
+function doLookup(){
+  clearTimeout(lookupTimer);
+  lookupTimer=setTimeout(async()=>{
+    const ov=document.getElementById('f-ov').value.trim();
+    const box=document.getElementById('lookup');
+    if(!ov){ box.innerHTML='Escribí/pegá la OV para ver sus datos…'; return; }
+    box.innerHTML='<i class="bi bi-hourglass-split"></i> Buscando…';
+    try{
+      const r=await fetch('/api/escalamientos/lookup?ov='+encodeURIComponent(ov));
+      const d=await r.json();
+      if(!d.encontrado){ box.innerHTML='<span style="color:#c0392b"><i class="bi bi-exclamation-triangle"></i> No se encontró en SAP (se guardará igual).</span>'; return; }
+      const parts=[`<b>${d.DocType}</b>`, `<b>${esc(d.ClienteNombre||'—')}</b>`];
+      if(d.DocType==='OV' && d.Monto!=null) parts.push(money(d.Monto));
+      if(d.Destino) parts.push('→ '+esc(d.Destino));
+      if(d.PesoKg!=null) parts.push(num(Math.round(d.PesoKg))+' kg');
+      if(d.TotalLineas!=null) parts.push(d.TotalLineas+' líneas');
+      box.innerHTML=parts.join(' &nbsp;·&nbsp; ');
+    }catch(e){ box.innerHTML='<span style="color:#c0392b">Error en la búsqueda</span>'; }
+  }, 350);
+}
+async function guardar(){
+  const ov=document.getElementById('f-ov').value.trim();
+  if(!ov){ alert('Falta la OV/TR'); return; }
+  const btn=document.getElementById('btnGuardar'); btn.disabled=true; btn.textContent='Guardando…';
+  try{
+    const r=await fetch('/api/escalamientos',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ ov, fechaRequerida:document.getElementById('f-fecha').value, comentario:document.getElementById('f-com').value })});
+    if(!r.ok){ const d=await r.json(); alert(d.error||'Error'); }
+    else { cerrar('maskNuevo'); load(); }
+  }catch(e){ alert('Error al guardar'); }
+  btn.disabled=false; btn.textContent='Crear escalamiento';
+}
+
+// ── Detalle ──
+let detId=null;
+async function verDetalle(id){
+  detId=id;
+  document.getElementById('maskDet').classList.add('on');
+  document.getElementById('d-body').innerHTML='<div class="empty">Cargando…</div>';
+  try{
+    const r=await fetch('/api/escalamientos/'+id); const d=await r.json();
+    const e=d.escalamiento;
+    const cls=d.estado==='Finalizado'?'fin':(d.estado==='Programado'?'prog':'pend');
+    document.getElementById('d-titulo').innerHTML=`${esc(e.OV_Number)} <span class="pill ${cls}">${d.estado}</span>`;
+    const lin = (d.lineas&&d.lineas.length)
+      ? `<table class="lin"><thead><tr><th>Código</th><th>Producto</th><th class="r">Cant</th><th class="r">Peso</th></tr></thead><tbody>${d.lineas.map(l=>`<tr><td>${esc(l.Codigo)}</td><td>${esc(l.Nombre||'')}</td><td class="r">${num(l.Cantidad)}</td><td class="r">${num(Math.round(l.Peso||0))}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Sin detalle de líneas</div>';
+    const coms = (d.comentarios&&d.comentarios.length)
+      ? d.comentarios.map(c=>`<div class="com">${esc(c.Comentario)}<div class="who">${esc(c.Autor||'—')} · ${new Date(c.Fecha).toLocaleString('es-GT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')
+      : '<div class="empty">Sin comentarios</div>';
+    document.getElementById('d-body').innerHTML=`
+      <div style="font-size:0.85rem;margin-bottom:0.3rem"><b>${esc(e.ClienteNombre||'—')}</b> ${e.DocType==='OV'&&e.Monto!=null?' · '+money(e.Monto):''}</div>
+      <div style="font-size:0.78rem;color:#666;margin-bottom:0.6rem"><i class="bi bi-calendar-event"></i> Requerida: ${fdate(e.FechaRequerida)} &nbsp;·&nbsp; ${e.PesoKg!=null?num(Math.round(e.PesoKg))+' kg':''} ${e.TotalLineas!=null?' · '+e.TotalLineas+' líneas':''} &nbsp;·&nbsp; creado por ${esc(e.CreadoPor||'—')}</div>
+      <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888">Detalle del pedido</label>
+      ${lin}
+      <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888;display:block;margin-top:0.8rem">Comentarios</label>
+      <div class="coms">${coms}</div>
+      <textarea id="nuevoCom" placeholder="Agregar comentario…" style="width:100%;border:1px solid #ccc;border-radius:7px;padding:0.45rem;font-family:inherit;min-height:50px;margin-top:0.3rem"></textarea>
+      <div class="modal-actions">
+        <button class="btn ghost" onclick="archivar(${id})" title="Quitar del tablero"><i class="bi bi-archive"></i> Archivar</button>
+        <button class="btn" onclick="comentar(${id})">Agregar comentario</button>
+      </div>`;
+  }catch(e){ document.getElementById('d-body').innerHTML='<div class="empty">Error al cargar</div>'; }
+}
+async function comentar(id){
+  const c=document.getElementById('nuevoCom').value.trim(); if(!c) return;
+  try{ const r=await fetch('/api/escalamientos/'+id+'/comentario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({comentario:c})});
+    if(r.ok){ verDetalle(id); } else alert('Error al comentar'); }catch(e){ alert('Error'); }
+}
+async function archivar(id){
+  if(!confirm('¿Archivar este escalamiento? Se quita del tablero.')) return;
+  try{ const r=await fetch('/api/escalamientos/'+id+'/archivar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({archivar:true})});
+    if(r.ok){ cerrar('maskDet'); load(); } else alert('Error'); }catch(e){ alert('Error'); }
+}
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>

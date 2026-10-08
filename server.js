@@ -101,6 +101,21 @@ try {
     console.error('AVISO: Reportes deshabilitado (fallo al cargar el modulo):', err.message);
 }
 
+// Escalamientos (blindado): tickets de OV/TR a escalar en picking/despacho.
+try {
+    const escalamientosApiRoutes = require('./routes/escalamientos-api');
+    app.use('/api/escalamientos', escalamientosApiRoutes);
+    app.get('/escalamientos', requireAuthPage, requireCentro, (req, res) => {
+        const u = req.session.user;
+        const ok = u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo')));
+        if (!ok) return res.redirect('/dashboard');
+        res.sendFile(path.join(__dirname, 'public', 'escalamientos.html'));
+    });
+    console.log('Modulo Escalamientos cargado.');
+} catch (err) {
+    console.error('AVISO: Escalamientos deshabilitado (fallo al cargar el modulo):', err.message);
+}
+
 app.use('/api', apiRoutes);
 
 // Centro selection page

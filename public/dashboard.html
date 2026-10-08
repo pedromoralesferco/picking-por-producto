@@ -289,6 +289,13 @@
                     title: 'Plan de Despachos',
                     desc: 'Tablero de control de despachos del centro (en vivo).'
                 });
+                modules.push({
+                    href: '/escalamientos',
+                    icon: 'bi-flag',
+                    iconClass: 'despacho',
+                    title: 'Escalamientos',
+                    desc: 'Tickets de OV/TR a escalar: pendientes, programados y despachados.'
+                });
             }
 
             if (isAdmin || permisos.includes('pase-salida')) {
