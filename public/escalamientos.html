@@ -45,6 +45,9 @@
   .modal input, .modal textarea { width:100%; border:1px solid #ccc; border-radius:7px; padding:0.45rem 0.55rem; font-size:0.9rem; font-family:inherit; }
   .modal textarea { resize:vertical; min-height:80px; }
   .row2 { display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; }
+  .tipo-toggle { display:flex; border:1px solid #ccc; border-radius:7px; overflow:hidden; margin-top:0.1rem; }
+  .tipo-toggle button { flex:1; border:none; background:#fff; padding:0.45rem 0; font-weight:700; font-size:0.85rem; cursor:pointer; color:#888; }
+  .tipo-toggle button.on { background:var(--gold); color:#222; }
   .lookup { background:#faf8f2; border:1px solid #eee3c8; border-radius:8px; padding:0.5rem 0.7rem; font-size:0.78rem; margin-top:0.6rem; color:#555; min-height:1.5rem; }
   .lookup b { color:#222; }
   .modal-actions { display:flex; gap:0.6rem; justify-content:flex-end; margin-top:1rem; }
@@ -74,9 +77,9 @@
   </div>
 
   <div class="kanban">
-    <div class="col pend"><h2><span class="dot"></span> Pendientes <span class="count" id="c-pend">0</span></h2><div id="k-pend"></div></div>
-    <div class="col prog"><h2><span class="dot"></span> Programados <span class="count" id="c-prog">0</span></h2><div id="k-prog"></div></div>
-    <div class="col fin"><h2><span class="dot"></span> Finalizados <span class="count" id="c-fin">0</span></h2><div id="k-fin"></div></div>
+    <div class="col pend"><h2><span class="dot"></span> Pendiente <span class="count" id="c-pend">0</span></h2><div id="k-pend"></div></div>
+    <div class="col prog"><h2><span class="dot"></span> Programada para Picking <span class="count" id="c-prog">0</span></h2><div id="k-prog"></div></div>
+    <div class="col fin"><h2><span class="dot"></span> Despachado de HUB <span class="count" id="c-fin">0</span></h2><div id="k-fin"></div></div>
   </div>
 
   <!-- Modal nuevo -->
@@ -84,10 +87,14 @@
     <div class="modal">
       <h3><i class="bi bi-flag"></i> Nuevo escalamiento <span class="sp"></span><button class="close-x" onclick="cerrar('maskNuevo')">&times;</button></h3>
       <label>Pegá el mensaje del comercial</label>
-      <textarea id="pegar" placeholder="Ej:&#10;200880368&#10;WELCO, S.A.&#10;Zona 9 capital&#10;16 días de atraso&#10;cliente solicita con urgencia...&#10;Fecha requerida 09/10" oninput="parsePegado()"></textarea>
-      <div class="row2">
+      <textarea id="pegar" placeholder="Ej:&#10;200880368&#10;WELCO, S.A.&#10;Zona 9 capital&#10;16 días de atraso&#10;cliente solicita con urgencia...&#10;Fecha máxima negociada 13/10" oninput="parsePegado()"></textarea>
+      <div style="display:grid;grid-template-columns:1.3fr 0.95fr 1fr;gap:0.6rem">
         <div><label>OV / TR</label><input id="f-ov" oninput="doLookup()" placeholder="200880368"></div>
-        <div><label>Fecha requerida</label><input id="f-fecha" type="date"></div>
+        <div><label>Tipo</label><div class="tipo-toggle">
+          <button type="button" id="tipoOV" class="on" onclick="setTipo('OV')">OV</button>
+          <button type="button" id="tipoTR" onclick="setTipo('TR')">TR</button>
+        </div></div>
+        <div><label>Fecha máxima negociada</label><input id="f-fecha" type="date"></div>
       </div>
       <div class="lookup" id="lookup">Escribí/pegá la OV para ver sus datos…</div>
       <label>Comentario inicial</label>
@@ -142,7 +149,8 @@ function card(e){
   const fr = e.FechaRequerida ? new Date(String(e.FechaRequerida).slice(0,10)+'T00:00:00') : null;
   const vencida = fr && e.Estado!=='Finalizado' && fr < hoy;
   const metas = [];
-  metas.push(`<span class="req ${vencida?'vencida':''}"><i class="bi bi-calendar-event"></i> Req: ${fdate(e.FechaRequerida)}</span>`);
+  metas.push(`<span style="color:#555"><i class="bi bi-clock-history"></i> Escalado ${fdatetime(e.FechaCreacion)}</span>`);
+  metas.push(`<span class="req ${vencida?'vencida':''}"><i class="bi bi-calendar-event"></i> Máx neg: ${fdate(e.FechaRequerida)}</span>`);
   if(e.DocType==='OV' && e.Monto!=null) metas.push(`<span>${money(e.Monto)}</span>`);
   if(e.PesoKg!=null) metas.push(`<span>${num(Math.round(e.PesoKg))} kg</span>`);
   if(e.TotalLineas!=null) metas.push(`<span>${e.TotalLineas} líneas</span>`);
@@ -170,11 +178,32 @@ function render(){
 }
 
 // ── Nuevo ──
+// Fecha máxima negociada mínima (mismo cálculo que el backend): antes de 2pm = mañana;
+// 2pm o después = pasado mañana; si cae domingo, se corre a lunes.
+function fechaMinNeg(){
+  const now=new Date(); const d=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  d.setDate(d.getDate()+(now.getHours()<14?1:2));
+  if(d.getDay()===0) d.setDate(d.getDate()+1);
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+// Toggle OV/TR
+let tipoManual=false;
+function currentTipo(){ return document.getElementById('tipoTR').classList.contains('on') ? 'TR' : 'OV'; }
+function updateTipoButtons(t){
+  document.getElementById('tipoOV').classList.toggle('on', t!=='TR');
+  document.getElementById('tipoTR').classList.toggle('on', t==='TR');
+}
+function setTipo(t){ tipoManual=true; updateTipoButtons(t); doLookup(); }
+
 function abrirNuevo(){
   document.getElementById('pegar').value=''; document.getElementById('f-ov').value='';
-  document.getElementById('f-fecha').value=''; document.getElementById('f-com').value='';
+  document.getElementById('f-com').value='';
+  const mn=fechaMinNeg();
+  const f=document.getElementById('f-fecha'); f.min=mn; f.value=mn;
   document.getElementById('lookup').innerHTML='Escribí/pegá la OV para ver sus datos…';
   document.getElementById('btnGuardar').disabled=false;
+  tipoManual=false; updateTipoButtons('OV');
   document.getElementById('maskNuevo').classList.add('on');
 }
 function parsePegado(){
@@ -183,7 +212,7 @@ function parsePegado(){
   const mov = t.match(/\b(\d{6,})\b/);
   if(mov && !document.getElementById('f-ov').value){ document.getElementById('f-ov').value=mov[1]; doLookup(); }
   // Fecha requerida: busca "requerida ... dd/mm[/aaaa]" o cualquier dd/mm
-  let md = t.match(/requerid[ao][^\d]*(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/i) || t.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  let md = t.match(/(?:requerid[ao]|negociad[ao]|m[aá]x\w*)[^\d]*(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/i) || t.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
   if(md){
     let dd=md[1].padStart(2,'0'), mm=md[2].padStart(2,'0'), yy=md[3];
     if(!yy) yy=String(new Date().getFullYear()); else if(yy.length===2) yy='20'+yy;
@@ -202,8 +231,10 @@ function doLookup(){
     box.innerHTML='<i class="bi bi-hourglass-split"></i> Buscando…';
     const btn=document.getElementById('btnGuardar');
     try{
-      const r=await fetch('/api/escalamientos/lookup?ov='+encodeURIComponent(ov));
+      const tipoQ = tipoManual ? ('&tipo='+currentTipo()) : '';
+      const r=await fetch('/api/escalamientos/lookup?ov='+encodeURIComponent(ov)+tipoQ);
       const d=await r.json();
+      if(!tipoManual && d.DocType) updateTipoButtons(d.DocType); // reflejar el tipo detectado
       if(!d.encontrado){ box.innerHTML='<span style="color:#c0392b"><i class="bi bi-exclamation-triangle"></i> No se encontró en SAP (se guardará igual).</span>'; btn.disabled=false; return; }
       const parts=[`<b>${d.DocType}</b>`, `<b>${esc(d.ClienteNombre||'—')}</b>`];
       if(d.DocType==='OV' && d.Monto!=null) parts.push(money(d.Monto));
@@ -222,10 +253,13 @@ function doLookup(){
 async function guardar(){
   const ov=document.getElementById('f-ov').value.trim();
   if(!ov){ alert('Falta la OV/TR'); return; }
+  const fecha=document.getElementById('f-fecha').value;
+  const mn=fechaMinNeg();
+  if(fecha && fecha<mn){ alert('La fecha máxima negociada no puede ser hoy; mínimo '+mn+'.'); return; }
   const btn=document.getElementById('btnGuardar'); btn.disabled=true; btn.textContent='Guardando…';
   try{
     const r=await fetch('/api/escalamientos',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ ov, fechaRequerida:document.getElementById('f-fecha').value, comentario:document.getElementById('f-com').value })});
+      body:JSON.stringify({ ov, docType:currentTipo(), fechaRequerida:fecha, comentario:document.getElementById('f-com').value })});
     if(!r.ok){ const d=await r.json(); alert(d.error||'Error'); }
     else { cerrar('maskNuevo'); load(); }
   }catch(e){ alert('Error al guardar'); }
@@ -263,7 +297,7 @@ async function verDetalle(id){
       </div>`;
     document.getElementById('d-body').innerHTML=`
       <div style="font-size:0.85rem;margin-bottom:0.3rem"><b>${esc(e.ClienteNombre||'—')}</b> ${e.DocType==='OV'&&e.Monto!=null?' · '+money(e.Monto):''}</div>
-      <div style="font-size:0.78rem;color:#666;margin-bottom:0.6rem"><i class="bi bi-calendar-event"></i> Requerida: ${fdate(e.FechaRequerida)} &nbsp;·&nbsp; ${e.PesoKg!=null?num(Math.round(e.PesoKg))+' kg':''} ${e.TotalLineas!=null?' · '+e.TotalLineas+' líneas':''} &nbsp;·&nbsp; creado por ${esc(e.CreadoPor||'—')}</div>
+      <div style="font-size:0.78rem;color:#666;margin-bottom:0.6rem"><i class="bi bi-calendar-event"></i> Máx. negociada: ${fdate(e.FechaRequerida)} &nbsp;·&nbsp; ${e.PesoKg!=null?num(Math.round(e.PesoKg))+' kg':''} ${e.TotalLineas!=null?' · '+e.TotalLineas+' líneas':''} &nbsp;·&nbsp; creado por ${esc(e.CreadoPor||'—')}</div>
       ${tl}
       <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888">Detalle del pedido</label>
       ${lin}

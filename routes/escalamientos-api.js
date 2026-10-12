@@ -29,14 +29,15 @@ function requireEsc(req, res, next) {
 }
 
 // Busca datos del documento (OV o TR) en SAP/Lisa: tipo, cliente, monto, peso, líneas.
-async function lookupDoc(pool, docRaw) {
+async function lookupDoc(pool, docRaw, tipo) {
+    const forzar = (tipo === 'OV' || tipo === 'TR') ? tipo : null;
     const num = parseInt(String(docRaw).replace(/\D/g, ''));
     const out = { OV_Number: String(docRaw).trim(), DocType: null, ClienteNombre: null, Destino: null, Monto: null, PesoKg: null, TotalLineas: null, U_Estado2: null, enPrepa: false, encontrado: false };
     if (!num || isNaN(num)) return out;
     const db = getSapDb('GT');
     const lisa = 'lisa_' + db;
-    // ¿OV?
-    try {
+    // ¿OV? (salvo que se fuerce TR)
+    if (forzar !== 'TR') try {
         const ov = await pool.request().input('d', sql.Int, num).query(`
             SELECT TOP 1 o.DocTotal AS Monto, c.CardName AS Cliente, s.SlpName AS Asesor, o.U_Estado2 AS Estado2
             FROM [server-sql].[${db}].dbo.ORDR o WITH (NOLOCK)
@@ -51,8 +52,8 @@ async function lookupDoc(pool, docRaw) {
             out.U_Estado2 = ov.recordset[0].Estado2 != null ? String(ov.recordset[0].Estado2).trim() : null;
         }
     } catch (e) { console.error('lookupDoc OV:', e.message); }
-    // ¿TR?
-    if (!out.DocType) {
+    // ¿TR? (salvo que se fuerce OV)
+    if (!out.DocType && forzar !== 'OV') {
         try {
             const tr = await pool.request().input('d', sql.Int, num).query(`
                 SELECT TOP 1 c.CardName AS Cliente, wh.WhsName AS Destino, o.U_Estado2 AS Estado2
@@ -68,6 +69,8 @@ async function lookupDoc(pool, docRaw) {
             }
         } catch (e) { console.error('lookupDoc TR:', e.message); }
     }
+    // Si se forzó un tipo y no se halló, respetar el tipo elegido igual
+    if (!out.DocType && forzar) out.DocType = forzar;
     out.enPrepa = out.U_Estado2 === '03';
     // Peso + líneas desde Lisa
     try {
@@ -177,12 +180,29 @@ async function estadosDeOVs(pool, ovs) {
 }
 const ESTADO_NOMBRE = { 0: 'Pendiente', 1: 'Programado', 2: 'Finalizado' };
 
-// GET /api/escalamientos/lookup?ov=  — datos del documento para el formulario
+// Fecha máxima negociada MÍNIMA: no puede ser hoy. Antes de las 2pm = mañana;
+// 2pm o después = pasado mañana; si cae domingo, se corre a lunes.
+function fechaMinNegociada() {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    d.setDate(d.getDate() + (now.getHours() < 14 ? 1 : 2));
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1); // domingo -> lunes
+    return d;
+}
+function fechaMinStr() {
+    const d = fechaMinNegociada(); const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// GET /api/escalamientos/min-fecha — fecha mínima negociada permitida (para el form)
+router.get('/min-fecha', requireEsc, (req, res) => res.json({ min: fechaMinStr() }));
+
+// GET /api/escalamientos/lookup?ov=&tipo=  — datos del documento para el formulario
 router.get('/lookup', requireEsc, async (req, res) => {
     try {
         const ov = String(req.query.ov || '').trim();
         if (!ov) return res.status(400).json({ error: 'ov requerido' });
-        const info = await lookupDoc(getPool(), ov);
+        const info = await lookupDoc(getPool(), ov, req.query.tipo);
         res.json(info);
     } catch (err) { console.error('GET /lookup', err); res.status(500).json({ error: 'Error en lookup' }); }
 });
@@ -195,8 +215,13 @@ router.post('/', requireEsc, async (req, res) => {
         if (!ov) return res.status(400).json({ error: 'OV/TR requerido' });
         const fechaReq = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body.fechaRequerida || '').slice(0, 10))
             ? String(req.body.fechaRequerida).slice(0, 10) : null;
+        // Fecha máxima negociada: si se dio, no puede ser antes del mínimo permitido
+        const minStr = fechaMinStr();
+        if (fechaReq && fechaReq < minStr) {
+            return res.status(400).json({ error: `La fecha máxima negociada no puede ser hoy; mínimo ${minStr}.`, codigo: 'FECHA_MIN', min: minStr });
+        }
         const comentario = String(req.body.comentario || '').trim();
-        const info = await lookupDoc(pool, ov);
+        const info = await lookupDoc(pool, ov, req.body.docType);
         // No permitir escalar si el documento está pendiente de poner en preparación
         // (U_Estado2 <> '03'). Si no se encontró en SAP, no se puede validar -> se permite.
         if (info.encontrado && !info.enPrepa) {
@@ -244,7 +269,7 @@ router.get('/', requireEsc, async (req, res) => {
                    (SELECT COUNT(*) FROM dbo.EscalamientoComentarios c WHERE c.ID_Escalamiento = e.ID_Escalamiento) AS Comentarios
             FROM dbo.Escalamientos e
             WHERE ${filtro}
-            ORDER BY e.FechaRequerida ASC, e.FechaCreacion ASC`);
+            ORDER BY e.FechaCreacion ASC`);
         const estados = await estadosDeOVs(pool, r.recordset.map(x => x.OV_Number));
         const cut = Date.now() - 24 * 3600 * 1000; // Finalizados: visibles solo 24h tras el despacho
         const data = r.recordset.map(x => {
