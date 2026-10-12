@@ -29,8 +29,17 @@
   .card.pend { border-left-color:var(--pend); } .card.prog { border-left-color:var(--prog); } .card.fin { border-left-color:var(--fin); }
   .card .doc { font-weight:800; font-size:0.95rem; }
   .card .doc .tipo { font-size:0.62rem; font-weight:700; background:#eee; color:#666; border-radius:4px; padding:0.05rem 0.35rem; vertical-align:middle; margin-left:0.3rem; }
-  .card .cli { font-size:0.8rem; color:#333; margin-top:0.15rem; }
+  .card .cli { font-size:0.8rem; color:#333; margin-top:0.15rem; margin-bottom:0.3rem; }
   .card .meta { display:flex; flex-wrap:wrap; gap:0.3rem 0.8rem; font-size:0.7rem; color:#777; margin-top:0.35rem; }
+  .card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:0.4rem; }
+  .estado-chip { font-size:0.63rem; font-weight:700; border-radius:6px; padding:0.1rem 0.45rem; white-space:nowrap; color:#fff; flex:none; }
+  .estado-chip.prog { background:var(--prog); }
+  .estado-chip.fin { background:var(--fin); }
+  .card .crow { display:flex; align-items:baseline; gap:0.5rem; font-size:0.72rem; margin-top:0.18rem; }
+  .card .crow .k { color:#9a9a9a; min-width:58px; flex:none; }
+  .card .crow .v { color:#333; font-weight:600; }
+  .card .crow .v.vencida { color:#c0392b; font-weight:700; }
+  .card .crow .coms-badge { margin-left:auto; color:#8a8a8a; font-weight:600; }
   .card .req { font-weight:700; }
   .card .req.vencida { color:#c0392b; }
   .empty { color:#999; font-size:0.78rem; padding:0.6rem; text-align:center; }
@@ -68,6 +77,8 @@
     <a class="back" href="/dashboard"><i class="bi bi-arrow-left"></i> Dashboard</a>
     <h1><i class="bi bi-flag-fill" style="color:var(--gold)"></i> Escalamientos</h1>
     <div class="sp"></div>
+    <input id="buscar" oninput="render()" placeholder="Buscar OV / cuadro…" title="Buscar por pedido o cuadro de ruta"
+      style="border:1px solid #ccc;border-radius:7px;padding:0.45rem 0.6rem;font-size:0.82rem;background:#fff;color:#333;width:180px">
     <select id="filtroUsuario" onchange="render()" title="Filtrar por quién escaló"
       style="border:1px solid #ccc;border-radius:7px;padding:0.45rem 0.6rem;font-size:0.82rem;background:#fff;color:#333;max-width:220px">
       <option value="">Todos los usuarios</option>
@@ -148,26 +159,31 @@ function card(e){
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const fr = e.FechaRequerida ? new Date(String(e.FechaRequerida).slice(0,10)+'T00:00:00') : null;
   const vencida = fr && e.Estado!=='Finalizado' && fr < hoy;
-  const metas = [];
-  metas.push(`<span style="color:#555"><i class="bi bi-clock-history"></i> Escalado ${fdatetime(e.FechaCreacion)}</span>`);
-  metas.push(`<span class="req ${vencida?'vencida':''}"><i class="bi bi-calendar-event"></i> Máx neg: ${fdate(e.FechaRequerida)}</span>`);
-  if(e.DocType==='OV' && e.Monto!=null) metas.push(`<span>${money(e.Monto)}</span>`);
-  if(e.PesoKg!=null) metas.push(`<span>${num(Math.round(e.PesoKg))} kg</span>`);
-  if(e.TotalLineas!=null) metas.push(`<span>${e.TotalLineas} líneas</span>`);
-  if(e.Comentarios) metas.push(`<span><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`);
-  if(e.Estado==='Programado' && e.Cuadro) metas.push(`<span style="color:var(--prog);font-weight:700"><i class="bi bi-signpost-2"></i> Cuadro ${esc(e.Cuadro)}</span>`);
-  if(e.Estado==='Finalizado') metas.push(`<span style="color:var(--fin);font-weight:700"><i class="bi bi-truck"></i> Cuadro ${esc(e.Cuadro||'—')}${e.FechaDespacho?' · '+fdatetime(e.FechaDespacho):''}</span>`);
-  metas.push(`<span><i class="bi bi-person"></i> ${esc(e.CreadoPor||'—')}</span>`);
+  let chip = '';
+  if(e.Estado==='Programado' && e.Cuadro) chip = `<span class="estado-chip prog"><i class="bi bi-signpost-2"></i> Cuadro ${esc(e.Cuadro)}</span>`;
+  else if(e.Estado==='Finalizado') chip = `<span class="estado-chip fin"><i class="bi bi-truck"></i> Cuadro ${esc(e.Cuadro||'—')}${e.FechaDespacho?' · '+fdatetime(e.FechaDespacho):''}</span>`;
+  const datos = [];
+  if(e.DocType==='OV' && e.Monto!=null) datos.push(money(e.Monto));
+  if(e.PesoKg!=null) datos.push(num(Math.round(e.PesoKg))+' kg');
+  if(e.TotalLineas!=null) datos.push(e.TotalLineas+' líneas');
   return `<div class="card ${cls}" onclick="verDetalle(${e.ID_Escalamiento})">
-    <div class="doc">${esc(e.OV_Number)} <span class="tipo">${esc(e.DocType)}</span></div>
+    <div class="card-top">
+      <div class="doc">${esc(e.OV_Number)} <span class="tipo">${esc(e.DocType)}</span></div>
+      ${chip}
+    </div>
     <div class="cli">${esc(e.ClienteNombre||'—')}</div>
-    <div class="meta">${metas.join('')}</div>
+    <div class="crow"><span class="k">Máx. neg.</span><span class="v ${vencida?'vencida':''}">${fdate(e.FechaRequerida)}</span></div>
+    <div class="crow"><span class="k">Escalado</span><span class="v">${fdatetime(e.FechaCreacion)}</span></div>
+    ${datos.length?`<div class="crow"><span class="k">Pedido</span><span class="v">${datos.join(' · ')}</span></div>`:''}
+    <div class="crow"><span class="k">Por</span><span class="v">${esc(e.CreadoPor||'—')}</span>${e.Comentarios?`<span class="coms-badge"><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`:''}</div>
   </div>`;
 }
 
 function render(){
   const filtro = document.getElementById('filtroUsuario').value;
-  const data = filtro ? DATA.filter(e => e.CreadoPor === filtro) : DATA;
+  const q = (document.getElementById('buscar').value || '').trim().toLowerCase();
+  let data = filtro ? DATA.filter(e => e.CreadoPor === filtro) : DATA;
+  if(q) data = data.filter(e => String(e.OV_Number).toLowerCase().includes(q) || String(e.Cuadro||'').toLowerCase().includes(q));
   const g = { Pendiente:[], Programado:[], Finalizado:[] };
   data.forEach(e => (g[e.Estado]||g.Pendiente).push(e));
   const put=(id,arr)=>{ document.getElementById(id).innerHTML = arr.length?arr.map(card).join(''):'<div class="empty">Sin escalamientos</div>'; };
