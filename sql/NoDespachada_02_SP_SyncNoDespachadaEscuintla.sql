@@ -63,6 +63,8 @@ BEGIN
     CREATE INDEX IX_SapLineas ON #SapLineas (RouteNumber, OV);
 
     -- MARCA: la OV ya no está en el cuadro de SAP (pero el cuadro SÍ se leyó).
+    --   EDIT-AWARE: no marcar pedidos AGREGADOS en el app (PendienteSync=1) —
+    --   aún no están en SAP, no es que SAP los haya sacado.
     UPDATE opm
     SET opm.NoDespachada = 1, opm.FechaNoDespachada = GETDATE()
     FROM dbo.OrderPickingManagement opm
@@ -71,6 +73,7 @@ BEGIN
     WHERE orp.ID_Centro = 3 AND orp.Pais = 'GT'
       AND orp.EstadoDespacho <> 'Finalizado'
       AND opm.NoDespachada = 0
+      AND opm.PendienteSync = 0
       AND NOT EXISTS (
           SELECT 1 FROM #SapLineas s
           WHERE s.RouteNumber = orp.RouteNumber
@@ -78,12 +81,16 @@ BEGIN
       );
 
     -- DESMARCA: SAP volvió a incluir el documento en el cuadro.
+    --   EDIT-AWARE: NO revivir un doc QUITADO en el app cuya baja aún no se
+    --   refleja en SAP (RemocionPendienteSync=1): SAP todavía lo trae, pero la
+    --   baja la pedimos nosotros y Fase 3 la sincronizará.
     UPDATE opm
     SET opm.NoDespachada = 0, opm.FechaNoDespachada = NULL
     FROM dbo.OrderPickingManagement opm
     INNER JOIN dbo.OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
     WHERE orp.ID_Centro = 3 AND orp.Pais = 'GT'
       AND opm.NoDespachada = 1
+      AND opm.RemocionPendienteSync = 0
       AND EXISTS (
           SELECT 1 FROM #SapLineas s
           WHERE s.RouteNumber = orp.RouteNumber

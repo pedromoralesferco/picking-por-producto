@@ -1006,6 +1006,7 @@ router.get('/despacho/cuadro-ruta/:routeNumber/info', async (req, res) => {
         const routeNumber = parseInt(req.params.routeNumber);
         const pais = req.query.pais || req.session?.user?.selectedPais || 'GT';
         const db = getSapDb(pais);
+        // 1) Placa real del cuadro en SAP = SIEMPRE la fuente de la verdad.
         const result = await pool.request()
             .input('routeNumber', sql.Int, routeNumber)
             .query(`
@@ -1016,7 +1017,21 @@ router.get('/despacho/cuadro-ruta/:routeNumber/info', async (req, res) => {
                 FROM [server-sql].[${db}].[dbo].[@CUADRO_RUTA_E] WITH (NOLOCK)
                 WHERE DocNum = @routeNumber
             `);
-        res.json(result.recordset[0] || { Placa: '', Camion: '', Chofer: '' });
+        const sap = result.recordset[0] || { Placa: '', Camion: '', Chofer: '' };
+        // Si SAP ya trae placa, gana SAP (idempotente). El app solo rellena el hueco:
+        // mostramos PlacaApp (pendiente de sync) únicamente cuando SAP está vacío.
+        if (!sap.Placa || String(sap.Placa).trim() === '') {
+            try {
+                const appRow = await pool.request().input('rn', sql.Int, routeNumber)
+                    .query(`SELECT TOP 1 PlacaApp, IDCamionApp, TransportistaApp, PlacaPendienteSync
+                            FROM dbo.OrderRoutePlan WHERE RouteNumber = @rn AND ID_Centro = 3`);
+                const a = appRow.recordset[0];
+                if (a && a.PlacaPendienteSync && a.PlacaApp && String(a.PlacaApp).trim() !== '') {
+                    return res.json({ Placa: String(a.PlacaApp).trim(), Camion: a.IDCamionApp || '', Chofer: '', Transportista: a.TransportistaApp || '', Pendiente: true });
+                }
+            } catch (e) { /* columnas aún no desplegadas: seguir con SAP */ }
+        }
+        res.json(sap);
     } catch (err) {
         console.error('GET cuadro-ruta info error:', err);
         res.status(500).json({ error: 'Error al consultar la unidad' });

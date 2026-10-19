@@ -101,6 +101,15 @@ try {
     console.error('AVISO: Reportes deshabilitado (fallo al cargar el modulo):', err.message);
 }
 
+// CRUD de cuadros de ruta (blindado): pivoteo en carril (editar líneas, placa).
+try {
+    const cuadroCrudRoutes = require('./routes/cuadro-crud-api');
+    app.use('/api/cuadro', cuadroCrudRoutes);
+    console.log('Modulo CRUD de cuadros cargado.');
+} catch (err) {
+    console.error('AVISO: CRUD de cuadros deshabilitado (fallo al cargar el modulo):', err.message);
+}
+
 // Escalamientos (blindado): tickets de OV/TR a escalar en picking/despacho.
 try {
     const escalamientosApiRoutes = require('./routes/escalamientos-api');
@@ -194,10 +203,24 @@ app.get('/wms/integracion', requireAuthPage, requireCentro, requirePermisoPage('
     res.sendFile(path.join(__dirname, 'public', 'wms', 'integracion.html'));
 });
 
+// Reconciliador de ediciones de cuadro (Fase 3): cuando el robot/PA marcan una
+// edición como 'confirmado' en SAP, limpia los flags *Pendiente* y cierra la fila.
+// Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a SAP.
+function startCuadroSyncReconciler() {
+    const tick = async () => {
+        try { await db.getPool().request().execute('SP_ReconcileCuadroEdiciones'); }
+        catch (err) { console.error('AVISO: reconciliador de ediciones de cuadro falló este ciclo:', err.message); }
+    };
+    setInterval(tick, 60 * 1000);
+    tick();
+}
+
 async function start() {
     await db.connect();
     app.listen(PORT, () => {
         console.log(`Picking por Producto running on http://localhost:${PORT}`);
+        startCuadroSyncReconciler();
+        console.log('Reconciliador de ediciones de cuadro activo (60s).');
     });
 }
 

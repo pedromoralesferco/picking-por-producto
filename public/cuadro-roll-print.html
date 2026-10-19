@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuadro + Pases</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; background: #f5f5f5; }
+        .toolbar {
+            position: fixed; top: 0; left: 0; right: 0; height: 46px; background: #1a3a5c; color: #fff;
+            display: flex; align-items: center; gap: 14px; padding: 0 16px; z-index: 10;
+        }
+        .toolbar button { background: #d4a826; color: #222; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
+        .toolbar button:disabled { opacity: .6; cursor: default; }
+        #pdf-content { width: 200mm; margin: 60px auto 20px; }
+        .sheet {
+            width: 200mm; min-height: 0; padding: 10mm 12mm; background: #fff; margin-bottom: 14px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.1); position: relative;
+        }
+        .roll-page { page-break-before: always; }
+        .print-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .logo-text { font-size: 26px; font-weight: 800; letter-spacing: 9px; color: #000; line-height: 1; }
+        .logo-sub { font-size: 10px; letter-spacing: 5px; color: #c00; font-weight: 600; }
+        .print-date { text-align: right; font-size: 9px; color: #333; }
+        .doc-title { text-align: center; font-size: 15px; font-weight: 700; margin: 8px 0 1px; }
+        .doc-number { text-align: center; font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+        .watermark { position: absolute; top: 44%; left: 50%; transform: translate(-50%,-50%) rotate(-24deg); font-size: 90px; font-weight: 800; color: rgba(200,0,0,.10); letter-spacing: 8px; pointer-events: none; }
+        .pend-note { text-align: center; color: #c62828; font-weight: 700; font-size: 10px; margin-bottom: 6px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; margin: 6px 0 8px; font-size: 10px; }
+        .info-row { display: flex; }
+        .info-label { font-weight: 700; min-width: 120px; }
+        .info-value { flex: 1; }
+        .separator { border-top: 2px solid #000; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 9px; }
+        th, td { border: 1px solid #333; padding: 3px 4px; vertical-align: top; text-align: left; }
+        th { background: #eee; font-size: 8.5px; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .pase-sub { font-size: 10px; margin-bottom: 8px; }
+        .pase-sub b { display: inline-block; min-width: 95px; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .err { color: #c00; }
+        @media print { .toolbar { display: none; } body { background: #fff; } #pdf-content { margin: 0; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button id="btnPdf" onclick="downloadPdf()" disabled>Generando PDF…</button>
+        <span id="toolbarTitle">Cuadro + Pases</span>
+    </div>
+    <div id="pdf-content"><div class="loading" id="loadingMsg">Cargando cuadro y pases…</div></div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const routeNumber = params.get('ruta');
+        const pais = params.get('pais') || 'GT';
+
+        function esc(s) { if (s == null || s === '') return ''; const el = document.createElement('span'); el.textContent = s; return el.innerHTML; }
+        function fmtDate(d) { if (!d) return ''; const dt = new Date(d); if (isNaN(dt)) return ''; const dd = String(dt.getDate()).padStart(2,'0'); const mm = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']; return dd + '-' + mm[dt.getMonth()] + '-' + dt.getFullYear(); }
+        function fmtNum(n) { return parseFloat(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+        async function load() {
+            if (!routeNumber) { document.getElementById('loadingMsg').textContent = 'Error: falta el número de ruta'; return; }
+            try {
+                const res = await fetch('/api/cuadro/' + routeNumber + '/roll?pais=' + pais);
+                if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || ('Error ' + res.status)); }
+                const data = await res.json();
+                render(data);
+                document.getElementById('toolbarTitle').textContent = 'Cuadro + Pases #' + routeNumber + ' (' + data.pases.length + ' pase' + (data.pases.length === 1 ? '' : 's') + ')';
+                document.title = 'Cuadro_Pases_' + routeNumber;
+                prepPdf();
+            } catch (err) { document.getElementById('loadingMsg').innerHTML = '<span class="err">Error: ' + esc(err.message) + '</span>'; }
+        }
+
+        function render(data) {
+            const h = data.cuadro.header;
+            const now = new Date();
+            const esBorrador = !h.Placa || h.EsComplemento;
+
+            // ── Cuadro de ruta (datos del app) ──
+            const filas = data.cuadro.lineas.map(l => `<tr>
+                <td>${esc(l.TipoDocumento || 'OV')}</td>
+                <td>${esc(l.NumeroOV)}</td>
+                <td>${esc(l.ClienteCodigo)}<br><span style="font-size:8px">${esc(l.ClienteNombre)}</span></td>
+                <td class="text-center">${fmtDate(l.FechaEntrega)}</td>
+                <td>${esc(l.Direccion)}</td>
+                <td class="text-center">${l.Bultos || ''}</td>
+                <td class="text-right">${fmtNum(l.Peso)}</td>
+                <td>${esc(l.Asesor)}</td>
+            </tr>`).join('');
+
+            let html = `
+            <div class="sheet">
+                ${esBorrador ? '<div class="watermark">BORRADOR</div>' : ''}
+                <div class="print-header">
+                    <div><div class="logo-text">F E R C O</div><div class="logo-sub">C E R &Aacute; M I C A</div></div>
+                    <div class="print-date">Impreso: ${fmtDate(now)} ${now.toLocaleTimeString('es-GT')}<br>Datos del app${esBorrador ? ' — pendiente de sincronizar a SAP' : ''}</div>
+                </div>
+                <div class="doc-title"># Cuadro de ruta${h.EsComplemento ? ' (complemento)' : ''}</div>
+                <div class="doc-number">${esc(h.DocNum)}</div>
+                ${h.PlacaPendiente ? '<div class="pend-note">Placa asignada en el app — pendiente de sincronizar a SAP</div>' : ''}
+                <div class="info-grid">
+                    <div>
+                        <div class="info-row"><div class="info-label">Transporte:</div><div class="info-value">${esc(h.Transporte)}</div></div>
+                        <div class="info-row"><div class="info-label">Transportista:</div><div class="info-value">${esc(h.Transportista)}</div></div>
+                        <div class="info-row"><div class="info-label">Piloto:</div><div class="info-value">${esc(h.Chofer)}</div></div>
+                        <div class="info-row"><div class="info-label">Placa:</div><div class="info-value">${esc(h.Placa) || '<i>Sin asignar</i>'}</div></div>
+                        <div class="info-row"><div class="info-label">Capacidad:</div><div class="info-value">${esc(h.Capacidad)}</div></div>
+                    </div>
+                    <div>
+                        <div class="info-row"><div class="info-label">Nombre de ruta:</div><div class="info-value">${esc(h.NombreRuta)}</div></div>
+                        <div class="info-row"><div class="info-label">Almacén origen:</div><div class="info-value">${esc(h.Almacen)}</div></div>
+                        <div class="info-row"><div class="info-label">Planificado por:</div><div class="info-value">${esc(h.Planificador)}</div></div>
+                        <div class="info-row"><div class="info-label">Peso total:</div><div class="info-value">${fmtNum((h.PesoTotal || 0) / 1000)} TON</div></div>
+                        <div class="info-row"><div class="info-label">Documentos:</div><div class="info-value">${data.cuadro.lineas.length}</div></div>
+                    </div>
+                </div>
+                <div class="separator"></div>
+                <table>
+                    <thead><tr>
+                        <th style="width:30px">Tipo</th>
+                        <th style="width:85px">Documento</th>
+                        <th style="width:150px">Cliente</th>
+                        <th style="width:70px" class="text-center">Fecha<br>Entrega</th>
+                        <th>Dirección</th>
+                        <th style="width:42px" class="text-center">Bultos</th>
+                        <th style="width:60px" class="text-right">Peso (kg)</th>
+                        <th style="width:90px">Asesor</th>
+                    </tr></thead>
+                    <tbody>${filas || '<tr><td colspan="8" class="text-center">Sin documentos</td></tr>'}</tbody>
+                </table>
+                ${data.sinPase && data.sinPase.length ? `<div style="margin-top:8px;font-size:9px;color:#c62828"><b>Sin pase de salida generado:</b> ${data.sinPase.map(esc).join(', ')}</div>` : ''}
+            </div>`;
+
+            // ── Un pase por entrega ──
+            data.pases.forEach(p => {
+                const lineas = (p.lineas || []).map(ln => `<tr>
+                    <td>${esc(ln.codigo)}</td>
+                    <td>${esc(ln.nombre)}</td>
+                    <td class="text-right">${fmtNum(ln.cantidad)}</td>
+                </tr>`).join('');
+                html += `
+                <div class="sheet roll-page">
+                    <div class="print-header">
+                        <div><div class="logo-text">F E R C O</div><div class="logo-sub">C E R &Aacute; M I C A</div></div>
+                        <div class="print-date">Impreso: ${fmtDate(now)} ${now.toLocaleTimeString('es-GT')}</div>
+                    </div>
+                    <div class="doc-title">Pase de Salida</div>
+                    <div class="doc-number">${p.tipo} ${esc(p.doc)}</div>
+                    <div class="pase-sub">
+                        <div><b>Entrega:</b> ${esc(p.entrega)}${p.tipo === 'TR' ? ' (por fecha)' : ''}</div>
+                        <div><b>Fecha:</b> ${fmtDate(p.fecha)}</div>
+                        ${p.tipo === 'OV'
+                            ? `<div><b>Cliente:</b> ${esc(p.cliente)}</div><div><b>Dirección:</b> ${esc(p.direccion)}</div>${p.asesor ? `<div><b>Asesor:</b> ${esc(p.asesor)}</div>` : ''}`
+                            : `<div><b>Destino:</b> ${esc(p.destino || p.direccion)}</div>${p.cliente ? `<div><b>Cliente:</b> ${esc(p.cliente)}</div>` : ''}`}
+                    </div>
+                    <table>
+                        <thead><tr><th style="width:90px">Código</th><th>Descripción</th><th style="width:70px" class="text-right">Cantidad</th></tr></thead>
+                        <tbody>${lineas || '<tr><td colspan="3" class="text-center">Sin líneas</td></tr>'}</tbody>
+                    </table>
+                </div>`;
+            });
+
+            document.getElementById('pdf-content').innerHTML = html;
+        }
+
+        function pdfOpts() {
+            return {
+                margin: [6, 8, 6, 8],
+                filename: 'Cuadro_Pases_' + routeNumber + '.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+                pagebreak: { mode: ['css', 'legacy'], before: '.roll-page' }
+            };
+        }
+        function prepPdf() {
+            html2pdf().set(pdfOpts()).from(document.getElementById('pdf-content')).toPdf().get('pdf').then(() => {
+                const b = document.getElementById('btnPdf'); b.textContent = '📄 Descargar PDF'; b.disabled = false;
+            });
+        }
+        function downloadPdf() {
+            const b = document.getElementById('btnPdf'); b.disabled = true; b.textContent = '⏳ Generando…';
+            html2pdf().set(pdfOpts()).from(document.getElementById('pdf-content')).save().then(() => { b.textContent = '📄 Descargar PDF'; b.disabled = false; });
+        }
+
+        load();
+    </script>
+</body>
+</html>

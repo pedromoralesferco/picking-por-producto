@@ -1,6 +1,6 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
-const { getSapDb } = require('../config/paises');
+const { getSapDb, getLisaDb } = require('../config/paises');
 const { requirePermiso } = require('../middleware/auth');
 const router = express.Router();
 
@@ -812,6 +812,7 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.PesoTotal,
                     opm.Estado,
                     opm.NoDespachada,
+                    opm.Pais,
                     opm.ID_Operario,
                     o.Nombre AS OperarioNombre,
                     (SELECT COUNT(*) FROM OrderPickingTask
@@ -825,7 +826,38 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.OV_Number
             `);
 
-        res.json(result.recordset);
+        const docs = result.recordset;
+        // Pase de salida generado: entrega (DL) para OV, o despacho (REQDEL) para TR,
+        // detectado en InventoryTransactionLog (DW). Resiliente: si el linked server
+        // falla, los documentos igual se devuelven (PaseGenerado = 0).
+        if (docs.length) {
+            try {
+                const pais = docs[0].Pais || 'GT';
+                const lisaDb = getLisaDb(pais);
+                const nums = [...new Set(docs.map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                if (nums.length) {
+                    const pr = await pool.request().query(`
+                        SELECT DISTINCT itl.DocNumSAP, itl.TransactionType
+                        FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog itl WITH (NOLOCK)
+                        WHERE itl.DocNumSAP IN (${nums.join(',')})
+                          AND ( itl.TransactionType = 'DL'
+                             OR (itl.TransactionType = 'REQDEL' AND itl.OldQty > itl.NewQty) )`);
+                    const dl = new Set(), reqdel = new Set();
+                    pr.recordset.forEach(r => {
+                        if (r.TransactionType === 'DL') dl.add(r.DocNumSAP);
+                        else reqdel.add(r.DocNumSAP);
+                    });
+                    docs.forEach(d => {
+                        const n = parseInt(d.OV_Number);
+                        d.PaseGenerado = (d.DocType === 'OV') ? (dl.has(n) ? 1 : 0)
+                                       : (['TR', 'RESURTIDO'].includes(d.DocType) ? (reqdel.has(n) ? 1 : 0) : 0);
+                    });
+                }
+            } catch (e) {
+                console.error('PaseGenerado (InventoryTransactionLog) no disponible:', e.message);
+            }
+        }
+        res.json(docs);
     } catch (err) {
         console.error('GET /api/order/despacho/rutas/:id/documentos error:', err);
         res.status(500).json({ error: 'Error interno' });

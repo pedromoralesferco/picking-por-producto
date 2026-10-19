@@ -182,19 +182,23 @@ BEGIN
         SET @addTask = @@ROWCOUNT;
 
         -- 3) Borrar líneas que ya no están en el cuadro
+        --    EDIT-AWARE: no tocar líneas de pedidos AGREGADOS en el app (PendienteSync=1):
+        --    todavía no están en SAP, así que #src no los trae y se borrarían por error.
         DELETE t
         FROM dbo.OrderPickingTask t
         INNER JOIN dbo.OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
         WHERE opm.ID_RoutePlan = @ID_RoutePlan
+          AND opm.PendienteSync = 0
           AND NOT EXISTS (
               SELECT 1 FROM #src s
               WHERE s.OV_Number = t.OV_Number AND s.DocType = t.DocType AND s.Line_ID = t.Line_ID);
         SET @delTask = @@ROWCOUNT;
 
-        -- 4) Borrar pedidos que quedaron sin líneas
+        -- 4) Borrar pedidos que quedaron sin líneas (salvo los agregados en el app)
         DELETE opm
         FROM dbo.OrderPickingManagement opm
         WHERE opm.ID_RoutePlan = @ID_RoutePlan
+          AND opm.PendienteSync = 0
           AND NOT EXISTS (SELECT 1 FROM dbo.OrderPickingTask t WHERE t.ID_OrderPicking = opm.ID_OrderPicking);
         SET @delPed = @@ROWCOUNT;
 

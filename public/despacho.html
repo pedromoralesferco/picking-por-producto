@@ -291,6 +291,38 @@
         .route-header-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
         /* Todos los botones del header al mismo tamaño */
         .route-header-btns button { min-width: 210px; text-align: center; }
+        /* Acciones de documentación: columna de impresión + botón cuadrado de editar */
+        .header-doc-actions { display: flex; gap: 0.5rem; align-items: stretch; }
+        .header-doc-actions .print-col { display: flex; flex-direction: column; gap: 0.4rem; }
+        .route-header-btns .header-doc-actions button { min-width: 170px; }
+        .route-header-btns .header-doc-actions .btn-edit-sq,
+        .route-header-btns .header-doc-actions .edit-sq-group button { min-width: 0; }
+        .edit-sq-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .btn-edit-sq {
+            width: 92px; align-self: stretch; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 0.25rem;
+            background: #fff3e0; color: #e65100; border: 1px solid #ffb74d;
+            border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.74rem; padding: 0.4rem;
+        }
+        .btn-edit-sq i { font-size: 1.35rem; margin: 0; }
+        .btn-edit-sq:hover { background: #ffe0b2; }
+        .btn-edit-sq.guardar { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+        .btn-edit-sq.guardar:hover { background: #1b5e20; }
+        .btn-edit-cancel { width: 92px; background: #fff; color: #777; border: 1px solid #cfd8e3; border-radius: 8px; cursor: pointer; font-size: 0.72rem; font-weight: 600; padding: 0.35rem; }
+        .btn-edit-cancel:hover { background: #f1f1f1; }
+        /* Barra de agregar documento (modo edición, en la cabecera) */
+        .edit-add-bar { margin-top: 0.8rem; padding: 0.7rem 0.8rem; background: #fff8e1; border: 1px dashed #ffb74d; border-radius: 8px; }
+        .edit-add-bar .eab-row { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+        .edit-add-bar select, .edit-add-bar input { padding: 0.45rem 0.6rem; border: 1px solid #cfd8e3; border-radius: 6px; font-size: 0.88rem; }
+        .edit-add-bar input { flex: 1; min-width: 160px; }
+        .edit-add-bar button { padding: 0.45rem 0.9rem; border: none; border-radius: 6px; background: #1565c0; color: #fff; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .edit-add-bar .eab-preview { font-size: 0.82rem; color: #445; margin-top: 0.4rem; min-height: 1rem; }
+        .edit-add-bar .eab-preview .warn { color: #e65100; }
+        /* Tarjetas de doc en modo edición */
+        .doc-card.rm-marked { opacity: 0.55; border-color: #ef9a9a; }
+        .doc-card.add-new { border-color: #a5d6a7; background: #f1f8f2; }
+        .btn-doc-rm { background: #fff; border: 1px solid #ef9a9a; color: #c62828; border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .btn-doc-rm.deshacer { border-color: #90caf9; color: #1565c0; }
         .btn-completar {
             background: #2e7d32; color: #fff; border: 1px solid #2e7d32;
             padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
@@ -308,6 +340,73 @@
         .btn-listo:disabled { background: #a8c7e8; border-color: #a8c7e8; cursor: default; }
         .btn-listo i { margin-right: 0.3rem; }
         .placa-pendiente { color: #c62828; font-weight: 700; }
+        .btn-asignar-placa {
+            margin-top: 0.4rem; background: #eef4fb; color: #1565c0;
+            border: 1px solid #90caf9; border-radius: 6px; padding: 0.25rem 0.6rem;
+            font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+        }
+        .btn-asignar-placa:hover { background: #e3f2fd; }
+        .btn-asignar-placa i { margin-right: 0.3rem; }
+        /* Modal asignar placa */
+        .placa-modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            z-index: 2000; align-items: flex-start; justify-content: center;
+        }
+        .placa-modal-overlay.show { display: flex; }
+        .placa-modal {
+            background: #fff; border-radius: 10px; width: 480px; max-width: 94vw;
+            margin-top: 8vh; box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden;
+        }
+        .placa-modal-head {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.9rem 1.1rem; border-bottom: 1px solid #e0e0e0; background: #f7f9fc;
+        }
+        .placa-modal-head h3 { margin: 0; font-size: 1.05rem; color: #1a3a5c; }
+        .placa-modal-head button { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #888; }
+        .placa-modal-body { padding: 1.1rem; }
+        .placa-modal-body input[type=text] {
+            width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #cfd8e3;
+            border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;
+        }
+        .placa-modal-sub { font-size: 0.8rem; color: #667; margin: 0.35rem 0 0.6rem; }
+        .placa-result-list { max-height: 320px; overflow-y: auto; margin-top: 0.4rem; }
+        .placa-result {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.55rem 0.7rem; border: 1px solid #e6ebf1; border-radius: 6px;
+            margin-bottom: 0.4rem; cursor: pointer;
+        }
+        .placa-result:hover { background: #f0f6ff; border-color: #90caf9; }
+        .placa-result .pr-main { font-weight: 700; color: #1a3a5c; }
+        .placa-result .pr-sub { font-size: 0.78rem; color: #667; }
+        .placa-result .pr-cap { font-size: 0.78rem; color: #2e7d32; font-weight: 600; }
+        .placa-modal-empty { text-align: center; color: #999; padding: 1rem; font-size: 0.9rem; }
+        /* Modal editar cuadro */
+        .edit-modal { width: 620px; }
+        .edit-section { margin-bottom: 1.1rem; }
+        .edit-section h4 { margin: 0 0 0.5rem; font-size: 0.9rem; color: #1a3a5c; text-transform: uppercase; letter-spacing: .03em; }
+        .edit-add-row { display: flex; gap: 0.4rem; align-items: center; }
+        .edit-add-row select, .edit-add-row input { padding: 0.5rem 0.6rem; border: 1px solid #cfd8e3; border-radius: 6px; font-size: 0.9rem; }
+        .edit-add-row input { flex: 1; }
+        .edit-add-row button { padding: 0.5rem 0.8rem; border: none; border-radius: 6px; background: #1565c0; color: #fff; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .edit-doc-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.65rem; border: 1px solid #e6ebf1; border-radius: 6px; margin-bottom: 0.35rem; font-size: 0.9rem; }
+        .edit-doc-row.marcado-quitar { background: #ffebee; border-color: #ef9a9a; text-decoration: line-through; color: #b71c1c; }
+        .edit-doc-row.nuevo { background: #e8f5e9; border-color: #a5d6a7; }
+        .edit-doc-row .edr-main { font-weight: 600; color: #1a3a5c; }
+        .edit-doc-row .edr-sub { font-size: 0.76rem; color: #667; font-weight: 400; }
+        .edit-doc-row.marcado-quitar .edr-main, .edit-doc-row.nuevo .edr-main { color: inherit; }
+        .edit-doc-row button { background: none; border: 1px solid #cfd8e3; border-radius: 5px; padding: 0.2rem 0.5rem; cursor: pointer; font-size: 0.78rem; }
+        .edit-doc-row button.danger { color: #c62828; border-color: #ef9a9a; }
+        .edit-preview { font-size: 0.82rem; color: #445; margin-top: 0.35rem; min-height: 1.1rem; }
+        .edit-preview .warn { color: #e65100; }
+        .edit-footer { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.9rem 1.1rem; border-top: 1px solid #e0e0e0; background: #f7f9fc; }
+        .edit-footer button { padding: 0.55rem 1.1rem; border-radius: 6px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+        .edit-footer .btn-cancelar { background: #fff; border-color: #cfd8e3; color: #555; }
+        .edit-footer .btn-guardar { background: #2e7d32; color: #fff; }
+        .edit-footer .btn-guardar:disabled { background: #a5d6a7; cursor: default; }
+        .destino-choice { display: flex; flex-direction: column; gap: 0.5rem; }
+        .destino-choice button { padding: 0.7rem 0.9rem; border: 1px solid #cfd8e3; border-radius: 8px; background: #fff; cursor: pointer; text-align: left; font-size: 0.9rem; }
+        .destino-choice button:hover { background: #f0f6ff; border-color: #90caf9; }
+        .destino-choice button b { color: #1a3a5c; }
         .btn-print-packing {
             background: #2e7d32;
             color: #fff;
@@ -412,6 +511,7 @@
         .estado-pill.finalizado-despacho { background: rgba(21,101,192,0.1); color: var(--blue); }
         .estado-pill.picking-iniciado { background: rgba(255,152,0,0.12); color: #e65100; }
         .estado-pill.picking-finalizado { background: rgba(46,125,50,0.12); color: var(--success); }
+        .estado-pill.pase-generado { background: #e1f3fc; color: #1565c0; }
 
         .route-header-actions {
             display: flex;
@@ -625,6 +725,7 @@
         let refreshTimer = null;
         let pickingMode = 'product'; // 'product' or 'order'
         let userPais = 'GT';
+        let puedeEditarCuadro = false; // priorizacion/operativo/Admin → puede asignar placa
 
         async function init() {
             try {
@@ -632,6 +733,7 @@
                 if (!res.ok) { window.location.href = '/login'; return; }
                 const user = await res.json();
                 userPais = user.selectedPais || 'GT';
+                puedeEditarCuadro = user.rol === 'Admin' || (user.permisos && (user.permisos.includes('priorizacion') || user.permisos.includes('reportes_operativo')));
                 const modo = user.selectedModo || (['SV', 'HN'].includes(userPais) ? 'order' : 'product');
                 pickingMode = modo === 'order' ? 'order' : 'product';
             } catch { window.location.href = '/login'; return; }
@@ -1001,6 +1103,8 @@
 
             const yaCompletado = estadoDespacho === 'Finalizado';
             const docsFinalizados = docs.filter(d => d.Estado === 'Finalizado').length;
+            const enEdicion = editMode && editRN === ruta.RouteNumber;
+            editDocsActuales = docs; // para re-render parcial del docsList en edición
 
             panel.innerHTML = `
                 <div class="route-header-card">
@@ -1016,16 +1120,25 @@
                             <button class="btn-completar" ${estadoDespacho !== 'Listo para Carga' ? 'disabled' : ''} onclick="cambiarEstadoOrder(${ruta.ID_RoutePlan}, ${ruta.RouteNumber}, 'Finalizado')" title="${estadoDespacho !== 'Listo para Carga' ? 'Primero marcá Lista para Carga' : 'Despachar: sale del tablero'}">
                                 <i class="bi bi-truck"></i> ${yaCompletado ? 'Despachado' : 'Marcar como Despachado'}
                             </button>
-                            <button class="btn-print-cuadro" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
-                                <i class="bi bi-file-earmark-check"></i> Packing List
-                            </button>
-                            <button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
-                                <i class="bi bi-printer"></i> Cuadro de Ruta
-                            </button>
-                            <div class="btns-break"></div>
-                            <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasOrder(${ruta.ID_RoutePlan})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
-                                <i class="bi bi-tag-fill"></i> Etiquetas de empaque
-                            </button>
+                            <div class="header-doc-actions">
+                                <div class="print-col">
+                                    <button class="btn-print-cuadro" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
+                                        <i class="bi bi-file-earmark-check"></i> Packing List
+                                    </button>
+                                    <button class="btn-print-cuadro" onclick="printCuadroRoll(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta + pases de salida (un PDF)">
+                                        <i class="bi bi-printer"></i> Cuadro + Pases
+                                    </button>
+                                    <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasOrder(${ruta.ID_RoutePlan})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
+                                        <i class="bi bi-tag-fill"></i> Etiquetas de empaque
+                                    </button>
+                                </div>
+                                ${(puedeEditarCuadro && userPais === 'GT' && !yaCompletado) ? (enEdicion ? `
+                                    <div class="edit-sq-group">
+                                        <button class="btn-edit-sq guardar" onclick="guardarEdicionCuadro()" title="Guardar los cambios del cuadro"><i class="bi bi-check2-circle"></i>Guardar</button>
+                                        <button class="btn-edit-cancel" onclick="cancelarEdicion()">Cancelar</button>
+                                    </div>` : `
+                                    <button class="btn-edit-sq" onclick="entrarEdicion(${ruta.RouteNumber}, ${ruta.ID_RoutePlan})" title="Editar documentos del cuadro"><i class="bi bi-pencil-square"></i>Editar</button>`) : ''}
+                            </div>
                         </div>
                     </div>
                     <div class="route-header-grid">
@@ -1052,20 +1165,31 @@
                         <div class="rh-field">
                             <label><i class="bi bi-truck"></i> Placa</label>
                             <div class="value" id="rutaPlacaVal">…</div>
+                            ${puedeEditarCuadro ? `<button class="btn-asignar-placa" onclick="abrirAsignarPlaca(${ruta.RouteNumber})"><i class="bi bi-pencil-square"></i> Asignar placa</button>` : ''}
                         </div>
                     </div>
                     <div class="picking-bar-lg">
                         <div class="fill ${pickingComplete ? 'complete' : 'in-progress'}" style="width:${pickingPct}%"></div>
                     </div>
+                    ${enEdicion ? `
+                    <div class="edit-add-bar">
+                        <div class="eab-row">
+                            <select id="editAddTipo"><option value="">Auto</option><option value="OV">OV</option><option value="TR">TR</option><option value="RMA">RMA</option></select>
+                            <input type="text" id="editAddNum" placeholder="N° de OV / TR / RMA" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarYAgregarDoc();}">
+                            <button type="button" onclick="buscarYAgregarDoc()"><i class="bi bi-plus-lg"></i> Agregar documento</button>
+                        </div>
+                        <div class="eab-preview" id="editAddPreview"></div>
+                    </div>` : ''}
                 </div>
 
                 <div class="docs-header">
                     <i class="bi bi-receipt" style="color:var(--primary)"></i>
                     Pedidos
-                    <span class="badge-count">${docs.length}</span>
+                    <span class="badge-count">${docs.length}</span>${enEdicion ? ' <span style="font-size:.72rem;color:#e65100;font-weight:600">· en edición</span>' : ''}
                 </div>
 
                 <div id="docsList">
+                    ${enEdicion ? editAgregar.map((a, i) => renderAddCard(a, i)).join('') : ''}
                     ${docs.map(d => renderDocCardOrder(d)).join('')}
                 </div>
             `;
@@ -1077,9 +1201,10 @@
             const linFin = d.LineasFinalizadas || 0;
             const linTotal = d.TotalLineas || 0;
             const isOpen = openDocs.has('order-' + d.ID_OrderPicking);
+            const marcadoRm = editMode && editQuitar.has(docKey(d.OV_Number, d.DocType));
 
             return `
-                <div class="doc-card">
+                <div class="doc-card ${marcadoRm ? 'rm-marked' : ''}">
                     <div class="doc-card-header" onclick="toggleDocOrder(${d.ID_OrderPicking})">
                         <div class="doc-icon ${isDone ? 'done' : 'pending'}">
                             <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
@@ -1090,7 +1215,9 @@
                         </div>
                         <div class="doc-right">
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
-                            <div class="doc-status"><span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span></div>
+                            <div class="doc-status">${d.PaseGenerado
+                                ? `<span class="estado-pill pase-generado" style="font-size:0.6rem" title="Entrega/pase de salida generado en SAP"><i class="bi bi-check-circle-fill"></i> Pase de Salida</span>`
+                                : `<span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span>`}</div>
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
                             <label>Bultos</label>
@@ -1102,6 +1229,7 @@
                         <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaOrder(${d.ID_OrderPicking}, '${esc(d.OV_Number)}')">
                             <i class="bi bi-tag"></i>
                         </button>
+                        ${editMode ? `<button class="btn-doc-rm ${marcadoRm ? 'deshacer' : ''}" title="${marcadoRm ? 'Deshacer la eliminación' : 'Quitar del cuadro'}" onclick="event.stopPropagation(); toggleQuitarDoc('${esc(d.OV_Number)}','${esc(d.DocType)}')">${marcadoRm ? 'Deshacer' : 'Eliminar'}</button>` : ''}
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
                     <div class="doc-products ${isOpen ? 'open' : ''}" id="doc-order-${d.ID_OrderPicking}"></div>
@@ -1199,6 +1327,17 @@
             window.open('/cuadro-ruta-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
         }
 
+        // Cuadro de ruta (datos del app) + un pase de salida por entrega, en un solo PDF.
+        async function printCuadroRoll(routeNumber) {
+            let info;
+            try { info = await fetchPlaca(routeNumber); }
+            catch { alert('No se pudo validar la unidad. Intenta de nuevo.'); return; }
+            if (!info.Placa || String(info.Placa).trim() === '') {
+                if (!confirm('El cuadro aún no tiene placa asignada. ¿Imprimir igual como BORRADOR?')) return;
+            }
+            window.open('/cuadro-roll-print.html?ruta=' + routeNumber + '&pais=' + userPais, '_blank');
+        }
+
         // Muestra la placa asignada en la cabecera de la ruta
         async function cargarPlaca(routeNumber) {
             const el = document.getElementById('rutaPlacaVal');
@@ -1206,13 +1345,219 @@
             try {
                 const info = await fetchPlaca(routeNumber);
                 if (info.Placa && String(info.Placa).trim() !== '') {
-                    el.textContent = info.Placa;
-                    el.classList.remove('placa-pendiente');
+                    if (info.Pendiente) {
+                        el.innerHTML = info.Placa + ' <span style="font-size:0.72rem;font-weight:600;">(pendiente SAP)</span>';
+                        el.classList.add('placa-pendiente');
+                    } else {
+                        el.textContent = info.Placa;
+                        el.classList.remove('placa-pendiente');
+                    }
                 } else {
                     el.textContent = 'Sin asignar';
                     el.classList.add('placa-pendiente');
                 }
             } catch { el.textContent = '—'; }
+        }
+
+        // ── Asignar placa (CRUD cuadro, app-first) ──
+        let placaModalRouteNumber = null;
+        let placaBuscarTimer = null;
+
+        async function abrirAsignarPlaca(routeNumber) {
+            placaModalRouteNumber = routeNumber;
+            document.getElementById('placaModalRN').textContent = routeNumber;
+            document.getElementById('placaBuscarInput').value = '';
+            document.getElementById('placaResultList').innerHTML = '<div class="placa-modal-empty">Escribe para buscar una unidad.</div>';
+            document.getElementById('placaModalOverlay').classList.add('show');
+            setTimeout(() => document.getElementById('placaBuscarInput').focus(), 50);
+        }
+        function cerrarAsignarPlaca() {
+            document.getElementById('placaModalOverlay').classList.remove('show');
+            placaModalRouteNumber = null;
+        }
+        function buscarCamionDebounced() {
+            clearTimeout(placaBuscarTimer);
+            placaBuscarTimer = setTimeout(buscarCamion, 300);
+        }
+        async function buscarCamion() {
+            const q = document.getElementById('placaBuscarInput').value.trim();
+            const list = document.getElementById('placaResultList');
+            if (q.length < 1) { list.innerHTML = '<div class="placa-modal-empty">Escribe para buscar una unidad.</div>'; return; }
+            list.innerHTML = '<div class="placa-modal-empty">Buscando…</div>';
+            try {
+                const res = await fetch('/api/cuadro/camiones/buscar?q=' + encodeURIComponent(q));
+                if (!res.ok) throw new Error();
+                const rows = await res.json();
+                if (!rows.length) { list.innerHTML = '<div class="placa-modal-empty">Sin resultados.</div>'; return; }
+                list.innerHTML = rows.map(r => {
+                    const payload = JSON.stringify({ placa: r.Placa, capacidad: r.Capacidad, idCamion: r.IDCamion, transportista: r.Transportista, cardCode: r.CardCode }).replace(/'/g, '&#39;');
+                    const sub = [r.Transportista, r.Piloto].filter(Boolean).join(' · ');
+                    const cap = (r.Capacidad != null && r.Capacidad !== '') ? (Number(r.Capacidad).toLocaleString() + ' kg') : '';
+                    return `<div class="placa-result" onclick='asignarPlaca(${payload})'>
+                        <div><div class="pr-main">${r.Placa}</div><div class="pr-sub">${sub || '—'}</div></div>
+                        <div class="pr-cap">${cap}</div>
+                    </div>`;
+                }).join('');
+            } catch { list.innerHTML = '<div class="placa-modal-empty">Error al buscar.</div>'; }
+        }
+        async function asignarPlaca(cam) {
+            if (!placaModalRouteNumber) return;
+            const rn = placaModalRouteNumber;
+            try {
+                const res = await fetch('/api/cuadro/' + rn + '/placa', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cam)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(data.mensaje || data.error || 'No se pudo asignar la placa.'); return; }
+                cerrarAsignarPlaca();
+                cargarPlaca(rn);
+            } catch { alert('Error de red al asignar la placa.'); }
+        }
+
+        // ── Editar cuadro INLINE (agregar / quitar documentos) ──
+        let editMode = false;
+        let editRN = null, editRP = null;
+        let editDocsActuales = [];
+        let editQuitar = new Set();     // claves "OV|TIPO"
+        let editAgregar = [];           // [{ov, tipo, cliente, lineas, enCuadroApp, enPrepa}]
+
+        function docKey(ov, tipo) { return String(ov).trim() + '|' + String(tipo).toUpperCase(); }
+
+        function entrarEdicion(rn, rp) {
+            editMode = true; editRN = rn; editRP = rp;
+            editQuitar = new Set(); editAgregar = [];
+            selectRouteOrder(rp, rn); // re-render con las afford. de edición
+        }
+        function cancelarEdicion() {
+            const rp = editRP, rn = editRN;
+            editMode = false; editRN = null; editRP = null;
+            editQuitar = new Set(); editAgregar = [];
+            if (rp) selectRouteOrder(rp, rn);
+        }
+        // Re-render parcial del listado de documentos (sin tocar la barra de agregar)
+        function renderEditDocsList() {
+            const list = document.getElementById('docsList');
+            if (!list) return;
+            const adds = editAgregar.map((a, i) => renderAddCard(a, i)).join('');
+            const cards = editDocsActuales.map(d => renderDocCardOrder(d)).join('');
+            list.innerHTML = adds + cards;
+        }
+        function renderAddCard(a, i) {
+            const sub = [a.cliente, (a.lineas != null ? a.lineas + ' líneas' : null),
+                (a.enCuadroApp && a.enCuadroApp !== editRN) ? ('mover desde cuadro ' + a.enCuadroApp + ' (con avance)') : null].filter(Boolean).join(' · ');
+            return `<div class="doc-card add-new">
+                <div class="doc-card-header" style="cursor:default">
+                    <div class="doc-icon pending"><i class="bi bi-plus-circle"></i></div>
+                    <div class="doc-info">
+                        <div class="doc-name">${esc(a.ov)} <span style="font-size:0.72rem;color:#999;font-weight:400">(${esc(a.tipo)})</span> <span style="color:#2e7d32;font-size:.7rem;font-weight:700">NUEVO</span></div>
+                        <div class="doc-meta">${esc(sub) || 'por agregar'}</div>
+                    </div>
+                    <div style="flex:1"></div>
+                    <button class="btn-doc-rm" onclick="quitarAgregado(${i})">Quitar</button>
+                </div>
+            </div>`;
+        }
+        function toggleQuitarDoc(ov, tipo) {
+            const key = docKey(ov, tipo);
+            if (editQuitar.has(key)) editQuitar.delete(key); else editQuitar.add(key);
+            renderEditDocsList();
+        }
+        function quitarAgregado(i) { editAgregar.splice(i, 1); renderEditDocsList(); }
+        async function buscarYAgregarDoc() {
+            const numEl = document.getElementById('editAddNum');
+            const num = (numEl.value || '').trim();
+            const tipo = document.getElementById('editAddTipo').value;
+            const prev = document.getElementById('editAddPreview');
+            if (!num) { prev.textContent = ''; return; }
+            prev.textContent = 'Buscando…';
+            try {
+                const res = await fetch('/api/cuadro/doc-lookup?doc=' + encodeURIComponent(num) + (tipo ? '&tipo=' + tipo : ''));
+                const info = await res.json();
+                if (!info.tipo || !info.encontrado) { prev.innerHTML = '<span class="warn">No se encontró ese documento en SAP.</span>'; return; }
+                const dtipo = info.tipo;
+                const key = docKey(num, dtipo);
+                if (editDocsActuales.some(d => docKey(d.OV_Number, d.DocType) === key) && !editQuitar.has(key)) { prev.innerHTML = '<span class="warn">Ese documento ya está en el cuadro.</span>'; return; }
+                if (editAgregar.some(a => docKey(a.ov, a.tipo) === key)) { prev.innerHTML = '<span class="warn">Ya está en la lista de agregados.</span>'; return; }
+                editAgregar.push({ ov: String(num).replace(/\D/g, ''), tipo: dtipo, cliente: info.cliente, lineas: info.lineas, enCuadroApp: info.enCuadroApp, enPrepa: info.enPrepa });
+                let nota = '';
+                if (info.enCuadroApp && info.enCuadroApp !== editRN) nota = ' Se moverá desde el cuadro ' + info.enCuadroApp + ' (con su avance).';
+                else if (!info.enPrepa) nota = ' Aviso: no está en preparación (U_Estado2≠03).';
+                prev.innerHTML = '<span' + (nota ? ' class="warn"' : '') + '>Agregado: ' + esc(dtipo) + ' ' + esc(num) + '.' + esc(nota) + '</span>';
+                numEl.value = '';
+                renderEditDocsList();
+            } catch { prev.innerHTML = '<span class="warn">Error al buscar.</span>'; }
+        }
+        function guardarEdicionCuadro() {
+            const quitarArr = Array.from(editQuitar).map(k => { const [ov, tipo] = k.split('|'); return { ov, tipo }; });
+            const agregarArr = editAgregar.map(a => ({ ov: a.ov, tipo: a.tipo }));
+            if (!quitarArr.length && !agregarArr.length) { cancelarEdicion(); return; }
+            if (quitarArr.length) { mostrarDestinoQuitados(quitarArr, agregarArr); return; }
+            ejecutarEdicion(agregarArr, [], null);
+        }
+        function cerrarDestinoModal() { document.getElementById('editModalOverlay').classList.remove('show'); }
+        function mostrarDestinoQuitados(quitarArr, agregarArr) {
+            window._editPending = { quitarArr, agregarArr };
+            const body = document.getElementById('editModalBody');
+            body.innerHTML = `
+                <div class="edit-section">
+                    <h4>${quitarArr.length} documento(s) a quitar</h4>
+                    <p style="font-size:.88rem;color:#445;margin:.2rem 0 .8rem">¿Qué hago con los documentos quitados del cuadro ${editRN}?</p>
+                    <div class="destino-choice">
+                        <button type="button" onclick='finalizarDestino("nuevo")'><b>Crear cuadro nuevo</b><br><span style="font-size:.8rem;color:#667">Un cuadro complemento (Pendiente, sin placa) con lo quitado.</span></button>
+                        <button type="button" onclick='abrirMoverACuadro()'><b>Mover a otro cuadro</b><br><span style="font-size:.8rem;color:#667">Elegir un cuadro existente destino.</span></button>
+                        <button type="button" onclick='finalizarDestino("eliminar")'><b>Solo quitar</b><br><span style="font-size:.8rem;color:#667">Se sacan del cuadro; los replanifico después.</span></button>
+                    </div>
+                    <div id="moverPicker"></div>
+                </div>`;
+            document.getElementById('editModalOverlay').classList.add('show');
+        }
+        function abrirMoverACuadro() {
+            const picker = document.getElementById('moverPicker');
+            picker.innerHTML = `<div style="margin-top:.8rem">
+                <input type="text" id="moverQ" placeholder="Buscar cuadro por N° o nombre…" style="width:100%;padding:.5rem .7rem;border:1px solid #cfd8e3;border-radius:6px;box-sizing:border-box" oninput="buscarCuadroDestinoDeb()">
+                <div class="placa-result-list" id="moverResultList"><div class="placa-modal-empty">Escribe para buscar.</div></div>
+            </div>`;
+            document.getElementById('moverQ').focus();
+            buscarCuadroDestino();
+        }
+        let moverTimer = null;
+        function buscarCuadroDestinoDeb() { clearTimeout(moverTimer); moverTimer = setTimeout(buscarCuadroDestino, 300); }
+        async function buscarCuadroDestino() {
+            const q = (document.getElementById('moverQ') || {}).value || '';
+            const list = document.getElementById('moverResultList');
+            try {
+                const res = await fetch('/api/cuadro/cuadros-destino?excluir=' + editRN + '&q=' + encodeURIComponent(q.trim()));
+                const rows = await res.json();
+                if (!rows.length) { list.innerHTML = '<div class="placa-modal-empty">Sin cuadros.</div>'; return; }
+                list.innerHTML = rows.map(r => `<div class="placa-result" onclick='finalizarDestino({"cuadro":${r.RouteNumber}})'>
+                    <div><div class="pr-main">Cuadro ${r.RouteNumber}</div><div class="pr-sub">${esc(r.RouteName || '')} · ${r.Docs} docs</div></div>
+                    <div class="pr-sub">${esc(r.EstadoDespacho || '')}</div></div>`).join('');
+            } catch { list.innerHTML = '<div class="placa-modal-empty">Error.</div>'; }
+        }
+        function finalizarDestino(destino) {
+            const p = window._editPending || {};
+            ejecutarEdicion(p.agregarArr || [], p.quitarArr || [], destino);
+        }
+        async function ejecutarEdicion(agregar, quitar, destino) {
+            try {
+                const res = await fetch('/api/cuadro/' + editRN + '/editar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agregar, quitar, destino })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(data.error || 'No se pudo guardar la edición.'); return; }
+                let msg = [];
+                if (data.agregados && data.agregados.length) msg.push('Agregados: ' + data.agregados.join(', '));
+                if (data.quitados && data.quitados.length) msg.push('Quitados: ' + data.quitados.join(', '));
+                if (data.complemento) msg.push('Cuadro complemento creado (provisional ' + data.complemento.routeNumber + ', pendiente de sincronizar a SAP).');
+                if (data.errores && data.errores.length) msg.push('⚠ ' + data.errores.join(' | '));
+                if (msg.length) alert(msg.join('\n'));
+                cerrarDestinoModal();
+                const rp = editRP, rn = editRN;
+                editMode = false; editRN = null; editRP = null; editQuitar = new Set(); editAgregar = [];
+                if (rp) selectRouteOrder(rp, rn);
+            } catch { alert('Error de red al guardar.'); }
         }
 
         // ── Verificación de calidad (QC) ──
@@ -1314,5 +1659,33 @@
 
         document.addEventListener('DOMContentLoaded', init);
     </script>
+
+    <!-- Modal: asignar placa al cuadro (busca en @camiones de SAP) -->
+    <div class="placa-modal-overlay" id="placaModalOverlay">
+        <div class="placa-modal">
+            <div class="placa-modal-head">
+                <h3><i class="bi bi-truck"></i> Asignar placa — Cuadro <span id="placaModalRN"></span></h3>
+                <button type="button" onclick="cerrarAsignarPlaca()">&times;</button>
+            </div>
+            <div class="placa-modal-body">
+                <input type="text" id="placaBuscarInput" placeholder="Buscar por placa, proveedor o piloto…" autocomplete="off" oninput="buscarCamionDebounced()">
+                <div class="placa-modal-sub">Escribe para buscar la unidad en SAP (@camiones).</div>
+                <div class="placa-result-list" id="placaResultList">
+                    <div class="placa-modal-empty">Escribe para buscar una unidad.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: qué hacer con los documentos quitados -->
+    <div class="placa-modal-overlay" id="editModalOverlay">
+        <div class="placa-modal edit-modal">
+            <div class="placa-modal-head">
+                <h3><i class="bi bi-box-arrow-right"></i> Documentos quitados</h3>
+                <button type="button" onclick="cerrarDestinoModal()">&times;</button>
+            </div>
+            <div class="placa-modal-body" id="editModalBody"></div>
+        </div>
+    </div>
 </body>
 </html>
