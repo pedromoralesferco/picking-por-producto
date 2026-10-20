@@ -1125,9 +1125,11 @@
                                     <button class="btn-print-cuadro" onclick="printPackingAllOrder(${ruta.ID_RoutePlan})" title="Imprimir todos los packing lists de la ruta">
                                         <i class="bi bi-file-earmark-check"></i> Packing List
                                     </button>
-                                    <button class="btn-print-cuadro" onclick="printCuadroRoll(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta + pases de salida (un PDF)">
+                                    ${userPais === 'GT' ? `<button class="btn-print-cuadro" onclick="printCuadroRoll(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta + pases de salida (un PDF)">
                                         <i class="bi bi-printer"></i> Cuadro + Pases
-                                    </button>
+                                    </button>` : `<button class="btn-print-cuadro" onclick="printCuadroRuta(${ruta.RouteNumber})" title="Imprimir Cuadro de Ruta">
+                                        <i class="bi bi-printer"></i> Cuadro de Ruta
+                                    </button>`}
                                     <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasOrder(${ruta.ID_RoutePlan})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
                                         <i class="bi bi-tag-fill"></i> Etiquetas de empaque
                                     </button>
