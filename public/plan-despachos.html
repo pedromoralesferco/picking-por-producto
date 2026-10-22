@@ -485,8 +485,9 @@
                 const rows = sortGrupoPrio(grupos.get(k));
                 const lbl = k === 'sin' ? 'Sin fecha planificada' : fechaLabel(k + 'T00:00:00');
                 const sub = rows.reduce((s, c) => s + pend(c) / 1000, 0);
-                const esFuturo = k !== 'sin' && k > todayISO;
-                if (esFuturo) {
+                // Colapsado (resumen): mañana en adelante Y los sin fecha. Hoy/vencido: desplegado.
+                const esColapsado = k === 'sin' || k > todayISO;
+                if (esColapsado) {
                     grpIdx++; const grpId = 'pendgrp-' + grpIdx;
                     body += `<tr class="grp-row pend ayer-grp" onclick="togglePendGrp('${grpId}', this)"><td colspan="9">
                         <i class="bi bi-chevron-right grp-caret"></i> <i class="bi bi-calendar-event"></i> ${lbl}
