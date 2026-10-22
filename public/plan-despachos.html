@@ -410,6 +410,16 @@
             if (caret) caret.className = 'bi bi-chevron-' + (oculto ? 'down' : 'right') + ' grp-caret';
         }
 
+        // Expandir/colapsar un día futuro de pendientes (resumen → detalle)
+        function togglePendGrp(grpId, el) {
+            const rows = document.querySelectorAll(`tr[data-pendgrp="${grpId}"]`);
+            if (!rows.length) return;
+            const oculto = rows[0].style.display === 'none';
+            rows.forEach(r => { r.style.display = oculto ? '' : 'none'; });
+            const caret = el.querySelector('.grp-caret');
+            if (caret) caret.className = 'bi bi-chevron-' + (oculto ? 'down' : 'right') + ' grp-caret';
+        }
+
         // ── Pendientes: plan diario (agrupado por Fecha Planificada), con prioridad editable ──
         function sortGrupoPrio(arr) {
             return arr.slice().sort((a, b) => {
@@ -430,8 +440,10 @@
                 ? `<button class="comp-tag off" title="Marcar como Comprometida" onclick="event.stopPropagation();toggleComprometida(${c.ID_RoutePlan}, 0)">Comprometer</button>`
                 : '';
         }
-        function filaPendiente(c, acum, pendKg, totKg, puede) {
+        function filaPendiente(c, acum, pendKg, totKg, puede, grpId) {
             const isOpen = openRows.has(c.Cuadro);
+            const grpAttr = grpId ? ` data-pendgrp="${grpId}"` : '';
+            const hideStyle = grpId ? ' style="display:none"' : '';
             const fISO = c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : '';
             const fechaCell = puede
                 ? `<input type="date" class="fp-input" value="${fISO}" onclick="event.stopPropagation()" onchange="setFechaPlan(${c.ID_RoutePlan}, this.value)">`
@@ -441,7 +453,7 @@
                 : `<span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span>`;
             const comp = !!c.Comprometida;
             return `
-                <tr class="cuadro-row ${comp ? 'comprometida' : ''}" id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${grpAttr}${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td onclick="event.stopPropagation()">${fechaCell}</td>
                     <td class="c">${prioCell}</td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
@@ -452,7 +464,7 @@
                     <td>${estadoPickingPill(c)}${c.EstadoPicking === 'Finalizado' ? '' : `<div class="bar"><span style="width:${c.AvancePct}%"></span></div><span style="font-size:0.66rem;color:#999">${c.AvancePct}%</span>`}</td>
                     <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
                 </tr>
-                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen ? '' : 'display:none'}"><td colspan="9"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !grpId ? '' : 'display:none'}"><td colspan="9"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
         function sectionPendientes(titulo, cuadros) {
             const head = `<h3 class="sec-title pend">${titulo}</h3>`;
@@ -464,14 +476,30 @@
             cuadros.forEach(c => { const k = c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : 'sin'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(c); });
             const keys = [...grupos.keys()].filter(k => k !== 'sin').sort();
             if (grupos.has('sin')) keys.push('sin');
-            let body = '';
+            // Hoy (y lo vencido / sin fecha) se muestra desplegado; de mañana en adelante,
+            // colapsado como resumen por día (nº de cuadros + TN), con clic para desplegar.
+            const now = new Date();
+            const todayISO = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            let body = '', grpIdx = 0;
             keys.forEach(k => {
                 const rows = sortGrupoPrio(grupos.get(k));
                 const lbl = k === 'sin' ? 'Sin fecha planificada' : fechaLabel(k + 'T00:00:00');
-                body += `<tr class="grp-row pend"><td colspan="9"><i class="bi bi-calendar-event"></i> ${lbl} · ${rows.length} cuadro(s)</td></tr>`;
-                let acum = 0, sub = 0;
-                rows.forEach(c => { const w = pend(c); acum += w / 1000; sub += w / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede); });
-                body += `<tr class="total-row"><td colspan="5">Subtotal ${k === 'sin' ? '(sin fecha)' : ''}</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
+                const sub = rows.reduce((s, c) => s + pend(c) / 1000, 0);
+                const esFuturo = k !== 'sin' && k > todayISO;
+                if (esFuturo) {
+                    grpIdx++; const grpId = 'pendgrp-' + grpIdx;
+                    body += `<tr class="grp-row pend ayer-grp" onclick="togglePendGrp('${grpId}', this)"><td colspan="9">
+                        <i class="bi bi-chevron-right grp-caret"></i> <i class="bi bi-calendar-event"></i> ${lbl}
+                        · <b>${rows.length}</b> cuadro(s) · <b>${fmtTon(sub)}</b> TN pend. <span style="font-weight:600;color:#888">— clic para ver</span></td></tr>`;
+                    let acum = 0;
+                    rows.forEach(c => { acum += pend(c) / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede, grpId); });
+                    body += `<tr class="total-row" data-pendgrp="${grpId}" style="display:none"><td colspan="5">Subtotal</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
+                } else {
+                    body += `<tr class="grp-row pend"><td colspan="9"><i class="bi bi-calendar-event"></i> ${lbl} · ${rows.length} cuadro(s)</td></tr>`;
+                    let acum = 0;
+                    rows.forEach(c => { acum += pend(c) / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede); });
+                    body += `<tr class="total-row"><td colspan="5">Subtotal ${k === 'sin' ? '(sin fecha)' : ''}</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
+                }
             });
             return head + `<table>
                 <thead class="pend"><tr>
