@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const { getPool, sql } = require('../db');
 const router = express.Router();
 
@@ -12,9 +13,12 @@ const loginLimiter = rateLimit({
     message: { error: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' },
     standardHeaders: true,
     legacyHeaders: false,
+    // Fallback a IP solo si no vino usuario: usar el helper ipKeyGenerator
+    // (normaliza IPv6 por subred; express-rate-limit v8 lo exige, si no lanza
+    // ERR_ERL_KEY_GEN_IPV6 al cargar y tumba el arranque).
     keyGenerator: (req) => (req.body && req.body.usuario)
         ? req.body.usuario.trim().toLowerCase()
-        : req.ip
+        : ipKeyGenerator(req.ip)
 });
 
 // Bloqueo por usuario: rastrear intentos fallidos en memoria
