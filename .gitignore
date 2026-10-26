@@ -1,3 +1,7 @@
 node_modules/
 .env
 .DS_Store
+
+# Robot sync — copia desplegable y config con credenciales (NO subir)
+robot/SyncEdicionesCuadro.deploy.xaml
+robot/SyncEdicionesCuadro.Config.env
