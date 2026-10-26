@@ -419,11 +419,11 @@
     </ui:InvokeCode>
 
     <ui:DatabaseDisconnect DisplayName="Desconectar SQL">
-      <ui:DatabaseDisconnect.ExistingDbConnection>
+      <ui:DatabaseDisconnect.DbConnection>
         <InArgument x:TypeArguments="ui:DatabaseConnection">
           <mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue>
         </InArgument>
-      </ui:DatabaseDisconnect.ExistingDbConnection>
+      </ui:DatabaseDisconnect.DbConnection>
     </ui:DatabaseDisconnect>
   </Sequence>
 </Activity>
