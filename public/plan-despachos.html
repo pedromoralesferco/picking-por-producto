@@ -69,9 +69,13 @@
         tbody tr.grp-row td { background: #eef3ea; font-weight: 700; color: var(--success); text-transform: capitalize;
             font-size: 0.74rem; padding: 0.35rem 0.6rem; border-top: 1px solid #dfe7da; }
         tbody tr.grp-row.pend td { background: #f3efe0; color: var(--dark); border-color: #e7dcc0; }
-        tbody tr.grp-row.ayer-grp { cursor: pointer; }
-        tbody tr.grp-row.ayer-grp:hover td { background: #e3ebdd; }
-        .grp-caret { transition: transform 0.1s; }
+        tbody tr.grp-row.grp-toggle { cursor: pointer; }
+        tbody tr.grp-row.grp-toggle:hover td { filter: brightness(0.96); }
+        .grp-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .grp-head .grp-left { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+        .grp-head .grp-label { text-transform: capitalize; }
+        .grp-head .grp-right { font-weight: 700; color: #6b6b6b; font-size: 0.8rem; white-space: nowrap; text-transform: none; }
+        .grp-caret { transition: transform 0.1s; width: 0.9rem; text-align: center; }
         .fp-input { border: 1px solid #c9b86a; border-radius: 6px; padding: 0.2rem 0.3rem; font-size: 0.72rem; background: #fffdf5; width: 120px; }
         .prio-input { width: 42px; text-align: center; border: 1px solid #c9b86a; border-radius: 6px; padding: 0.2rem; font-size: 0.78rem; font-weight: 700; background: #fffdf5; }
         /* Comprometida: tag en columna + sombreado */
@@ -166,6 +170,21 @@
         let DATA = null;
         let vista = 'operativa';   // operativa | comercial
         const openRows = new Set();
+        // Estado de grupos colapsables (día). key -> bool (override del default). Persiste
+        // entre refrescos automáticos, así que abrir un grupo NO se cierra solo.
+        const grupoAbierto = {};
+        function hoyISO() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); }
+        function grpAbierto(key, def) { return key in grupoAbierto ? grupoAbierto[key] : def; }
+        function toggleGrupo(key, def) { grupoAbierto[key] = !grpAbierto(key, def === 'true' || def === true); render(); }
+        // Header unificado de un grupo-día: caret + etiqueta a la izquierda, resumen a la derecha.
+        function grupoHeaderRow(key, def, cls, icon, label, statsHtml, colspan) {
+            const ab = grpAbierto(key, def);
+            return `<tr class="grp-row grp-toggle ${cls}" onclick="toggleGrupo('${key}', ${def})"><td colspan="${colspan}">
+                <div class="grp-head">
+                    <span class="grp-left"><i class="bi bi-chevron-${ab ? 'down' : 'right'} grp-caret"></i> <i class="bi ${icon}"></i> <span class="grp-label">${label}</span></span>
+                    <span class="grp-right">${statsHtml}</span>
+                </div></td></tr>`;
+        }
 
         const esc = s => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
         const num = n => (Number(n) || 0).toLocaleString('es-GT');
@@ -273,17 +292,16 @@
                 ? `<input type="date" class="fp-input" value="${fISO}" onclick="event.stopPropagation()" onchange="setFechaPlan(${c.ID_RoutePlan}, this.value)">`
                 : (fISO ? esc(new Date(fISO + 'T00:00:00').toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })) : '—');
         }
-        function filaCuadro(c, acum, tonHtml, hiddenGrp, fechaEditable) {
+        function filaCuadro(c, acum, tonHtml, oculto, fechaEditable) {
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
             const tonCell = (tonHtml == null ? fmtTon((c.PesoEstimadoKg || 0) / 1000) : tonHtml);
-            const grpAttr = hiddenGrp ? ` data-despgrp="${hiddenGrp}"` : '';
-            const hideStyle = hiddenGrp ? ' style="display:none"' : '';
+            const hideStyle = oculto ? ' style="display:none"' : '';
             const comp = !!c.Comprometida;
             const fechaTd = fechaEditable ? `<td onclick="event.stopPropagation()">${fechaPlanCell(c, !!DATA.puedePriorizar)}</td>` : '';
             const colsDet = fechaEditable ? 14 : 13;
             return `
-                <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${grpAttr}${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     ${fechaTd}
                     <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
@@ -299,7 +317,7 @@
                     <td class="op-col">${esc(c.Transportista || '—')}</td>
                     <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
                 </tr>
-                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !hiddenGrp ? '' : 'display:none'}"><td colspan="${colsDet}"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !oculto ? '' : 'display:none'}"><td colspan="${colsDet}"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
 
         function sectionTable(titulo, cls, cuadros, sub, opts) {
@@ -362,31 +380,20 @@
             if (esMismoDia(dt, ayer)) return f + ' · AYER';
             return f;
         }
-        // Despachado: una sola tabla, con fila separadora por fecha de despacho
+        // Despachado: una tabla con grupo colapsable por fecha (hoy abierto; los demás, resumen).
         function sectionTableDespachado(titulo, cuadros) {
             const head = `<h3 class="sec-title ejec">${titulo}</h3>`;
             if (!cuadros.length) return head + '<div class="empty" style="padding:0.8rem">Sin despachos.</div>';
-            let acum = 0, lastKey = null, body = '', grpIdx = 0, curGrp = null;
-            cuadros.forEach(c => {
-                const key = c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin';
-                if (key !== lastKey) {
-                    lastKey = key;
-                    const esHoy = c.FechaDespacho ? esMismoDia(c.FechaDespacho, new Date()) : false;
-                    const lbl = c.FechaDespacho ? fechaLabel(c.FechaDespacho) : 'Sin fecha';
-                    if (esHoy) {
-                        curGrp = null;   // hoy: visible, sin colapsar
-                        body += `<tr class="grp-row"><td colspan="13"><i class="bi bi-calendar-check"></i> ${lbl}</td></tr>`;
-                    } else {
-                        // Ayer / anteriores: colapsado por defecto, con botón para expandir
-                        grpIdx++; curGrp = 'despgrp-' + grpIdx;
-                        const n = cuadros.filter(x => (x.FechaDespacho ? new Date(x.FechaDespacho).toDateString() : 'sin') === key).length;
-                        body += `<tr class="grp-row ayer-grp" onclick="toggleDespGrp('${curGrp}', this)"><td colspan="13">
-                            <i class="bi bi-chevron-right grp-caret"></i> <i class="bi bi-calendar-check"></i> ${lbl}
-                            <span style="font-weight:600;color:#888">· ${n} cuadro(s) — click para ver</span></td></tr>`;
-                    }
-                }
-                acum += (c.PesoEstimadoKg || 0) / 1000;
-                body += filaCuadro(c, acum, null, curGrp);
+            const grupos = new Map();
+            cuadros.forEach(c => { const k = c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(c); });
+            let acum = 0, body = '';
+            grupos.forEach((rows, k) => {
+                const def = k !== 'sin' && esMismoDia(rows[0].FechaDespacho, new Date()); // hoy abierto
+                const lbl = k === 'sin' ? 'Sin fecha' : fechaLabel(rows[0].FechaDespacho);
+                const grpTon = rows.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
+                const ab = grpAbierto('desp:' + k, def);
+                body += grupoHeaderRow('desp:' + k, def, '', 'bi-calendar-check', lbl, `${rows.length} cuadro(s) · ${fmtTon(grpTon)} TN`, 13);
+                rows.forEach(c => { acum += (c.PesoEstimadoKg || 0) / 1000; body += filaCuadro(c, acum, null, !ab); });
             });
             const totalTon = cuadros.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
             const totalRow = `<tr class="total-row"><td colspan="3">TOTAL (${cuadros.length} cuadros)</td>
@@ -398,26 +405,6 @@
                     <th class="op-col">Tipo unidad</th><th class="op-col">Placa</th><th class="op-col">Transportista</th>
                     <th class="c"></th>
                 </tr></thead><tbody>${body}${totalRow}</tbody></table>`;
-        }
-
-        // Expandir/colapsar un grupo de despachos (ayer / anteriores)
-        function toggleDespGrp(grpId, el) {
-            const rows = document.querySelectorAll(`tr.cuadro-row[data-despgrp="${grpId}"]`);
-            if (!rows.length) return;
-            const oculto = rows[0].style.display === 'none';
-            rows.forEach(r => { r.style.display = oculto ? '' : 'none'; });
-            const caret = el.querySelector('.grp-caret');
-            if (caret) caret.className = 'bi bi-chevron-' + (oculto ? 'down' : 'right') + ' grp-caret';
-        }
-
-        // Expandir/colapsar un día futuro de pendientes (resumen → detalle)
-        function togglePendGrp(grpId, el) {
-            const rows = document.querySelectorAll(`tr[data-pendgrp="${grpId}"]`);
-            if (!rows.length) return;
-            const oculto = rows[0].style.display === 'none';
-            rows.forEach(r => { r.style.display = oculto ? '' : 'none'; });
-            const caret = el.querySelector('.grp-caret');
-            if (caret) caret.className = 'bi bi-chevron-' + (oculto ? 'down' : 'right') + ' grp-caret';
         }
 
         // ── Pendientes: plan diario (agrupado por Fecha Planificada), con prioridad editable ──
@@ -440,10 +427,9 @@
                 ? `<button class="comp-tag off" title="Marcar como Comprometida" onclick="event.stopPropagation();toggleComprometida(${c.ID_RoutePlan}, 0)">Comprometer</button>`
                 : '';
         }
-        function filaPendiente(c, acum, pendKg, totKg, puede, grpId) {
+        function filaPendiente(c, acum, pendKg, totKg, puede, oculto) {
             const isOpen = openRows.has(c.Cuadro);
-            const grpAttr = grpId ? ` data-pendgrp="${grpId}"` : '';
-            const hideStyle = grpId ? ' style="display:none"' : '';
+            const hideStyle = oculto ? ' style="display:none"' : '';
             const fISO = c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : '';
             const fechaCell = puede
                 ? `<input type="date" class="fp-input" value="${fISO}" onclick="event.stopPropagation()" onchange="setFechaPlan(${c.ID_RoutePlan}, this.value)">`
@@ -453,7 +439,7 @@
                 : `<span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span>`;
             const comp = !!c.Comprometida;
             return `
-                <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${grpAttr}${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
+                <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td onclick="event.stopPropagation()">${fechaCell}</td>
                     <td class="c">${prioCell}</td>
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
@@ -464,7 +450,7 @@
                     <td>${estadoPickingPill(c)}${c.EstadoPicking === 'Finalizado' ? '' : `<div class="bar"><span style="width:${c.AvancePct}%"></span></div><span style="font-size:0.66rem;color:#999">${c.AvancePct}%</span>`}</td>
                     <td class="c"><i class="bi bi-chevron-${isOpen ? 'up' : 'down'}"></i></td>
                 </tr>
-                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !grpId ? '' : 'display:none'}"><td colspan="9"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
+                <tr class="detalle-row" id="det-${c.Cuadro}" style="${isOpen && !oculto ? '' : 'display:none'}"><td colspan="9"><div class="detalle-box" id="detbox-${c.Cuadro}"></div></td></tr>`;
         }
         function sectionPendientes(titulo, cuadros) {
             const head = `<h3 class="sec-title pend">${titulo}</h3>`;
@@ -476,31 +462,22 @@
             cuadros.forEach(c => { const k = c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : 'sin'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(c); });
             const keys = [...grupos.keys()].filter(k => k !== 'sin').sort();
             if (grupos.has('sin')) keys.push('sin');
-            // Hoy (y lo vencido / sin fecha) se muestra desplegado; de mañana en adelante,
-            // colapsado como resumen por día (nº de cuadros + TN), con clic para desplegar.
-            const now = new Date();
-            const todayISO = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-            let body = '', grpIdx = 0;
+            // Hoy y lo vencido van desplegados por defecto; de mañana en adelante y los
+            // "sin fecha" van colapsados como resumen por día. El usuario puede abrir/cerrar
+            // y el estado persiste entre refrescos (grupoAbierto).
+            const today = hoyISO();
+            let body = '';
             keys.forEach(k => {
                 const rows = sortGrupoPrio(grupos.get(k));
                 const lbl = k === 'sin' ? 'Sin fecha planificada' : fechaLabel(k + 'T00:00:00');
                 const sub = rows.reduce((s, c) => s + pend(c) / 1000, 0);
-                // Colapsado (resumen): mañana en adelante Y los sin fecha. Hoy/vencido: desplegado.
-                const esColapsado = k === 'sin' || k > todayISO;
-                if (esColapsado) {
-                    grpIdx++; const grpId = 'pendgrp-' + grpIdx;
-                    body += `<tr class="grp-row pend ayer-grp" onclick="togglePendGrp('${grpId}', this)"><td colspan="9">
-                        <i class="bi bi-chevron-right grp-caret"></i> <i class="bi bi-calendar-event"></i> ${lbl}
-                        · <b>${rows.length}</b> cuadro(s) · <b>${fmtTon(sub)}</b> TN pend. <span style="font-weight:600;color:#888">— clic para ver</span></td></tr>`;
-                    let acum = 0;
-                    rows.forEach(c => { acum += pend(c) / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede, grpId); });
-                    body += `<tr class="total-row" data-pendgrp="${grpId}" style="display:none"><td colspan="5">Subtotal</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
-                } else {
-                    body += `<tr class="grp-row pend"><td colspan="9"><i class="bi bi-calendar-event"></i> ${lbl} · ${rows.length} cuadro(s)</td></tr>`;
-                    let acum = 0;
-                    rows.forEach(c => { acum += pend(c) / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede); });
-                    body += `<tr class="total-row"><td colspan="5">Subtotal ${k === 'sin' ? '(sin fecha)' : ''}</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
-                }
+                const def = k !== 'sin' && k <= today;   // abierto por defecto: hoy / vencido
+                const key = 'pend:' + k;
+                const ab = grpAbierto(key, def);
+                body += grupoHeaderRow(key, def, 'pend', 'bi-calendar-event', lbl, `${rows.length} cuadro(s) · ${fmtTon(sub)} TN pend.`, 9);
+                let acum = 0;
+                rows.forEach(c => { acum += pend(c) / 1000; body += filaPendiente(c, acum, pend(c), tot(c), puede, !ab); });
+                body += `<tr class="total-row"${ab ? '' : ' style="display:none"'}><td colspan="5">Subtotal ${k === 'sin' ? '(sin fecha)' : ''}</td><td class="r">${fmtTon(sub)}</td><td class="r">${fmtTon(sub)}</td><td colspan="2"></td></tr>`;
             });
             return head + `<table>
                 <thead class="pend"><tr>
@@ -620,19 +597,20 @@
                     return `${quien} → <b>Cuadro ${esc(x.Cuadro)}</b> ${esc(x.Ruta || '')} · <b>${seccionDe(x)}</b>`;
                 });
                 out.innerHTML = partes.join(' &nbsp;·&nbsp; ');
-                const enTablero = res.find(x => document.getElementById('row-cuadro-' + x.Cuadro));
+                const enTablero = res.find(x => DATA && DATA.cuadros.some(cc => cc.Cuadro === x.Cuadro));
                 if (enTablero) {
-                    const c = DATA && DATA.cuadros.find(cc => cc.Cuadro === enTablero.Cuadro);
-                    if (c && !openRows.has(c.Cuadro)) { openRows.add(c.Cuadro); render(); }
+                    const c = DATA.cuadros.find(cc => cc.Cuadro === enTablero.Cuadro);
+                    if (c) {
+                        // Abrir su detalle y el grupo-día que lo contiene (por si está colapsado)
+                        openRows.add(c.Cuadro);
+                        let gkey = null;
+                        if (c.EstadoDespacho === 'Finalizado') gkey = 'desp:' + (c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin');
+                        else if (c.EstadoPicking !== 'Finalizado') gkey = 'pend:' + (c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : 'sin');
+                        if (gkey) grupoAbierto[gkey] = true;
+                        render();
+                    }
                     const row = document.getElementById('row-cuadro-' + enTablero.Cuadro);
                     if (row) {
-                        // Si cayó en un grupo de despacho colapsado (ayer), expandirlo
-                        const grp = row.getAttribute('data-despgrp');
-                        if (grp && row.style.display === 'none') {
-                            document.querySelectorAll(`tr.cuadro-row[data-despgrp="${grp}"]`).forEach(r => { r.style.display = ''; });
-                            const caret = document.querySelector(`tr.ayer-grp[onclick*="${grp}"] .grp-caret`);
-                            if (caret) caret.className = 'bi bi-chevron-down grp-caret';
-                        }
                         document.querySelectorAll('tr.cuadro-row.hl').forEach(e => e.classList.remove('hl'));
                         row.classList.add('hl');
                         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
