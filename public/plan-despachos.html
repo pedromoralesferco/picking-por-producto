@@ -386,9 +386,15 @@
             if (!cuadros.length) return head + '<div class="empty" style="padding:0.8rem">Sin despachos.</div>';
             const grupos = new Map();
             cuadros.forEach(c => { const k = c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(c); });
+            // Secuencia cronológica ascendente: ayer (y anteriores) primero, hoy al final; 'sin fecha' de último.
+            const ordenKeys = [...grupos.keys()].sort((a, b) => {
+                if (a === 'sin') return 1; if (b === 'sin') return -1;
+                return new Date(a).getTime() - new Date(b).getTime();
+            });
             let acum = 0, body = '';
-            grupos.forEach((rows, k) => {
-                const def = k !== 'sin' && esMismoDia(rows[0].FechaDespacho, new Date()); // hoy abierto
+            ordenKeys.forEach(k => {
+                const rows = grupos.get(k);
+                const def = k !== 'sin' && esMismoDia(rows[0].FechaDespacho, new Date()); // solo hoy abierto; ayer/anteriores colapsados
                 const lbl = k === 'sin' ? 'Sin fecha' : fechaLabel(rows[0].FechaDespacho);
                 const grpTon = rows.reduce((s, c) => s + (c.PesoEstimadoKg || 0), 0) / 1000;
                 const ab = grpAbierto('desp:' + k, def);
