@@ -1,14 +1,26 @@
 # Robot UiPath — SyncEdicionesCuadro (Fase 3: ediciones del cuadro → SAP)
 
 Un solo `.xaml`. Barre el outbox del app, aplica en SAP por DI-API y marca el resultado.
-Arranca solo con **PLACA**; REMOVE/ADD se agregan como ramas del Switch después.
+Implementa **CREATE (complementos) → PLACA → REMOVE → ADD** en el Switch.
+
+## Despliegue: solo `.xaml` + `Config.xlsx`
+No hay build step. El robot **lee `SyncEdicionesCuadro.Config.xlsx` en runtime** (hoja `Config`,
+columnas `Clave | Valor`) parseando el OpenXML directo — **no requiere Excel instalado** ni
+paquetes extra (usa `System.IO.Compression` + `System.Xml.Linq`, maneja `inlineStr` y shared
+strings). Variable `configPath` = ruta del xlsx (default: junto al proyecto).
+Claves: `ENTORNO` (PRD/QA), `SQL_USER/SQL_PASS` (outbox), `DB_USER/DB_PASS` (Company DB SAP),
+`SAP_USER/SAP_PASS` (B1), `SAP_SERVER_PRD/QA`, `SAP_COMPANYDB_PRD/QA`, `SAP_SLD`,
+`OUTBOX_SERVER`, `OUTBOX_DB`. Si falta config o credenciales → **Throw** (falla el job).
+El `.xlsx` lleno lleva credenciales → **gitignored**; en el repo queda solo el `.sample.xlsx`.
 
 ## Flujo (actividades)
-1. **Database Connect** → SQL Server `SERVER-APPS-TAB`, base `Picking_Management`.
-   (El outbox vive acá; el linked server `[server-sql]` alcanza SAP para el DocEntry.)
-2. **Invoke Code "Conectarse"** → DI-API (reusar el bloque PRD de `PAG_OVPrepaHN/Main.xaml`:
-   `ocompany.Connect()`, Server `server-sql.ferco.com.gt`, CompanyDB `SBOFERCO`).
-   *(Para pruebas usar el bloque QA: `SBOFERCO_SANDBOX` @ `SANDOBOX-SAP`.)*
+0. **Invoke Code "Leer Config.xlsx"** → `cfg` (Dictionary). Valida y arma `strConn`, `entorno`,
+   `sapServer`, `sapDb`.
+1. **Database Connect** → SQL Server `OUTBOX_SERVER`, base `OUTBOX_DB` (default `SERVER-APPS-TAB`/
+   `Picking_Management`). El linked server `[server-sql]` alcanza SAP para el DocEntry.
+2. **Invoke Code "Conectarse"** → DI-API con los valores de `cfg` (`ocompany.Connect()`).
+   PRD: Server `SAP_SERVER_PRD`, CompanyDB `SBOFERCO`. QA: `SANDOBOX-SAP`/`SBOFERCO_SANDBOX`.
+   Después, **If** no conectó → Throw.
 3. **Execute Query** → `dtPend` (ver SQL #1). Filtrar `Accion='PLACA'` en el rollout inicial.
 4. **For Each Row** `row` en `dtPend.Rows`:
    - **Switch** por `row("Accion").ToString()`:

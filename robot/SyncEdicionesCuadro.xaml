@@ -9,6 +9,9 @@
       <x:String>SAPbobsCOM</x:String>
       <x:String>UiPath.Database</x:String>
       <x:String>UiPath.Database.Activities</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>System.IO.Compression</x:String>
     </sco:Collection>
   </TextExpression.NamespacesForImplementation>
   <TextExpression.ReferencesForImplementation>
@@ -22,6 +25,10 @@
       <AssemblyReference>Microsoft.CSharp</AssemblyReference>
       <AssemblyReference>UiPath.Database.Activities</AssemblyReference>
       <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>System.IO.Compression</AssemblyReference>
+      <AssemblyReference>System.IO.Compression.FileSystem</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
 
@@ -29,9 +36,15 @@
     <Sequence.Variables>
       <Variable x:TypeArguments="s1:Company" Name="ocompany" />
       <Variable x:TypeArguments="x:String" Name="errorCode" />
-      <!-- TODO: reemplazar por tu cadena real o leerla de un Config/Asset. Usar un
-           login SQL con acceso a Picking_Management Y al linked server [server-sql]. -->
-      <Variable x:TypeArguments="x:String" Name="strConn" Default="Server=SERVER-APPS-TAB;Database=Picking_Management;User Id=__SQL_USER__;Password=__SQL_PASS__;TrustServerCertificate=True;" />
+      <!-- Config leída en runtime desde SyncEdicionesCuadro.Config.xlsx (hoja Config, cols Clave|Valor).
+           Cambiá la ruta si el xlsx va en otra carpeta del proyecto. -->
+      <Variable x:TypeArguments="x:String" Name="configPath" Default="SyncEdicionesCuadro.Config.xlsx" />
+      <Variable x:TypeArguments="scg:Dictionary(x:String, x:String)" Name="cfg" />
+      <Variable x:TypeArguments="x:String" Name="cfgErr" />
+      <Variable x:TypeArguments="x:String" Name="entorno" />
+      <Variable x:TypeArguments="x:String" Name="sapServer" />
+      <Variable x:TypeArguments="x:String" Name="sapDb" />
+      <Variable x:TypeArguments="x:String" Name="strConn" />
       <Variable x:TypeArguments="ui:DatabaseConnection" Name="dbApp" />
       <Variable x:TypeArguments="sd:DataTable" Name="dtPend" />
       <Variable x:TypeArguments="sd:DataTable" Name="dtCreate" />
@@ -40,6 +53,39 @@
       <Variable x:TypeArguments="x:String" Name="strOutCode" />
       <Variable x:TypeArguments="x:String" Name="strErrMsg" />
     </Sequence.Variables>
+
+    <!-- 0) Leer configuracion desde el xlsx (sin Excel: parsea el OpenXML) -->
+    <ui:InvokeCode DisplayName="Leer Config.xlsx" Language="CSharp" Code="try {&#xA;var dict = new Dictionary&lt;string,string&gt;(StringComparer.OrdinalIgnoreCase);&#xA;using (var zip = System.IO.Compression.ZipFile.OpenRead(configPath)) {&#xA;var sst = new List&lt;string&gt;();&#xA;var se = zip.GetEntry(&quot;xl/sharedStrings.xml&quot;);&#xA;if (se != null) {&#xA;using (var st = se.Open()) {&#xA;var xd = System.Xml.Linq.XDocument.Load(st);&#xA;System.Xml.Linq.XNamespace ns = &quot;http://schemas.openxmlformats.org/spreadsheetml/2006/main&quot;;&#xA;foreach (var si in xd.Root.Elements(ns + &quot;si&quot;)) {&#xA;var sb = new System.Text.StringBuilder();&#xA;foreach (var t in si.Descendants(ns + &quot;t&quot;)) sb.Append(t.Value);&#xA;sst.Add(sb.ToString());&#xA;}&#xA;}&#xA;}&#xA;var we = zip.GetEntry(&quot;xl/worksheets/sheet1.xml&quot;);&#xA;if (we == null) { cfgErr = &quot;No se encontro la hoja (sheet1.xml)&quot;; }&#xA;else {&#xA;using (var wss = we.Open()) {&#xA;var xd = System.Xml.Linq.XDocument.Load(wss);&#xA;System.Xml.Linq.XNamespace ns = &quot;http://schemas.openxmlformats.org/spreadsheetml/2006/main&quot;;&#xA;foreach (var row in xd.Descendants(ns + &quot;row&quot;)) {&#xA;string key = null, val = null;&#xA;foreach (var c in row.Elements(ns + &quot;c&quot;)) {&#xA;string rf = (string)c.Attribute(&quot;r&quot;);&#xA;if (string.IsNullOrEmpty(rf)) continue;&#xA;string col = new string(rf.TakeWhile(x =&gt; !char.IsDigit(x)).ToArray());&#xA;string tp = (string)c.Attribute(&quot;t&quot;);&#xA;string cell = &quot;&quot;;&#xA;if (tp == &quot;s&quot;) { var v = c.Element(ns + &quot;v&quot;); if (v != null) cell = sst[int.Parse(v.Value)]; }&#xA;else if (tp == &quot;inlineStr&quot;) { var isn = c.Element(ns + &quot;is&quot;); if (isn != null) cell = string.Concat(isn.Descendants(ns + &quot;t&quot;).Select(t =&gt; t.Value)); }&#xA;else { var v = c.Element(ns + &quot;v&quot;); if (v != null) cell = v.Value; }&#xA;if (col == &quot;A&quot;) key = cell; else if (col == &quot;B&quot;) val = cell;&#xA;}&#xA;if (!string.IsNullOrWhiteSpace(key) &amp;&amp; !string.IsNullOrWhiteSpace(val)) dict[key.Trim()] = val.Trim();&#xA;}&#xA;}&#xA;}&#xA;}&#xA;cfg = dict; if (cfgErr == null) cfgErr = &quot;&quot;;&#xA;} catch (Exception ex) { cfg = new Dictionary&lt;string,string&gt;(); cfgErr = ex.Message; }">
+      <ui:InvokeCode.Arguments>
+        <InArgument x:TypeArguments="x:String" x:Key="configPath"><mca:CSharpValue x:TypeArguments="x:String">configPath</mca:CSharpValue></InArgument>
+        <OutArgument x:TypeArguments="scg:Dictionary(x:String, x:String)" x:Key="cfg"><mca:CSharpReference x:TypeArguments="scg:Dictionary(x:String, x:String)">cfg</mca:CSharpReference></OutArgument>
+        <OutArgument x:TypeArguments="x:String" x:Key="cfgErr"><mca:CSharpReference x:TypeArguments="x:String">cfgErr</mca:CSharpReference></OutArgument>
+      </ui:InvokeCode.Arguments>
+    </ui:InvokeCode>
+
+    <If DisplayName="Config valida?">
+      <If.Condition><InArgument x:TypeArguments="x:Boolean"><mca:CSharpValue x:TypeArguments="x:Boolean">cfg == null || cfg.Count == 0 || (cfgErr != null &amp;&amp; cfgErr != "") || !(cfg.ContainsKey("SQL_USER") &amp;&amp; cfg.ContainsKey("SQL_PASS") &amp;&amp; cfg.ContainsKey("DB_USER") &amp;&amp; cfg.ContainsKey("DB_PASS") &amp;&amp; cfg.ContainsKey("SAP_USER") &amp;&amp; cfg.ContainsKey("SAP_PASS"))</mca:CSharpValue></InArgument></If.Condition>
+      <If.Then>
+        <Throw DisplayName="Config invalida"><Throw.Exception><InArgument x:TypeArguments="s:Exception"><mca:CSharpValue x:TypeArguments="s:Exception">new Exception("Config.xlsx invalida o faltan credenciales. Detalle: " + (cfgErr ?? ""))</mca:CSharpValue></InArgument></Throw.Exception></Throw>
+      </If.Then>
+    </If>
+
+    <Assign DisplayName="entorno">
+      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">entorno</mca:CSharpReference></OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">cfg.ContainsKey("ENTORNO") ? cfg["ENTORNO"].Trim().ToUpper() : "PRD"</mca:CSharpValue></InArgument></Assign.Value>
+    </Assign>
+    <Assign DisplayName="sapServer">
+      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">sapServer</mca:CSharpReference></OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">entorno == "QA" ? cfg["SAP_SERVER_QA"] : cfg["SAP_SERVER_PRD"]</mca:CSharpValue></InArgument></Assign.Value>
+    </Assign>
+    <Assign DisplayName="sapDb">
+      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">sapDb</mca:CSharpReference></OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">entorno == "QA" ? cfg["SAP_COMPANYDB_QA"] : cfg["SAP_COMPANYDB_PRD"]</mca:CSharpValue></InArgument></Assign.Value>
+    </Assign>
+    <Assign DisplayName="strConn">
+      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">strConn</mca:CSharpReference></OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">"Server=" + cfg["OUTBOX_SERVER"] + ";Database=" + cfg["OUTBOX_DB"] + ";User Id=" + cfg["SQL_USER"] + ";Password=" + cfg["SQL_PASS"] + ";TrustServerCertificate=True;"</mca:CSharpValue></InArgument></Assign.Value>
+    </Assign>
 
     <!-- 1) Conexión a SQL (outbox del app) -->
     <ui:DatabaseConnect DisplayName="Conectar SQL (Picking_Management)" ProviderName="System.Data.SqlClient">
@@ -69,16 +115,26 @@
       </Assign.Value>
     </Assign>
 
-    <ui:InvokeCode DisplayName="Conectarse SAP (PRD)" Language="CSharp" Code="ocompany.DbServerType = SAPbobsCOM.BoDataServerTypes.dst_MSSQL2014;&#xA;ocompany.DbUserName = &quot;__DB_USER__&quot;;&#xA;ocompany.DbPassword = &quot;__DB_PASS__&quot;;&#xA;ocompany.UserName = &quot;__SAP_USER__&quot;;&#xA;ocompany.Password = &quot;__SAP_PASS__&quot;;&#xA;ocompany.CompanyDB = &quot;SBOFERCO&quot;;&#xA;ocompany.Server = &quot;server-sql.ferco.com.gt&quot;;&#xA;ocompany.SLDServer = &quot;https://server-sapbo.ferco.com.gt:40000&quot;;&#xA;ocompany.Connect();&#xA;errorCode = ocompany.GetLastErrorDescription();">
+    <ui:InvokeCode DisplayName="Conectarse SAP" Language="CSharp" Code="ocompany.DbServerType = SAPbobsCOM.BoDataServerTypes.dst_MSSQL2014;&#xA;ocompany.DbUserName = DbUser;&#xA;ocompany.DbPassword = DbPass;&#xA;ocompany.UserName = SapUser;&#xA;ocompany.Password = SapPass;&#xA;ocompany.CompanyDB = CompanyDB;&#xA;ocompany.Server = Server;&#xA;if (!string.IsNullOrEmpty(Sld)) ocompany.SLDServer = Sld;&#xA;int rc = ocompany.Connect();&#xA;errorCode = (rc != 0) ? ocompany.GetLastErrorDescription() : &quot;&quot;;">
       <ui:InvokeCode.Arguments>
-        <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany">
-          <mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference>
-        </InOutArgument>
-        <OutArgument x:TypeArguments="x:String" x:Key="errorCode">
-          <mca:CSharpReference x:TypeArguments="x:String">errorCode</mca:CSharpReference>
-        </OutArgument>
+        <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany"><mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference></InOutArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="DbUser"><mca:CSharpValue x:TypeArguments="x:String">cfg["DB_USER"]</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="DbPass"><mca:CSharpValue x:TypeArguments="x:String">cfg["DB_PASS"]</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="SapUser"><mca:CSharpValue x:TypeArguments="x:String">cfg["SAP_USER"]</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="SapPass"><mca:CSharpValue x:TypeArguments="x:String">cfg["SAP_PASS"]</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="Server"><mca:CSharpValue x:TypeArguments="x:String">sapServer</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="CompanyDB"><mca:CSharpValue x:TypeArguments="x:String">sapDb</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="Sld"><mca:CSharpValue x:TypeArguments="x:String">cfg.ContainsKey("SAP_SLD") ? cfg["SAP_SLD"] : ""</mca:CSharpValue></InArgument>
+        <OutArgument x:TypeArguments="x:String" x:Key="errorCode"><mca:CSharpReference x:TypeArguments="x:String">errorCode</mca:CSharpReference></OutArgument>
       </ui:InvokeCode.Arguments>
     </ui:InvokeCode>
+
+    <If DisplayName="SAP conectado?">
+      <If.Condition><InArgument x:TypeArguments="x:Boolean"><mca:CSharpValue x:TypeArguments="x:Boolean">ocompany == null || !ocompany.Connected</mca:CSharpValue></InArgument></If.Condition>
+      <If.Then>
+        <Throw DisplayName="Fallo conexion SAP"><Throw.Exception><InArgument x:TypeArguments="s:Exception"><mca:CSharpValue x:TypeArguments="s:Exception">new Exception("No conecto a SAP (" + sapServer + "/" + sapDb + "): " + errorCode)</mca:CSharpValue></InArgument></Throw.Exception></Throw>
+      </If.Then>
+    </If>
 
     <!-- 2b) CREAR complementos primero (cuadro nuevo con sus líneas) y remapear -->
     <ui:ExecuteQuery CommandType="Text" DisplayName="Leer complementos a crear" Sql="SELECT ID_Edicion, RouteNumber FROM dbo.vw_CuadroEdicionPendiente WHERE Accion = 'CREATE' ORDER BY ID_Edicion">
