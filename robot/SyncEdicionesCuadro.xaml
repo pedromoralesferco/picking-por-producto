@@ -1,4 +1,4 @@
-<Activity mc:Ignorable="sap sap2010" x:Class="SyncEdicionesCuadro" sap2010:ExpressionActivityEditor.ExpressionActivityEditor="C#" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:mca="clr-namespace:Microsoft.CSharp.Activities;assembly=System.Activities" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:s1="clr-namespace:SAPbobsCOM;assembly=Interop.SAPbobsCOM" xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation" xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation" xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib" xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib" xmlns:sd="clr-namespace:System.Data;assembly=System.Data" xmlns:ui="http://schemas.uipath.com/workflow/activities" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Activity mc:Ignorable="sap sap2010" x:Class="SyncEdicionesCuadro" mva:VisualBasic.Settings="{x:Null}" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:s1="clr-namespace:SAPbobsCOM;assembly=Interop.SAPbobsCOM" xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation" xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation" xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib" xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib" xmlns:sd="clr-namespace:System.Data;assembly=System.Data" xmlns:ui="http://schemas.uipath.com/workflow/activities" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <TextExpression.NamespacesForImplementation>
     <sco:Collection x:TypeArguments="x:String">
       <x:String>System</x:String>
@@ -57,46 +57,46 @@
     <!-- 0) Leer configuracion desde el xlsx (sin Excel: parsea el OpenXML) -->
     <ui:InvokeCode DisplayName="Leer Config.xlsx" Language="CSharp" Code="try {&#xA;var dict = new Dictionary&lt;string,string&gt;(StringComparer.OrdinalIgnoreCase);&#xA;using (var zip = System.IO.Compression.ZipFile.OpenRead(configPath)) {&#xA;var sst = new List&lt;string&gt;();&#xA;var se = zip.GetEntry(&quot;xl/sharedStrings.xml&quot;);&#xA;if (se != null) {&#xA;using (var st = se.Open()) {&#xA;var xd = System.Xml.Linq.XDocument.Load(st);&#xA;System.Xml.Linq.XNamespace ns = &quot;http://schemas.openxmlformats.org/spreadsheetml/2006/main&quot;;&#xA;foreach (var si in xd.Root.Elements(ns + &quot;si&quot;)) {&#xA;var sb = new System.Text.StringBuilder();&#xA;foreach (var t in si.Descendants(ns + &quot;t&quot;)) sb.Append(t.Value);&#xA;sst.Add(sb.ToString());&#xA;}&#xA;}&#xA;}&#xA;var we = zip.GetEntry(&quot;xl/worksheets/sheet1.xml&quot;);&#xA;if (we == null) { cfgErr = &quot;No se encontro la hoja (sheet1.xml)&quot;; }&#xA;else {&#xA;using (var wss = we.Open()) {&#xA;var xd = System.Xml.Linq.XDocument.Load(wss);&#xA;System.Xml.Linq.XNamespace ns = &quot;http://schemas.openxmlformats.org/spreadsheetml/2006/main&quot;;&#xA;foreach (var row in xd.Descendants(ns + &quot;row&quot;)) {&#xA;string key = null, val = null;&#xA;foreach (var c in row.Elements(ns + &quot;c&quot;)) {&#xA;string rf = (string)c.Attribute(&quot;r&quot;);&#xA;if (string.IsNullOrEmpty(rf)) continue;&#xA;string col = new string(rf.TakeWhile(x =&gt; !char.IsDigit(x)).ToArray());&#xA;string tp = (string)c.Attribute(&quot;t&quot;);&#xA;string cell = &quot;&quot;;&#xA;if (tp == &quot;s&quot;) { var v = c.Element(ns + &quot;v&quot;); if (v != null) cell = sst[int.Parse(v.Value)]; }&#xA;else if (tp == &quot;inlineStr&quot;) { var isn = c.Element(ns + &quot;is&quot;); if (isn != null) cell = string.Concat(isn.Descendants(ns + &quot;t&quot;).Select(t =&gt; t.Value)); }&#xA;else { var v = c.Element(ns + &quot;v&quot;); if (v != null) cell = v.Value; }&#xA;if (col == &quot;A&quot;) key = cell; else if (col == &quot;B&quot;) val = cell;&#xA;}&#xA;if (!string.IsNullOrWhiteSpace(key) &amp;&amp; !string.IsNullOrWhiteSpace(val)) dict[key.Trim()] = val.Trim();&#xA;}&#xA;}&#xA;}&#xA;}&#xA;cfg = dict; if (cfgErr == null) cfgErr = &quot;&quot;;&#xA;} catch (Exception ex) { cfg = new Dictionary&lt;string,string&gt;(); cfgErr = ex.Message; }">
       <ui:InvokeCode.Arguments>
-        <InArgument x:TypeArguments="x:String" x:Key="configPath"><mca:CSharpValue x:TypeArguments="x:String">configPath</mca:CSharpValue></InArgument>
-        <OutArgument x:TypeArguments="scg:Dictionary(x:String, x:String)" x:Key="cfg"><mca:CSharpReference x:TypeArguments="scg:Dictionary(x:String, x:String)">cfg</mca:CSharpReference></OutArgument>
-        <OutArgument x:TypeArguments="x:String" x:Key="cfgErr"><mca:CSharpReference x:TypeArguments="x:String">cfgErr</mca:CSharpReference></OutArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="configPath">[configPath]</InArgument>
+        <OutArgument x:TypeArguments="scg:Dictionary(x:String, x:String)" x:Key="cfg">[cfg]</OutArgument>
+        <OutArgument x:TypeArguments="x:String" x:Key="cfgErr">[cfgErr]</OutArgument>
       </ui:InvokeCode.Arguments>
     </ui:InvokeCode>
 
     <If DisplayName="Config valida?">
-      <If.Condition><InArgument x:TypeArguments="x:Boolean"><mca:CSharpValue x:TypeArguments="x:Boolean">cfg == null || cfg.Count == 0 || (cfgErr != null &amp;&amp; cfgErr != "") || !(cfg.ContainsKey("SQL_USER") &amp;&amp; cfg.ContainsKey("SQL_PASS") &amp;&amp; cfg.ContainsKey("DB_USER") &amp;&amp; cfg.ContainsKey("DB_PASS") &amp;&amp; cfg.ContainsKey("SAP_USER") &amp;&amp; cfg.ContainsKey("SAP_PASS"))</mca:CSharpValue></InArgument></If.Condition>
+      <If.Condition><InArgument x:TypeArguments="x:Boolean">[cfg Is Nothing OrElse cfg.Count = 0 OrElse (cfgErr IsNot Nothing AndAlso cfgErr &lt;&gt; "") OrElse Not (cfg.ContainsKey("SQL_USER") AndAlso cfg.ContainsKey("SQL_PASS") AndAlso cfg.ContainsKey("DB_USER") AndAlso cfg.ContainsKey("DB_PASS") AndAlso cfg.ContainsKey("SAP_USER") AndAlso cfg.ContainsKey("SAP_PASS"))]</InArgument></If.Condition>
       <If.Then>
-        <Throw DisplayName="Config invalida"><Throw.Exception><InArgument x:TypeArguments="s:Exception"><mca:CSharpValue x:TypeArguments="s:Exception">new Exception("Config.xlsx invalida o faltan credenciales. Detalle: " + (cfgErr ?? ""))</mca:CSharpValue></InArgument></Throw.Exception></Throw>
+        <Throw DisplayName="Config invalida"><Throw.Exception><InArgument x:TypeArguments="s:Exception">[New Exception("Config.xlsx invalida o faltan credenciales. Detalle: " &amp; If(cfgErr, ""))]</InArgument></Throw.Exception></Throw>
       </If.Then>
     </If>
 
     <Assign DisplayName="entorno">
-      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">entorno</mca:CSharpReference></OutArgument></Assign.To>
-      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">cfg.ContainsKey("ENTORNO") ? cfg["ENTORNO"].Trim().ToUpper() : "PRD"</mca:CSharpValue></InArgument></Assign.Value>
+      <Assign.To><OutArgument x:TypeArguments="x:String">[entorno]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">[If(cfg.ContainsKey("ENTORNO"), cfg("ENTORNO").Trim().ToUpper(), "PRD")]</InArgument></Assign.Value>
     </Assign>
     <Assign DisplayName="sapServer">
-      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">sapServer</mca:CSharpReference></OutArgument></Assign.To>
-      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">entorno == "QA" ? cfg["SAP_SERVER_QA"] : cfg["SAP_SERVER_PRD"]</mca:CSharpValue></InArgument></Assign.Value>
+      <Assign.To><OutArgument x:TypeArguments="x:String">[sapServer]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">[If(entorno = "QA", cfg("SAP_SERVER_QA"), cfg("SAP_SERVER_PRD"))]</InArgument></Assign.Value>
     </Assign>
     <Assign DisplayName="sapDb">
-      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">sapDb</mca:CSharpReference></OutArgument></Assign.To>
-      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">entorno == "QA" ? cfg["SAP_COMPANYDB_QA"] : cfg["SAP_COMPANYDB_PRD"]</mca:CSharpValue></InArgument></Assign.Value>
+      <Assign.To><OutArgument x:TypeArguments="x:String">[sapDb]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">[If(entorno = "QA", cfg("SAP_COMPANYDB_QA"), cfg("SAP_COMPANYDB_PRD"))]</InArgument></Assign.Value>
     </Assign>
     <Assign DisplayName="strConn">
-      <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">strConn</mca:CSharpReference></OutArgument></Assign.To>
-      <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">"Server=" + cfg["OUTBOX_SERVER"] + ";Database=" + cfg["OUTBOX_DB"] + ";User Id=" + cfg["SQL_USER"] + ";Password=" + cfg["SQL_PASS"] + ";TrustServerCertificate=True;"</mca:CSharpValue></InArgument></Assign.Value>
+      <Assign.To><OutArgument x:TypeArguments="x:String">[strConn]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">["Data Source=" &amp; cfg("OUTBOX_SERVER") &amp; ";Initial Catalog=" &amp; cfg("OUTBOX_DB") &amp; ";User ID=" &amp; cfg("SQL_USER") &amp; ";Password=" &amp; cfg("SQL_PASS") &amp; ";Encrypt=False"]</InArgument></Assign.Value>
     </Assign>
 
     <!-- 1) Conexión a SQL (outbox del app) -->
-    <ui:DatabaseConnect DisplayName="Conectar SQL (Picking_Management)" ProviderName="System.Data.SqlClient">
+    <ui:DatabaseConnect DisplayName="Conectar SQL (Picking_Management)" ProviderName="Microsoft.Data.SqlClient">
       <ui:DatabaseConnect.ConnectionString>
         <InArgument x:TypeArguments="x:String">
-          <mca:CSharpValue x:TypeArguments="x:String">strConn</mca:CSharpValue>
+          [strConn]
         </InArgument>
       </ui:DatabaseConnect.ConnectionString>
       <ui:DatabaseConnect.DatabaseConnection>
         <OutArgument x:TypeArguments="ui:DatabaseConnection">
-          <mca:CSharpReference x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpReference>
+          [dbApp]
         </OutArgument>
       </ui:DatabaseConnect.DatabaseConnection>
     </ui:DatabaseConnect>
@@ -105,71 +105,71 @@
     <Assign DisplayName="ocompany = new Company()">
       <Assign.To>
         <OutArgument x:TypeArguments="s1:Company">
-          <mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference>
+          [ocompany]
         </OutArgument>
       </Assign.To>
       <Assign.Value>
         <InArgument x:TypeArguments="s1:Company">
-          <mca:CSharpValue x:TypeArguments="s1:Company">new SAPbobsCOM.Company()</mca:CSharpValue>
+          [New SAPbobsCOM.Company()]
         </InArgument>
       </Assign.Value>
     </Assign>
 
     <ui:InvokeCode DisplayName="Conectarse SAP" Language="CSharp" Code="ocompany.DbServerType = SAPbobsCOM.BoDataServerTypes.dst_MSSQL2014;&#xA;ocompany.DbUserName = DbUser;&#xA;ocompany.DbPassword = DbPass;&#xA;ocompany.UserName = SapUser;&#xA;ocompany.Password = SapPass;&#xA;ocompany.CompanyDB = CompanyDB;&#xA;ocompany.Server = Server;&#xA;if (!string.IsNullOrEmpty(Sld)) ocompany.SLDServer = Sld;&#xA;int rc = ocompany.Connect();&#xA;errorCode = (rc != 0) ? ocompany.GetLastErrorDescription() : &quot;&quot;;">
       <ui:InvokeCode.Arguments>
-        <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany"><mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference></InOutArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="DbUser"><mca:CSharpValue x:TypeArguments="x:String">cfg["DB_USER"]</mca:CSharpValue></InArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="DbPass"><mca:CSharpValue x:TypeArguments="x:String">cfg["DB_PASS"]</mca:CSharpValue></InArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="SapUser"><mca:CSharpValue x:TypeArguments="x:String">cfg["SAP_USER"]</mca:CSharpValue></InArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="SapPass"><mca:CSharpValue x:TypeArguments="x:String">cfg["SAP_PASS"]</mca:CSharpValue></InArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="Server"><mca:CSharpValue x:TypeArguments="x:String">sapServer</mca:CSharpValue></InArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="CompanyDB"><mca:CSharpValue x:TypeArguments="x:String">sapDb</mca:CSharpValue></InArgument>
-        <InArgument x:TypeArguments="x:String" x:Key="Sld"><mca:CSharpValue x:TypeArguments="x:String">cfg.ContainsKey("SAP_SLD") ? cfg["SAP_SLD"] : ""</mca:CSharpValue></InArgument>
-        <OutArgument x:TypeArguments="x:String" x:Key="errorCode"><mca:CSharpReference x:TypeArguments="x:String">errorCode</mca:CSharpReference></OutArgument>
+        <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany">[ocompany]</InOutArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="DbUser">[cfg("DB_USER")]</InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="DbPass">[cfg("DB_PASS")]</InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="SapUser">[cfg("SAP_USER")]</InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="SapPass">[cfg("SAP_PASS")]</InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="Server">[sapServer]</InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="CompanyDB">[sapDb]</InArgument>
+        <InArgument x:TypeArguments="x:String" x:Key="Sld">[If(cfg.ContainsKey("SAP_SLD"), cfg("SAP_SLD"), "")]</InArgument>
+        <OutArgument x:TypeArguments="x:String" x:Key="errorCode">[errorCode]</OutArgument>
       </ui:InvokeCode.Arguments>
     </ui:InvokeCode>
 
     <If DisplayName="SAP conectado?">
-      <If.Condition><InArgument x:TypeArguments="x:Boolean"><mca:CSharpValue x:TypeArguments="x:Boolean">ocompany == null || !ocompany.Connected</mca:CSharpValue></InArgument></If.Condition>
+      <If.Condition><InArgument x:TypeArguments="x:Boolean">[ocompany Is Nothing OrElse Not ocompany.Connected]</InArgument></If.Condition>
       <If.Then>
-        <Throw DisplayName="Fallo conexion SAP"><Throw.Exception><InArgument x:TypeArguments="s:Exception"><mca:CSharpValue x:TypeArguments="s:Exception">new Exception("No conecto a SAP (" + sapServer + "/" + sapDb + "): " + errorCode)</mca:CSharpValue></InArgument></Throw.Exception></Throw>
+        <Throw DisplayName="Fallo conexion SAP"><Throw.Exception><InArgument x:TypeArguments="s:Exception">[New Exception("No conecto a SAP (" &amp; sapServer &amp; "/" &amp; sapDb &amp; "): " &amp; errorCode)]</InArgument></Throw.Exception></Throw>
       </If.Then>
     </If>
 
     <!-- 2b) CREAR complementos primero (cuadro nuevo con sus líneas) y remapear -->
-    <ui:ExecuteQuery CommandType="Text" DisplayName="Leer complementos a crear" Sql="SELECT ID_Edicion, RouteNumber FROM dbo.vw_CuadroEdicionPendiente WHERE Accion = 'CREATE' ORDER BY ID_Edicion">
+    <ui:ExecuteQuery CommandType="Text" DisplayName="Leer complementos a crear" Sql="[&quot;SELECT ID_Edicion, RouteNumber FROM dbo.vw_CuadroEdicionPendiente WHERE Accion = 'CREATE' ORDER BY ID_Edicion&quot;]">
       <ui:ExecuteQuery.DataTable>
-        <OutArgument x:TypeArguments="sd:DataTable"><mca:CSharpReference x:TypeArguments="sd:DataTable">dtCreate</mca:CSharpReference></OutArgument>
+        <OutArgument x:TypeArguments="sd:DataTable">[dtCreate]</OutArgument>
       </ui:ExecuteQuery.DataTable>
       <ui:ExecuteQuery.ExistingDbConnection>
-        <InArgument x:TypeArguments="ui:DatabaseConnection"><mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument>
       </ui:ExecuteQuery.ExistingDbConnection>
       <ui:ExecuteQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteQuery.Parameters>
     </ui:ExecuteQuery>
 
     <ui:ForEachRow ColumnNames="{x:Null}" CurrentIndex="{x:Null}" DisplayName="Crear cada complemento">
       <ui:ForEachRow.DataTable>
-        <InArgument x:TypeArguments="sd:DataTable"><mca:CSharpValue x:TypeArguments="sd:DataTable">dtCreate</mca:CSharpValue></InArgument>
+        <InArgument x:TypeArguments="sd:DataTable">[dtCreate]</InArgument>
       </ui:ForEachRow.DataTable>
       <ui:ForEachRow.Body>
         <ActivityAction x:TypeArguments="sd:DataRow">
           <ActivityAction.Argument><DelegateInArgument x:TypeArguments="sd:DataRow" Name="cc" /></ActivityAction.Argument>
           <Sequence DisplayName="Body complemento">
             <Assign DisplayName="reset outcome">
-              <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">strOutCode</mca:CSharpReference></OutArgument></Assign.To>
-              <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">&quot;&quot;</mca:CSharpValue></InArgument></Assign.Value>
+              <Assign.To><OutArgument x:TypeArguments="x:String">[strOutCode]</OutArgument></Assign.To>
+              <Assign.Value><InArgument x:TypeArguments="x:String">[""]</InArgument></Assign.Value>
             </Assign>
 
             <!-- Líneas del complemento provisional -->
             <ui:ExecuteQuery CommandType="Text" DisplayName="Leer líneas del complemento">
               <ui:ExecuteQuery.Sql>
-                <InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String" xml:space="preserve">"SELECT NombreRuta, AlmacenOrigen, OV_Number, DocType, Peso, CodigoCliente, Direccion, Asesor FROM dbo.vw_ComplementoLineas WHERE RouteNumber=" + cc["RouteNumber"].ToString()</mca:CSharpValue></InArgument>
+                <InArgument x:TypeArguments="x:String">["SELECT NombreRuta, AlmacenOrigen, OV_Number, DocType, Peso, CodigoCliente, Direccion, Asesor FROM dbo.vw_ComplementoLineas WHERE RouteNumber=" &amp; cc("RouteNumber").ToString()]</InArgument>
               </ui:ExecuteQuery.Sql>
               <ui:ExecuteQuery.DataTable>
-                <OutArgument x:TypeArguments="sd:DataTable"><mca:CSharpReference x:TypeArguments="sd:DataTable">dtLineas</mca:CSharpReference></OutArgument>
+                <OutArgument x:TypeArguments="sd:DataTable">[dtLineas]</OutArgument>
               </ui:ExecuteQuery.DataTable>
               <ui:ExecuteQuery.ExistingDbConnection>
-                <InArgument x:TypeArguments="ui:DatabaseConnection"><mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue></InArgument>
+                <InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument>
               </ui:ExecuteQuery.ExistingDbConnection>
               <ui:ExecuteQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteQuery.Parameters>
             </ui:ExecuteQuery>
@@ -177,36 +177,36 @@
             <!-- Crear el cuadro UDO en SAP y obtener el DocNum real -->
             <ui:InvokeCode DisplayName="Crear complemento (UDO)" Language="CSharp" Code="try {&#xA;if (dtLineas == null || dtLineas.Rows.Count == 0) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Complemento sin lineas&quot;; }&#xA;else {&#xA;string Nombre = Convert.ToString(dtLineas.Rows[0][&quot;NombreRuta&quot;]);&#xA;string Almacen = Convert.ToString(dtLineas.Rows[0][&quot;AlmacenOrigen&quot;]);&#xA;SAPbobsCOM.GeneralService gs = ocompany.GetCompanyService().GetGeneralService(&quot;Cuadro_ruta&quot;);&#xA;SAPbobsCOM.GeneralData gd = (SAPbobsCOM.GeneralData)gs.GetDataInterface(SAPbobsCOM.GeneralServiceDataInterfaces.gsGeneralData);&#xA;gd.SetProperty(&quot;U_NombreR&quot;, Nombre);&#xA;if (!string.IsNullOrEmpty(Almacen)) gd.SetProperty(&quot;U_Almacen_origen&quot;, Almacen);&#xA;gd.SetProperty(&quot;U_ESTADO&quot;, &quot;02&quot;);&#xA;gd.SetProperty(&quot;U_Tipo&quot;, &quot;02&quot;);&#xA;if (dtLineas.Rows[0][&quot;FechaEntrega&quot;] != DBNull.Value) gd.SetProperty(&quot;U_Fecha_Entrega&quot;, Convert.ToDateTime(dtLineas.Rows[0][&quot;FechaEntrega&quot;]));&#xA;SAPbobsCOM.GeneralDataCollection lines = gd.Child(&quot;CUADRO_RUTA_D&quot;);&#xA;int idx = 0;&#xA;foreach (System.Data.DataRow r in dtLineas.Rows) {&#xA;SAPbobsCOM.GeneralData ln = (lines.Count &gt; idx) ? lines.Item(idx) : lines.Add();&#xA;ln.SetProperty(&quot;U_No_OV&quot;, Convert.ToString(r[&quot;OV_Number&quot;]));&#xA;ln.SetProperty(&quot;U_Tipo_Documento&quot;, Convert.ToString(r[&quot;DocType&quot;]));&#xA;if (r[&quot;CodigoCliente&quot;] != DBNull.Value) ln.SetProperty(&quot;U_Codigo_Cliente&quot;, Convert.ToString(r[&quot;CodigoCliente&quot;]));&#xA;if (r[&quot;Direccion&quot;] != DBNull.Value) ln.SetProperty(&quot;U_Direccion&quot;, Convert.ToString(r[&quot;Direccion&quot;]));&#xA;if (r[&quot;Asesor&quot;] != DBNull.Value) ln.SetProperty(&quot;U_Asesor&quot;, Convert.ToString(r[&quot;Asesor&quot;]));&#xA;if (r[&quot;Comentario&quot;] != DBNull.Value) ln.SetProperty(&quot;U_Comentarios&quot;, Convert.ToString(r[&quot;Comentario&quot;]));&#xA;if (r[&quot;CentroCosto&quot;] != DBNull.Value) ln.SetProperty(&quot;U_Centro_Costo&quot;, Convert.ToString(r[&quot;CentroCosto&quot;]));&#xA;if (r[&quot;Peso&quot;] != DBNull.Value) ln.SetProperty(&quot;U_Peso_1&quot;, Math.Round(Convert.ToDecimal(r[&quot;Peso&quot;]), 2).ToString(&quot;F2&quot;));&#xA;idx++;&#xA;}&#xA;SAPbobsCOM.GeneralData res = gs.Add(gd);&#xA;int docEntry = Convert.ToInt32(res.GetProperty(&quot;DocEntry&quot;));&#xA;SAPbobsCOM.Recordset rs = (SAPbobsCOM.Recordset)ocompany.GetBusinessObject(SAPbobsCOM.BoObjectTypes.BoRecordset);&#xA;rs.DoQuery(&quot;SELECT DocNum FROM [@CUADRO_RUTA_E] WHERE DocEntry=&quot; + docEntry);&#xA;realDocNum = Convert.ToInt32(rs.Fields.Item(&quot;DocNum&quot;).Value);&#xA;strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;DocNum &quot; + realDocNum;&#xA;}&#xA;} catch (Exception ex) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Catch: &quot; + ex.Message; }">
               <ui:InvokeCode.Arguments>
-                <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany"><mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference></InOutArgument>
-                <InArgument x:TypeArguments="sd:DataTable" x:Key="dtLineas"><mca:CSharpValue x:TypeArguments="sd:DataTable">dtLineas</mca:CSharpValue></InArgument>
-                <OutArgument x:TypeArguments="x:Int32" x:Key="realDocNum"><mca:CSharpReference x:TypeArguments="x:Int32">realDocNum</mca:CSharpReference></OutArgument>
-                <OutArgument x:TypeArguments="x:String" x:Key="strOutCode"><mca:CSharpReference x:TypeArguments="x:String">strOutCode</mca:CSharpReference></OutArgument>
-                <OutArgument x:TypeArguments="x:String" x:Key="strErrMsg"><mca:CSharpReference x:TypeArguments="x:String">strErrMsg</mca:CSharpReference></OutArgument>
+                <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany">[ocompany]</InOutArgument>
+                <InArgument x:TypeArguments="sd:DataTable" x:Key="dtLineas">[dtLineas]</InArgument>
+                <OutArgument x:TypeArguments="x:Int32" x:Key="realDocNum">[realDocNum]</OutArgument>
+                <OutArgument x:TypeArguments="x:String" x:Key="strOutCode">[strOutCode]</OutArgument>
+                <OutArgument x:TypeArguments="x:String" x:Key="strErrMsg">[strErrMsg]</OutArgument>
               </ui:InvokeCode.Arguments>
             </ui:InvokeCode>
 
             <!-- Remapear provisional → DocNum real (cierra la orden CREATE) o marcar error -->
             <If DisplayName="Remapear o error">
-              <If.Condition><InArgument x:TypeArguments="x:Boolean"><mca:CSharpValue x:TypeArguments="x:Boolean">strOutCode == &quot;SUCCESS&quot;</mca:CSharpValue></InArgument></If.Condition>
+              <If.Condition><InArgument x:TypeArguments="x:Boolean">[strOutCode = "SUCCESS"]</InArgument></If.Condition>
               <If.Then>
                 <ui:ExecuteNonQuery CommandType="Text" DisplayName="SP_RemapComplemento">
                   <ui:ExecuteNonQuery.ExistingDbConnection>
-                    <InArgument x:TypeArguments="ui:DatabaseConnection"><mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue></InArgument>
+                    <InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument>
                   </ui:ExecuteNonQuery.ExistingDbConnection>
                   <ui:ExecuteNonQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteNonQuery.Parameters>
                   <ui:ExecuteNonQuery.Sql>
-                    <InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String" xml:space="preserve">"EXEC dbo.SP_RemapComplemento " + cc["RouteNumber"].ToString() + ", " + realDocNum.ToString()</mca:CSharpValue></InArgument>
+                    <InArgument x:TypeArguments="x:String">["EXEC dbo.SP_RemapComplemento " &amp; cc("RouteNumber").ToString() &amp; ", " &amp; realDocNum.ToString()]</InArgument>
                   </ui:ExecuteNonQuery.Sql>
                 </ui:ExecuteNonQuery>
               </If.Then>
               <If.Else>
                 <ui:ExecuteNonQuery CommandType="Text" DisplayName="Marcar error CREATE">
                   <ui:ExecuteNonQuery.ExistingDbConnection>
-                    <InArgument x:TypeArguments="ui:DatabaseConnection"><mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue></InArgument>
+                    <InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument>
                   </ui:ExecuteNonQuery.ExistingDbConnection>
                   <ui:ExecuteNonQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteNonQuery.Parameters>
                   <ui:ExecuteNonQuery.Sql>
-                    <InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String" xml:space="preserve">"UPDATE dbo.CuadroEdicionCola SET Estado='error', Error='" + strErrMsg.Replace("'","''") + "', Intentos=Intentos+1 WHERE ID_Edicion=" + cc["ID_Edicion"].ToString()</mca:CSharpValue></InArgument>
+                    <InArgument x:TypeArguments="x:String">["UPDATE dbo.CuadroEdicionCola SET Estado='error', Error='" &amp; strErrMsg.Replace("'","''") &amp; "', Intentos=Intentos+1 WHERE ID_Edicion=" &amp; cc("ID_Edicion").ToString()]</InArgument>
                   </ui:ExecuteNonQuery.Sql>
                 </ui:ExecuteNonQuery>
               </If.Else>
@@ -217,15 +217,15 @@
     </ui:ForEachRow>
 
     <!-- 3) Leer ediciones pendientes de PLACA/REMOVE/ADD -->
-    <ui:ExecuteQuery CommandType="Text" DisplayName="Leer pendientes" Sql="SELECT ID_Edicion, RouteNumber, CuadroDocEntry, Accion, OV_Number, DocType, Placa, Capacidad, IDCamion, Transportista, CardCode, LineaCodigoCliente, LineaDireccion, LineaPeso, LineaAsesor, LineaComentario, LineaCentroCosto FROM dbo.vw_CuadroEdicionPendiente WHERE Accion IN ('PLACA','REMOVE','ADD') AND CuadroDocEntry IS NOT NULL ORDER BY ID_Edicion">
+    <ui:ExecuteQuery CommandType="Text" DisplayName="Leer pendientes" Sql="[&quot;SELECT ID_Edicion, RouteNumber, CuadroDocEntry, Accion, OV_Number, DocType, Placa, Capacidad, IDCamion, Transportista, CardCode, LineaCodigoCliente, LineaDireccion, LineaPeso, LineaAsesor, LineaComentario, LineaCentroCosto FROM dbo.vw_CuadroEdicionPendiente WHERE Accion IN ('PLACA','REMOVE','ADD') AND CuadroDocEntry IS NOT NULL ORDER BY ID_Edicion&quot;]">
       <ui:ExecuteQuery.DataTable>
         <OutArgument x:TypeArguments="sd:DataTable">
-          <mca:CSharpReference x:TypeArguments="sd:DataTable">dtPend</mca:CSharpReference>
+          [dtPend]
         </OutArgument>
       </ui:ExecuteQuery.DataTable>
       <ui:ExecuteQuery.ExistingDbConnection>
         <InArgument x:TypeArguments="ui:DatabaseConnection">
-          <mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue>
+          [dbApp]
         </InArgument>
       </ui:ExecuteQuery.ExistingDbConnection>
       <ui:ExecuteQuery.Parameters>
@@ -237,7 +237,7 @@
     <ui:ForEachRow ColumnNames="{x:Null}" CurrentIndex="{x:Null}" DisplayName="Recorrer pendientes">
       <ui:ForEachRow.DataTable>
         <InArgument x:TypeArguments="sd:DataTable">
-          <mca:CSharpValue x:TypeArguments="sd:DataTable">dtPend</mca:CSharpValue>
+          [dtPend]
         </InArgument>
       </ui:ForEachRow.DataTable>
       <ui:ForEachRow.Body>
@@ -247,43 +247,43 @@
           </ActivityAction.Argument>
           <Sequence DisplayName="Body">
             <Assign DisplayName="reset outcome">
-              <Assign.To><OutArgument x:TypeArguments="x:String"><mca:CSharpReference x:TypeArguments="x:String">strOutCode</mca:CSharpReference></OutArgument></Assign.To>
-              <Assign.Value><InArgument x:TypeArguments="x:String"><mca:CSharpValue x:TypeArguments="x:String">&quot;&quot;</mca:CSharpValue></InArgument></Assign.Value>
+              <Assign.To><OutArgument x:TypeArguments="x:String">[strOutCode]</OutArgument></Assign.To>
+              <Assign.Value><InArgument x:TypeArguments="x:String">[""]</InArgument></Assign.Value>
             </Assign>
 
             <!-- Switch por Acción (hoy solo PLACA; agregar REMOVE/ADD como casos nuevos) -->
             <Switch x:TypeArguments="x:String" DisplayName="Switch Accion">
               <Switch.Expression>
                 <InArgument x:TypeArguments="x:String">
-                  <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;Accion&quot;].ToString()</mca:CSharpValue>
+                  [ch("Accion").ToString()]
                 </InArgument>
               </Switch.Expression>
 
               <ui:InvokeCode x:Key="PLACA" DisplayName="Aplicar PLACA (UDO Cuadro_ruta)" Language="CSharp" Code="try {&#xA;SAPbobsCOM.CompanyService cs = ocompany.GetCompanyService();&#xA;SAPbobsCOM.GeneralService gs = cs.GetGeneralService(&quot;Cuadro_ruta&quot;);&#xA;SAPbobsCOM.GeneralDataParams prm = (SAPbobsCOM.GeneralDataParams)gs.GetDataInterface(SAPbobsCOM.GeneralServiceDataInterfaces.gsGeneralDataParams);&#xA;prm.SetProperty(&quot;DocEntry&quot;, DocEntry);&#xA;SAPbobsCOM.GeneralData gd = gs.GetByParams(prm);&#xA;if (gd == null) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Cuadro no encontrado DocEntry &quot; + DocEntry; }&#xA;else {&#xA;string placaActual = Convert.ToString(gd.GetProperty(&quot;U_Placa&quot;));&#xA;if (!string.IsNullOrEmpty(placaActual) &amp;&amp; placaActual.Trim() != &quot;&quot;) { strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;SAP ya tenia placa &quot; + placaActual; }&#xA;else {&#xA;gd.SetProperty(&quot;U_Placa&quot;, Placa);&#xA;if (!string.IsNullOrEmpty(IDCamion)) gd.SetProperty(&quot;U_ID_Camion&quot;, IDCamion);&#xA;if (!string.IsNullOrEmpty(CardCode)) gd.SetProperty(&quot;U_CardCode&quot;, CardCode);&#xA;double capNum;&#xA;if (double.TryParse(Capacidad, out capNum)) gd.SetProperty(&quot;U_Capacidad&quot;, capNum);&#xA;gs.Update(gd);&#xA;strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;&quot;;&#xA;}&#xA;}&#xA;} catch (Exception ex) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Catch: &quot; + ex.Message; }">
                 <ui:InvokeCode.Arguments>
                   <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany">
-                    <mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference>
+                    [ocompany]
                   </InOutArgument>
                   <InArgument x:TypeArguments="x:Int32" x:Key="DocEntry">
-                    <mca:CSharpValue x:TypeArguments="x:Int32">Convert.ToInt32(ch[&quot;CuadroDocEntry&quot;])</mca:CSharpValue>
+                    [Convert.ToInt32(ch("CuadroDocEntry"))]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Placa">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;Placa&quot;].ToString()</mca:CSharpValue>
+                    [ch("Placa").ToString()]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="IDCamion">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;IDCamion&quot;] == null ? &quot;&quot; : ch[&quot;IDCamion&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("IDCamion") Is Nothing, "", ch("IDCamion").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Capacidad">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;Capacidad&quot;] == null ? &quot;&quot; : ch[&quot;Capacidad&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("Capacidad") Is Nothing, "", ch("Capacidad").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="CardCode">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;CardCode&quot;] == null ? &quot;&quot; : ch[&quot;CardCode&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("CardCode") Is Nothing, "", ch("CardCode").ToString())]
                   </InArgument>
                   <OutArgument x:TypeArguments="x:String" x:Key="strOutCode">
-                    <mca:CSharpReference x:TypeArguments="x:String">strOutCode</mca:CSharpReference>
+                    [strOutCode]
                   </OutArgument>
                   <OutArgument x:TypeArguments="x:String" x:Key="strErrMsg">
-                    <mca:CSharpReference x:TypeArguments="x:String">strErrMsg</mca:CSharpReference>
+                    [strErrMsg]
                   </OutArgument>
                 </ui:InvokeCode.Arguments>
               </ui:InvokeCode>
@@ -291,22 +291,22 @@
               <ui:InvokeCode x:Key="REMOVE" DisplayName="Aplicar REMOVE (quitar línea del UDO)" Language="CSharp" Code="try {&#xA;SAPbobsCOM.GeneralService gs = ocompany.GetCompanyService().GetGeneralService(&quot;Cuadro_ruta&quot;);&#xA;SAPbobsCOM.GeneralDataParams prm = (SAPbobsCOM.GeneralDataParams)gs.GetDataInterface(SAPbobsCOM.GeneralServiceDataInterfaces.gsGeneralDataParams);&#xA;prm.SetProperty(&quot;DocEntry&quot;, DocEntry);&#xA;SAPbobsCOM.GeneralData gd = gs.GetByParams(prm);&#xA;if (gd == null) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Cuadro no encontrado DocEntry &quot; + DocEntry; }&#xA;else {&#xA;SAPbobsCOM.GeneralDataCollection lines = gd.Child(&quot;CUADRO_RUTA_D&quot;);&#xA;int idx = -1;&#xA;for (int i = 0; i &lt; lines.Count; i++) {&#xA;SAPbobsCOM.GeneralData ln = lines.Item(i);&#xA;string ov = Convert.ToString(ln.GetProperty(&quot;U_No_OV&quot;));&#xA;string tp = Convert.ToString(ln.GetProperty(&quot;U_Tipo_Documento&quot;));&#xA;bool okTipo = string.IsNullOrEmpty(Tipo) || string.Equals((tp ?? &quot;&quot;).Trim(), Tipo.Trim(), StringComparison.OrdinalIgnoreCase);&#xA;if (ov != null &amp;&amp; ov.Trim() == OV.Trim() &amp;&amp; okTipo) { idx = i; break; }&#xA;}&#xA;if (idx &lt; 0) { strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;La linea ya no estaba&quot;; }&#xA;else if (lines.Count &lt;= 1) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;No se quita: dejaria el cuadro sin lineas&quot;; }&#xA;else { lines.Remove(idx); gs.Update(gd); strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;&quot;; }&#xA;}&#xA;} catch (Exception ex) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Catch: &quot; + ex.Message; }">
                 <ui:InvokeCode.Arguments>
                   <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany">
-                    <mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference>
+                    [ocompany]
                   </InOutArgument>
                   <InArgument x:TypeArguments="x:Int32" x:Key="DocEntry">
-                    <mca:CSharpValue x:TypeArguments="x:Int32">Convert.ToInt32(ch[&quot;CuadroDocEntry&quot;])</mca:CSharpValue>
+                    [Convert.ToInt32(ch("CuadroDocEntry"))]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="OV">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;OV_Number&quot;].ToString()</mca:CSharpValue>
+                    [ch("OV_Number").ToString()]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Tipo">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;DocType&quot;] == null ? &quot;&quot; : ch[&quot;DocType&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("DocType") Is Nothing, "", ch("DocType").ToString())]
                   </InArgument>
                   <OutArgument x:TypeArguments="x:String" x:Key="strOutCode">
-                    <mca:CSharpReference x:TypeArguments="x:String">strOutCode</mca:CSharpReference>
+                    [strOutCode]
                   </OutArgument>
                   <OutArgument x:TypeArguments="x:String" x:Key="strErrMsg">
-                    <mca:CSharpReference x:TypeArguments="x:String">strErrMsg</mca:CSharpReference>
+                    [strErrMsg]
                   </OutArgument>
                 </ui:InvokeCode.Arguments>
               </ui:InvokeCode>
@@ -314,40 +314,40 @@
               <ui:InvokeCode x:Key="ADD" DisplayName="Aplicar ADD (agregar línea al UDO)" Language="CSharp" Code="try {&#xA;SAPbobsCOM.GeneralService gs = ocompany.GetCompanyService().GetGeneralService(&quot;Cuadro_ruta&quot;);&#xA;SAPbobsCOM.GeneralDataParams prm = (SAPbobsCOM.GeneralDataParams)gs.GetDataInterface(SAPbobsCOM.GeneralServiceDataInterfaces.gsGeneralDataParams);&#xA;prm.SetProperty(&quot;DocEntry&quot;, DocEntry);&#xA;SAPbobsCOM.GeneralData gd = gs.GetByParams(prm);&#xA;if (gd == null) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Cuadro no encontrado DocEntry &quot; + DocEntry; }&#xA;else {&#xA;SAPbobsCOM.GeneralDataCollection lines = gd.Child(&quot;CUADRO_RUTA_D&quot;);&#xA;bool existe = false;&#xA;for (int i = 0; i &lt; lines.Count; i++) {&#xA;SAPbobsCOM.GeneralData ln = lines.Item(i);&#xA;string ov = Convert.ToString(ln.GetProperty(&quot;U_No_OV&quot;));&#xA;string tp = Convert.ToString(ln.GetProperty(&quot;U_Tipo_Documento&quot;));&#xA;if (ov != null &amp;&amp; ov.Trim() == OV.Trim() &amp;&amp; string.Equals((tp ?? &quot;&quot;).Trim(), Tipo.Trim(), StringComparison.OrdinalIgnoreCase)) { existe = true; break; }&#xA;}&#xA;if (existe) { strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;La linea ya estaba&quot;; }&#xA;else {&#xA;SAPbobsCOM.GeneralData nl = lines.Add();&#xA;nl.SetProperty(&quot;U_No_OV&quot;, OV);&#xA;nl.SetProperty(&quot;U_Tipo_Documento&quot;, Tipo);&#xA;if (!string.IsNullOrEmpty(CodCliente)) nl.SetProperty(&quot;U_Codigo_Cliente&quot;, CodCliente);&#xA;if (!string.IsNullOrEmpty(Direccion)) nl.SetProperty(&quot;U_Direccion&quot;, Direccion);&#xA;if (!string.IsNullOrEmpty(Asesor)) nl.SetProperty(&quot;U_Asesor&quot;, Asesor);&#xA;if (!string.IsNullOrEmpty(Comentario)) nl.SetProperty(&quot;U_Comentarios&quot;, Comentario);&#xA;if (!string.IsNullOrEmpty(Centro)) nl.SetProperty(&quot;U_Centro_Costo&quot;, Centro);&#xA;double pesoNum;&#xA;if (double.TryParse(Peso, out pesoNum)) nl.SetProperty(&quot;U_Peso_1&quot;, Math.Round((decimal)pesoNum, 2).ToString(&quot;F2&quot;));&#xA;gs.Update(gd);&#xA;strOutCode = &quot;SUCCESS&quot;; strErrMsg = &quot;&quot;;&#xA;}&#xA;}&#xA;} catch (Exception ex) { strOutCode = &quot;ERROR&quot;; strErrMsg = &quot;Catch: &quot; + ex.Message; }">
                 <ui:InvokeCode.Arguments>
                   <InOutArgument x:TypeArguments="s1:Company" x:Key="ocompany">
-                    <mca:CSharpReference x:TypeArguments="s1:Company">ocompany</mca:CSharpReference>
+                    [ocompany]
                   </InOutArgument>
                   <InArgument x:TypeArguments="x:Int32" x:Key="DocEntry">
-                    <mca:CSharpValue x:TypeArguments="x:Int32">Convert.ToInt32(ch[&quot;CuadroDocEntry&quot;])</mca:CSharpValue>
+                    [Convert.ToInt32(ch("CuadroDocEntry"))]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="OV">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;OV_Number&quot;].ToString()</mca:CSharpValue>
+                    [ch("OV_Number").ToString()]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Tipo">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;DocType&quot;] == null ? &quot;&quot; : ch[&quot;DocType&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("DocType") Is Nothing, "", ch("DocType").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="CodCliente">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;LineaCodigoCliente&quot;] == null ? &quot;&quot; : ch[&quot;LineaCodigoCliente&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("LineaCodigoCliente") Is Nothing, "", ch("LineaCodigoCliente").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Direccion">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;LineaDireccion&quot;] == null ? &quot;&quot; : ch[&quot;LineaDireccion&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("LineaDireccion") Is Nothing, "", ch("LineaDireccion").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Asesor">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;LineaAsesor&quot;] == null ? &quot;&quot; : ch[&quot;LineaAsesor&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("LineaAsesor") Is Nothing, "", ch("LineaAsesor").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Comentario">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;LineaComentario&quot;] == null ? &quot;&quot; : ch[&quot;LineaComentario&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("LineaComentario") Is Nothing, "", ch("LineaComentario").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Centro">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;LineaCentroCosto&quot;] == null ? &quot;&quot; : ch[&quot;LineaCentroCosto&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("LineaCentroCosto") Is Nothing, "", ch("LineaCentroCosto").ToString())]
                   </InArgument>
                   <InArgument x:TypeArguments="x:String" x:Key="Peso">
-                    <mca:CSharpValue x:TypeArguments="x:String">ch[&quot;LineaPeso&quot;] == null ? &quot;&quot; : ch[&quot;LineaPeso&quot;].ToString()</mca:CSharpValue>
+                    [If(ch("LineaPeso") Is Nothing, "", ch("LineaPeso").ToString())]
                   </InArgument>
                   <OutArgument x:TypeArguments="x:String" x:Key="strOutCode">
-                    <mca:CSharpReference x:TypeArguments="x:String">strOutCode</mca:CSharpReference>
+                    [strOutCode]
                   </OutArgument>
                   <OutArgument x:TypeArguments="x:String" x:Key="strErrMsg">
-                    <mca:CSharpReference x:TypeArguments="x:String">strErrMsg</mca:CSharpReference>
+                    [strErrMsg]
                   </OutArgument>
                 </ui:InvokeCode.Arguments>
               </ui:InvokeCode>
@@ -357,14 +357,14 @@
             <If DisplayName="Marcar resultado">
               <If.Condition>
                 <InArgument x:TypeArguments="x:Boolean">
-                  <mca:CSharpValue x:TypeArguments="x:Boolean">strOutCode == &quot;SUCCESS&quot;</mca:CSharpValue>
+                  [strOutCode = "SUCCESS"]
                 </InArgument>
               </If.Condition>
               <If.Then>
                 <ui:ExecuteNonQuery CommandType="Text" DisplayName="Marcar confirmado">
                   <ui:ExecuteNonQuery.ExistingDbConnection>
                     <InArgument x:TypeArguments="ui:DatabaseConnection">
-                      <mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue>
+                      [dbApp]
                     </InArgument>
                   </ui:ExecuteNonQuery.ExistingDbConnection>
                   <ui:ExecuteNonQuery.Parameters>
@@ -372,7 +372,7 @@
                   </ui:ExecuteNonQuery.Parameters>
                   <ui:ExecuteNonQuery.Sql>
                     <InArgument x:TypeArguments="x:String">
-                      <mca:CSharpValue x:TypeArguments="x:String" xml:space="preserve">"UPDATE dbo.CuadroEdicionCola SET Estado='confirmado', FechaSync=GETDATE() WHERE ID_Edicion=" + ch["ID_Edicion"].ToString()</mca:CSharpValue>
+                      ["UPDATE dbo.CuadroEdicionCola SET Estado='confirmado', FechaSync=GETDATE() WHERE ID_Edicion=" &amp; ch("ID_Edicion").ToString()]
                     </InArgument>
                   </ui:ExecuteNonQuery.Sql>
                 </ui:ExecuteNonQuery>
@@ -381,14 +381,14 @@
                 <If DisplayName="¿Error?">
                   <If.Condition>
                     <InArgument x:TypeArguments="x:Boolean">
-                      <mca:CSharpValue x:TypeArguments="x:Boolean">strOutCode == &quot;ERROR&quot;</mca:CSharpValue>
+                      [strOutCode = "ERROR"]
                     </InArgument>
                   </If.Condition>
                   <If.Then>
                     <ui:ExecuteNonQuery CommandType="Text" DisplayName="Marcar error">
                       <ui:ExecuteNonQuery.ExistingDbConnection>
                         <InArgument x:TypeArguments="ui:DatabaseConnection">
-                          <mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue>
+                          [dbApp]
                         </InArgument>
                       </ui:ExecuteNonQuery.ExistingDbConnection>
                       <ui:ExecuteNonQuery.Parameters>
@@ -396,7 +396,7 @@
                       </ui:ExecuteNonQuery.Parameters>
                       <ui:ExecuteNonQuery.Sql>
                         <InArgument x:TypeArguments="x:String">
-                          <mca:CSharpValue x:TypeArguments="x:String" xml:space="preserve">"UPDATE dbo.CuadroEdicionCola SET Estado='error', Error='" + strErrMsg.Replace("'","''") + "', Intentos=Intentos+1 WHERE ID_Edicion=" + ch["ID_Edicion"].ToString()</mca:CSharpValue>
+                          ["UPDATE dbo.CuadroEdicionCola SET Estado='error', Error='" &amp; strErrMsg.Replace("'","''") &amp; "', Intentos=Intentos+1 WHERE ID_Edicion=" &amp; ch("ID_Edicion").ToString()]
                         </InArgument>
                       </ui:ExecuteNonQuery.Sql>
                     </ui:ExecuteNonQuery>
@@ -413,17 +413,11 @@
     <ui:InvokeCode DisplayName="Desconectarse SAP" Language="CSharp" Code="if (ocompany != null &amp;&amp; ocompany.Connected) ocompany.Disconnect();">
       <ui:InvokeCode.Arguments>
         <InArgument x:TypeArguments="s1:Company" x:Key="ocompany">
-          <mca:CSharpValue x:TypeArguments="s1:Company">ocompany</mca:CSharpValue>
+          [ocompany]
         </InArgument>
       </ui:InvokeCode.Arguments>
     </ui:InvokeCode>
 
-    <ui:DatabaseDisconnect DisplayName="Desconectar SQL">
-      <ui:DatabaseDisconnect.DbConnection>
-        <InArgument x:TypeArguments="ui:DatabaseConnection">
-          <mca:CSharpValue x:TypeArguments="ui:DatabaseConnection">dbApp</mca:CSharpValue>
-        </InArgument>
-      </ui:DatabaseDisconnect.DbConnection>
-    </ui:DatabaseDisconnect>
+    <ui:DatabaseDisconnect DisplayName="Desconectar SQL" DatabaseConnection="[dbApp]" />
   </Sequence>
 </Activity>

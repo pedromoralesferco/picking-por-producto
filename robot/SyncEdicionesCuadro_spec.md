@@ -3,6 +3,15 @@
 Un solo `.xaml`. Barre el outbox del app, aplica en SAP por DI-API y marca el resultado.
 Implementa **CREATE (complementos) → PLACA → REMOVE → ADD** en el Switch.
 
+## Convenciones (alineadas a los robots existentes: PAG, CIF Grupo Barro)
+- **Proyecto VisualBasic** (Windows-Legacy, .NET Framework 4.6.1). Las expresiones del
+  workflow van en VB `[corchetes]`; los `InvokeCode` van en **C#** (`Language="CSharp"`),
+  igual que en los robots del CIF/PAG.
+- **DatabaseConnect/Disconnect**: `ProviderName="Microsoft.Data.SqlClient"`; el Disconnect usa
+  la propiedad **`DatabaseConnection`** (no `ExistingDbConnection`/`DbConnection`).
+  Connection string estilo `Data Source=...;Initial Catalog=...;User ID=...;Password=...;Encrypt=False`.
+- Referencia **Interop.SAPbobsCOM** (DLL de SAP DI-API), como en el robot del CIF.
+
 ## Despliegue: solo `.xaml` + `Config.xlsx`
 No hay build step. El robot **lee `SyncEdicionesCuadro.Config.xlsx` en runtime** (hoja `Config`,
 columnas `Clave | Valor`) parseando el OpenXML directo — **no requiere Excel instalado** ni
