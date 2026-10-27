@@ -407,21 +407,31 @@
                     </InArgument>
                   </If.Condition>
                   <If.Then>
-                    <ui:ExecuteNonQuery CommandType="Text" DisplayName="Marcar error">
-                      <ui:ExecuteNonQuery.ExistingDbConnection>
-                        <InArgument x:TypeArguments="ui:DatabaseConnection">
-                          [dbApp]
-                        </InArgument>
-                      </ui:ExecuteNonQuery.ExistingDbConnection>
-                      <ui:ExecuteNonQuery.Parameters>
-                        <scg:Dictionary x:TypeArguments="x:String, Argument" />
-                      </ui:ExecuteNonQuery.Parameters>
-                      <ui:ExecuteNonQuery.Sql>
-                        <InArgument x:TypeArguments="x:String">
-                          ["UPDATE dbo.CuadroEdicionCola SET Estado='error', Error='" &amp; strErrMsg.Replace("'","''") &amp; "', Intentos=Intentos+1 WHERE ID_Edicion=" &amp; ch("ID_Edicion").ToString()]
-                        </InArgument>
-                      </ui:ExecuteNonQuery.Sql>
-                    </ui:ExecuteNonQuery>
+<If DisplayName="¿Cuadro liquidado?">
+                      <If.Condition><InArgument x:TypeArguments="x:Boolean">[strErrMsg.ToUpper().Contains("LIQUIDADO") OrElse strErrMsg.Contains("CR-1011")]</InArgument></If.Condition>
+                      <If.Then>
+                        <ui:ExecuteNonQuery CommandType="Text" DisplayName="Descartar liquidado">
+                          <ui:ExecuteNonQuery.ExistingDbConnection>
+                            <InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument>
+                          </ui:ExecuteNonQuery.ExistingDbConnection>
+                          <ui:ExecuteNonQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteNonQuery.Parameters>
+                          <ui:ExecuteNonQuery.Sql>
+                            <InArgument x:TypeArguments="x:String">["UPDATE dbo.CuadroEdicionCola SET Estado='confirmado', Error='Descartado: cuadro liquidado (04)', FechaSync=GETDATE() WHERE ID_Edicion=" &amp; ch("ID_Edicion").ToString()]</InArgument>
+                          </ui:ExecuteNonQuery.Sql>
+                        </ui:ExecuteNonQuery>
+                      </If.Then>
+                      <If.Else>
+                        <ui:ExecuteNonQuery CommandType="Text" DisplayName="Marcar error">
+                          <ui:ExecuteNonQuery.ExistingDbConnection>
+                            <InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument>
+                          </ui:ExecuteNonQuery.ExistingDbConnection>
+                          <ui:ExecuteNonQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteNonQuery.Parameters>
+                          <ui:ExecuteNonQuery.Sql>
+                            <InArgument x:TypeArguments="x:String">["UPDATE dbo.CuadroEdicionCola SET Estado='error', Error='" &amp; strErrMsg.Replace("'","''") &amp; "', Intentos=Intentos+1 WHERE ID_Edicion=" &amp; ch("ID_Edicion").ToString()]</InArgument>
+                          </ui:ExecuteNonQuery.Sql>
+                        </ui:ExecuteNonQuery>
+                      </If.Else>
+                    </If>
                   </If.Then>
                 </If>
               </If.Else>
