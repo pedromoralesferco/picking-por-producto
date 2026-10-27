@@ -29,7 +29,6 @@
       <AssemblyReference>System.Xml.Linq</AssemblyReference>
       <AssemblyReference>System.IO.Compression</AssemblyReference>
       <AssemblyReference>System.IO.Compression.FileSystem</AssemblyReference>
-      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
 
@@ -46,10 +45,6 @@
       <Variable x:TypeArguments="x:String" Name="sapServer" />
       <Variable x:TypeArguments="x:String" Name="sapDb" />
       <Variable x:TypeArguments="x:String" Name="strConn" />
-      <Variable x:TypeArguments="sd:DataTable" Name="dtResumen" />
-      <Variable x:TypeArguments="sd:DataTable" Name="dtErr" />
-      <Variable x:TypeArguments="x:String" Name="strBody" />
-      <Variable x:TypeArguments="x:String" Name="strSubject" />
       <Variable x:TypeArguments="ui:DatabaseConnection" Name="dbApp" />
       <Variable x:TypeArguments="sd:DataTable" Name="dtPend" />
       <Variable x:TypeArguments="sd:DataTable" Name="dtCreate" />
@@ -436,33 +431,6 @@
       </ui:ForEachRow.Body>
     </ui:ForEachRow>
 
-    <!-- 7) Informe por correo -->
-    <ui:ExecuteQuery CommandType="Text" DisplayName="Resumen outbox" Sql="[&quot;SELECT Estado, Accion, COUNT(*) AS n FROM dbo.CuadroEdicionCola GROUP BY Estado, Accion ORDER BY Estado, Accion&quot;]">
-      <ui:ExecuteQuery.DataTable><OutArgument x:TypeArguments="sd:DataTable">[dtResumen]</OutArgument></ui:ExecuteQuery.DataTable>
-      <ui:ExecuteQuery.ExistingDbConnection><InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument></ui:ExecuteQuery.ExistingDbConnection>
-      <ui:ExecuteQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteQuery.Parameters>
-    </ui:ExecuteQuery>
-    <ui:ExecuteQuery CommandType="Text" DisplayName="Errores outbox" Sql="[&quot;SELECT TOP 100 ID_Edicion, Accion, RouteNumber, LEFT(ISNULL(Error,&apos;&apos;),250) AS Error FROM dbo.CuadroEdicionCola WHERE Estado=&apos;error&apos; ORDER BY ID_Edicion&quot;]">
-      <ui:ExecuteQuery.DataTable><OutArgument x:TypeArguments="sd:DataTable">[dtErr]</OutArgument></ui:ExecuteQuery.DataTable>
-      <ui:ExecuteQuery.ExistingDbConnection><InArgument x:TypeArguments="ui:DatabaseConnection">[dbApp]</InArgument></ui:ExecuteQuery.ExistingDbConnection>
-      <ui:ExecuteQuery.Parameters><scg:Dictionary x:TypeArguments="x:String, Argument" /></ui:ExecuteQuery.Parameters>
-    </ui:ExecuteQuery>
-    <ui:InvokeCode DisplayName="Armar correo" Language="CSharp" Code="try {&#xA;var sb = new System.Text.StringBuilder();&#xA;int tOk=0, tErr=0, tPend=0;&#xA;foreach (System.Data.DataRow r in dtResumen.Rows) {&#xA;string est = Convert.ToString(r[&quot;Estado&quot;]); int n = Convert.ToInt32(r[&quot;n&quot;]);&#xA;if (est==&quot;cerrado&quot;||est==&quot;confirmado&quot;) tOk+=n; else if (est==&quot;error&quot;) tErr+=n; else tPend+=n;&#xA;}&#xA;sb.Append(&quot;&lt;h3&gt;Sync Cuadros de Ruta&lt;/h3&gt;&quot;);&#xA;sb.Append(&quot;&lt;p&gt;Fecha: &quot; + DateTime.Now.ToString(&quot;dd/MM/yyyy HH:mm&quot;) + &quot;&lt;/p&gt;&quot;);&#xA;sb.Append(&quot;&lt;p&gt;&lt;b&gt;Aplicados: &quot; + tOk + &quot; | Errores: &quot; + tErr + &quot; | Pendientes: &quot; + tPend + &quot;&lt;/b&gt;&lt;/p&gt;&quot;);&#xA;sb.Append(&quot;&lt;table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse'&gt;&lt;tr&gt;&lt;th&gt;Estado&lt;/th&gt;&lt;th&gt;Accion&lt;/th&gt;&lt;th&gt;N&lt;/th&gt;&lt;/tr&gt;&quot;);&#xA;foreach (System.Data.DataRow r in dtResumen.Rows) {&#xA;sb.Append(&quot;&lt;tr&gt;&lt;td&gt;&quot; + Convert.ToString(r[&quot;Estado&quot;]) + &quot;&lt;/td&gt;&lt;td&gt;&quot; + Convert.ToString(r[&quot;Accion&quot;]) + &quot;&lt;/td&gt;&lt;td align='right'&gt;&quot; + Convert.ToString(r[&quot;n&quot;]) + &quot;&lt;/td&gt;&lt;/tr&gt;&quot;);&#xA;}&#xA;sb.Append(&quot;&lt;/table&gt;&quot;);&#xA;if (dtErr != null &amp;&amp; dtErr.Rows.Count &gt; 0) {&#xA;sb.Append(&quot;&lt;h4&gt;Errores (&quot; + dtErr.Rows.Count + &quot;)&lt;/h4&gt;&quot;);&#xA;sb.Append(&quot;&lt;table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse'&gt;&lt;tr&gt;&lt;th&gt;ID&lt;/th&gt;&lt;th&gt;Accion&lt;/th&gt;&lt;th&gt;Cuadro&lt;/th&gt;&lt;th&gt;Error&lt;/th&gt;&lt;/tr&gt;&quot;);&#xA;foreach (System.Data.DataRow r in dtErr.Rows) {&#xA;string em = Convert.ToString(r[&quot;Error&quot;]).Replace(&quot;&lt;&quot;,&quot;&amp;lt;&quot;).Replace(&quot;&gt;&quot;,&quot;&amp;gt;&quot;);&#xA;sb.Append(&quot;&lt;tr&gt;&lt;td&gt;&quot; + Convert.ToString(r[&quot;ID_Edicion&quot;]) + &quot;&lt;/td&gt;&lt;td&gt;&quot; + Convert.ToString(r[&quot;Accion&quot;]) + &quot;&lt;/td&gt;&lt;td&gt;&quot; + Convert.ToString(r[&quot;RouteNumber&quot;]) + &quot;&lt;/td&gt;&lt;td&gt;&quot; + em + &quot;&lt;/td&gt;&lt;/tr&gt;&quot;);&#xA;}&#xA;sb.Append(&quot;&lt;/table&gt;&quot;);&#xA;} else { sb.Append(&quot;&lt;p&gt;Sin errores.&lt;/p&gt;&quot;); }&#xA;strBody = sb.ToString();&#xA;strSubject = &quot;Sync Cuadros de Ruta &quot; + DateTime.Now.ToString(&quot;dd/MM/yyyy HH:mm&quot;) + &quot; - Aplicados:&quot; + tOk + &quot; Errores:&quot; + tErr + &quot; Pendientes:&quot; + tPend;&#xA;} catch (Exception ex) { strBody = &quot;Error armando informe: &quot; + ex.Message; strSubject = &quot;Sync Cuadros de Ruta - error informe&quot;; }">
-      <ui:InvokeCode.Arguments>
-        <InArgument x:TypeArguments="sd:DataTable" x:Key="dtResumen">[dtResumen]</InArgument>
-        <InArgument x:TypeArguments="sd:DataTable" x:Key="dtErr">[dtErr]</InArgument>
-        <OutArgument x:TypeArguments="x:String" x:Key="strBody">[strBody]</OutArgument>
-        <OutArgument x:TypeArguments="x:String" x:Key="strSubject">[strSubject]</OutArgument>
-      </ui:InvokeCode.Arguments>
-    </ui:InvokeCode>
-    <If DisplayName="SMTP configurado?">
-      <If.Condition><InArgument x:TypeArguments="x:Boolean">[cfg.ContainsKey("SMTP_SERVER") AndAlso cfg("SMTP_SERVER") &lt;&gt; ""]</InArgument></If.Condition>
-      <If.Then>
-        <ui:SendMail ContinueOnError="True" Body="[strBody]" DisplayName="Enviar informe" EnableSSL="True" Email="[If(cfg.ContainsKey(&quot;SMTP_USER&quot;), cfg(&quot;SMTP_USER&quot;), &quot;&quot;)]" IsBodyHtml="True" Port="[Convert.ToInt32(If(cfg.ContainsKey(&quot;SMTP_PORT&quot;), cfg(&quot;SMTP_PORT&quot;), &quot;587&quot;))]" Password="[If(cfg.ContainsKey(&quot;SMTP_PASS&quot;), cfg(&quot;SMTP_PASS&quot;), &quot;&quot;)]" SecureConnection="Auto" Server="[cfg(&quot;SMTP_SERVER&quot;)]" Subject="[strSubject]" To="[If(cfg.ContainsKey(&quot;MAIL_TO&quot;), cfg(&quot;MAIL_TO&quot;), &quot;pedro.morales@ferco.com.gt&quot;)]">
-          <ui:SendMail.Files><scg:List x:TypeArguments="InArgument(x:String)" Capacity="0" /></ui:SendMail.Files>
-        </ui:SendMail>
-      </If.Then>
-    </If>
     <ui:LogMessage DisplayName="log fin" Level="Info" Message="[&quot;SyncEdicionesCuadro FIN&quot;]" />
 
     <!-- 6) Desconectar -->
