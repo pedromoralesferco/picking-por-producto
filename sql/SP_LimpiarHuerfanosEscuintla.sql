@@ -53,6 +53,10 @@ BEGIN
     FROM dbo.OrderRoutePlan orp
     WHERE orp.ID_Centro = 3 AND orp.Pais = 'GT'
       AND orp.EstadoDespacho <> 'Finalizado'
+      -- No tocar complementos que aún no se crean en SAP (RouteNumber provisional
+      -- negativo, o pendientes del sync): no son huérfanos, solo no sincronizados.
+      AND orp.RouteNumber > 0
+      AND NOT (ISNULL(orp.EsComplemento, 0) = 1 AND ISNULL(orp.CreacionPendienteSync, 0) = 1)
       AND NOT EXISTS (SELECT 1 FROM #vivos v WHERE v.RouteNumber = orp.RouteNumber);
 
     DROP TABLE #vivos;
