@@ -717,8 +717,9 @@ router.get('/despacho/rutas', async (req, res) => {
                 FROM RoutePickingManagement
                 GROUP BY RouteNumber
             ) rpm ON rpm.RouteNumber = rp.RouteNumber
-            WHERE rp.ID_Carril IS NOT NULL
-              AND (
+            -- Sin requisito de carril: cuadros que nacen completos (directas,
+            -- complementos, paqueteria) no reciben carril y antes no salian aqui.
+            WHERE (
                   (rp.Estado IN ('Iniciado', 'Finalizado') AND rp.EstadoDespacho IN ('Pendiente', 'Listo para Carga'))
                   OR (rp.EstadoDespacho = 'Finalizado' AND rp.FechaDespachoFin > DATEADD(MINUTE, -2, GETDATE()))
               )

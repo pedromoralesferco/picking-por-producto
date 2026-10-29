@@ -720,8 +720,9 @@ router.get('/despacho/rutas', async (req, res) => {
                 FROM OrderPickingManagement
                 GROUP BY ID_RoutePlan
             ) opm ON opm.ID_RoutePlan = orp.ID_RoutePlan
-            WHERE orp.ID_Carril IS NOT NULL
-              AND (
+            -- Sin requisito de carril: cuadros que nacen completos (directas,
+            -- complementos, paqueteria) no reciben carril y antes no salian aqui.
+            WHERE (
                   (orp.Estado IN ('Iniciado', 'Finalizado') AND orp.EstadoDespacho IN ('Pendiente', 'Listo para Carga'))
                   OR (orp.EstadoDespacho = 'Finalizado' AND orp.FechaDespachoFin > DATEADD(MINUTE, -2, GETDATE()))
               )
