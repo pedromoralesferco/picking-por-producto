@@ -429,6 +429,124 @@ router.get('/plan-despachos/buscar', requireReportes, async (req, res) => {
     }
 });
 
+// GET /api/reportes/plan-despachos/buscar-cliente?q= — todas las OV/TR de un cliente
+// en el centro, con su cuadro. Usa OPM.ClienteNombre (persistido en la ingesta); no SAP.
+router.get('/plan-despachos/buscar-cliente', requireReportes, async (req, res) => {
+    try {
+        const u = req.session.user;
+        const centro = u.selectedCentro;
+        const modo = u.selectedModo || (['SV', 'HN'].includes(u.selectedPais) ? 'order' : 'product');
+        if (!centro) return res.status(400).json({ error: 'Seleccioná un centro primero' });
+        const q = String(req.query.q || '').trim();
+        if (q.length < 2) return res.json({ q, resultados: [] });
+        // El filtro por cliente aplica a modo pedido (OPM tiene ClienteNombre).
+        if (modo !== 'order') return res.json({ q, resultados: [], nota: 'Filtro por cliente disponible en modo pedido.' });
+        const pool = getPool();
+        const rows = (await pool.request().input('centro', sql.Int, centro).input('q', sql.NVarChar(150), '%' + q + '%').query(`
+            SELECT orp.RouteNumber AS Cuadro, orp.RouteName AS Ruta, orp.Estado AS EstadoPicking,
+                   orp.EstadoDespacho, orp.FechaDespachoFin AS FechaDespacho,
+                   opm.OV_Number AS OV, opm.DocType, opm.ClienteNombre AS Cliente
+            FROM OrderPickingManagement opm
+            INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+            WHERE orp.ID_Centro = @centro AND opm.NoDespachada = 0
+              AND opm.ClienteNombre COLLATE DATABASE_DEFAULT LIKE @q COLLATE DATABASE_DEFAULT
+            ORDER BY opm.ClienteNombre, orp.RouteNumber, opm.OV_Number
+        `)).recordset;
+        res.json({ q, resultados: rows });
+    } catch (err) {
+        console.error('GET /api/reportes/plan-despachos/buscar-cliente error:', err);
+        res.status(500).json({ error: 'Error en la búsqueda por cliente' });
+    }
+});
+
+// GET /api/reportes/plan-despachos/export — Excel (.xlsx) de cuadros pendientes:
+// hoja "Programados" (con FechaPlanDespacho) y "Listos para programar" (sin fecha).
+router.get('/plan-despachos/export', requireReportes, async (req, res) => {
+    try {
+        const u = req.session.user;
+        const centro = u.selectedCentro;
+        const pais = u.selectedPais || 'GT';
+        const modo = u.selectedModo || (['SV', 'HN'].includes(pais) ? 'order' : 'product');
+        if (!centro) return res.status(400).json({ error: 'Seleccioná un centro primero' });
+        if (modo !== 'order') return res.status(400).json({ error: 'Export disponible en modo pedido.' });
+
+        let ExcelJS;
+        try { ExcelJS = require('exceljs'); }
+        catch (e) { return res.status(500).json({ error: 'Falta la librería exceljs en el servidor. Corré npm install exceljs y reiniciá (pm2 restart picking).' }); }
+
+        const pool = getPool();
+        const rows = (await pool.request().input('centro', sql.Int, centro).input('pais', sql.NVarChar(10), pais).query(`
+            ;WITH av AS (
+                SELECT RouteNumber, SUM(Cant * UW) AS PesoTot FROM (
+                    SELECT t.RouteNumber, t.ID_OrderPicking, t.InternIdProduct,
+                           MAX(ISNULL(t.Cantidad,0)) AS Cant, MAX(ISNULL(t.UnitWeight,0)) AS UW
+                    FROM OrderPickingTask t
+                    INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
+                    WHERE t.ID_Centro = @centro AND opm.NoDespachada = 0
+                    GROUP BY t.RouteNumber, t.ID_OrderPicking, t.InternIdProduct
+                ) p GROUP BY RouteNumber
+            )
+            SELECT orp.RouteNumber, orp.RouteName, orp.Prioridad, orp.FechaPlanDespacho,
+                   ISNULL(orp.Comprometida,0) AS Comprometida, orp.Estado AS EstadoPicking,
+                   CASE WHEN ISNULL(orp.PesoEstimado,0) > 0 THEN orp.PesoEstimado ELSE ISNULL(av.PesoTot,0) END AS PesoKg
+            FROM OrderRoutePlan orp
+            LEFT JOIN av ON av.RouteNumber = orp.RouteNumber
+            WHERE orp.ID_Centro = @centro AND orp.Pais = @pais
+              AND orp.Estado <> 'Finalizado'
+              AND ISNULL(orp.EstadoDespacho,'') <> 'Finalizado'
+            ORDER BY CASE WHEN orp.FechaPlanDespacho IS NULL THEN 1 ELSE 0 END,
+                     orp.FechaPlanDespacho, ISNULL(orp.Prioridad, 999999), orp.RouteNumber
+        `)).recordset;
+
+        const fmtFecha = d => d ? new Date(d).toISOString().slice(0, 10) : '';
+        const programados = rows.filter(r => r.FechaPlanDespacho);
+        const listos = rows.filter(r => !r.FechaPlanDespacho);
+
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Picking por Producto';
+        wb.created = new Date();
+        const addSheet = (name, data, conFecha) => {
+            const ws = wb.addWorksheet(name);
+            const cols = [
+                { header: 'Cuadro', key: 'Cuadro', width: 10 },
+                { header: 'Ruta', key: 'Ruta', width: 42 },
+                { header: 'Prioridad', key: 'Prioridad', width: 10 },
+            ];
+            if (conFecha) cols.push({ header: 'Fecha Plan.', key: 'Fecha', width: 14 });
+            cols.push(
+                { header: 'Ton', key: 'Ton', width: 10 },
+                { header: 'Comprometida', key: 'Comprometida', width: 13 },
+                { header: 'Estado Picking', key: 'EstadoPicking', width: 16 },
+            );
+            ws.columns = cols;
+            ws.getRow(1).font = { bold: true };
+            ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+            ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            data.forEach(r => {
+                const row = {
+                    Cuadro: r.RouteNumber, Ruta: r.RouteName, Prioridad: r.Prioridad,
+                    Ton: Math.round((r.PesoKg || 0) / 100) / 10,
+                    Comprometida: r.Comprometida ? 'Sí' : '', EstadoPicking: r.EstadoPicking,
+                };
+                if (conFecha) row.Fecha = fmtFecha(r.FechaPlanDespacho);
+                ws.addRow(row);
+            });
+            ws.getColumn('Ton').numFmt = '#,##0.0';
+        };
+        addSheet('Programados', programados, true);
+        addSheet('Listos para programar', listos, false);
+
+        const hoy = new Date().toISOString().slice(0, 10);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="cuadros_${hoy}.xlsx"`);
+        await wb.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('GET /api/reportes/plan-despachos/export error:', err);
+        if (!res.headersSent) res.status(500).json({ error: 'Error al generar el Excel' });
+    }
+});
+
 // Acceso para definir fecha plan / repriorizar: permiso 'priorizacion' o Admin
 function requirePriorizar(req, res, next) {
     const u = req.session && req.session.user;

@@ -186,5 +186,9 @@ BEGIN
     );
 
     DROP TABLE #tmpOrderRouteData;
+
+    -- Nombre de cliente/destino desde SAP (best-effort; no rompe si el linked server falla).
+    IF OBJECT_ID('dbo.SP_FillClienteNombre') IS NOT NULL
+        EXEC dbo.SP_FillClienteNombre @ID_RoutePlan;
 END;
 GO

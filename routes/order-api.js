@@ -815,6 +815,7 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.NoDespachada,
                     opm.Pais,
                     opm.ID_Operario,
+                    opm.ClienteNombre,
                     o.Nombre AS OperarioNombre,
                     (SELECT COUNT(*) FROM OrderPickingTask
                      WHERE ID_OrderPicking = opm.ID_OrderPicking AND CantidadPendiente = 0) AS LineasFinalizadas
@@ -858,39 +859,15 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                 console.error('PaseGenerado (InventoryTransactionLog) no disponible:', e.message);
             }
 
-            // Nombre del cliente (OV) / destino (TR) desde SAP, para mostrarlo siempre
-            // en el detalle del cuadro. Resiliente: si el linked server falla, se omite.
-            try {
-                const pais = docs[0].Pais || 'GT';
-                const sapDb = getSapDb(pais);
-                const ovs = [...new Set(docs.filter(d => d.DocType === 'OV').map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
-                const trs = [...new Set(docs.filter(d => ['TR', 'RESURTIDO'].includes(d.DocType)).map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
-                const cliOV = {}, destTR = {};
-                if (ovs.length) {
-                    const r = await pool.request().query(`
-                        SELECT o.DocNum AS OV, MAX(c.CardName) AS Cliente
-                        FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
-                        LEFT JOIN [server-sql].[${sapDb}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode
-                        WHERE o.DocNum IN (${ovs.join(',')}) GROUP BY o.DocNum`);
-                    r.recordset.forEach(x => { cliOV[x.OV] = x.Cliente; });
-                }
-                if (trs.length) {
-                    const r = await pool.request().query(`
-                        SELECT q.DocNum AS TR, MAX(w.WhsName) AS Destino, MAX(q.ToWhsCode) AS ToWhs
-                        FROM [server-sql].[${sapDb}].dbo.OWTQ q WITH (NOLOCK)
-                        LEFT JOIN [server-sql].[${sapDb}].dbo.OWHS w WITH (NOLOCK) ON w.WhsCode = q.ToWhsCode
-                        WHERE q.DocNum IN (${trs.join(',')}) GROUP BY q.DocNum`);
-                    r.recordset.forEach(x => { destTR[x.TR] = x.Destino || (x.ToWhs ? ('Almacén ' + x.ToWhs) : null); });
-                }
-                docs.forEach(d => {
-                    const n = parseInt(d.OV_Number);
-                    d.Cliente = (d.DocType === 'OV')
-                        ? (cliOV[n] || '')
-                        : (['TR', 'RESURTIDO'].includes(d.DocType) ? ('Traslado → ' + (destTR[n] || 'destino s/d')) : '');
-                });
-            } catch (e) {
-                console.error('Cliente/Destino SAP no disponible:', e.message);
-            }
+            // Nombre del cliente (OV) / destino (TR) desde el valor ya persistido en la
+            // ingesta (OPM.ClienteNombre). No consulta SAP en runtime. Para TR se antepone
+            // "Traslado → " al nombre del destino guardado.
+            docs.forEach(d => {
+                const nombre = d.ClienteNombre || '';
+                d.Cliente = (['TR', 'RESURTIDO'].includes(d.DocType) && nombre)
+                    ? ('Traslado → ' + nombre)
+                    : nombre;
+            });
         }
         res.json(docs);
     } catch (err) {

@@ -237,6 +237,10 @@ BEGIN
 
     DROP TABLE #src;
 
+    -- Nombre de cliente/destino desde SAP (best-effort; no rompe si el linked server falla).
+    IF OBJECT_ID('dbo.SP_FillClienteNombre') IS NOT NULL
+        EXEC dbo.SP_FillClienteNombre @ID_RoutePlan;
+
     IF @EmitResult = 1
         SELECT @addPed AS PedidosAgregados, @addTask AS LineasAgregadas,
                @delTask AS LineasEliminadas, @delPed AS PedidosEliminados;

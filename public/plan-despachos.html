@@ -148,6 +148,7 @@
                     <button data-v="operativa" class="active" onclick="setVista('operativa')">Operativa</button>
                     <button data-v="comercial" onclick="setVista('comercial')">Comercial</button>
                 </div>
+                <button class="btn-print" onclick="descargarExcel(this)"><i class="bi bi-file-earmark-excel"></i> Descargar Excel</button>
                 <button class="btn-print" onclick="imprimir(this)"><i class="bi bi-printer"></i> Imprimir / PDF</button>
             </div>
         </div>
@@ -159,6 +160,15 @@
             <button onclick="buscarDoc()">Buscar</button>
             <span id="buscarResult" class="buscar-result"></span>
         </div>
+
+        <div class="buscador no-print">
+            <i class="bi bi-person"></i>
+            <input id="buscarClienteInput" type="search" placeholder="Buscar por cliente (todas sus OV)…"
+                   onkeydown="if(event.key==='Enter')buscarCliente()">
+            <button onclick="buscarCliente()">Buscar cliente</button>
+            <span id="buscarClienteResult" class="buscar-result"></span>
+        </div>
+        <div id="clienteResultsBox" class="no-print"></div>
 
         <div class="kpi-row" id="kpis"></div>
         <div class="refresh-note" id="refreshNote" style="margin-bottom:0.5rem"></div>
@@ -628,6 +638,82 @@
             } catch (e) {
                 out.textContent = 'Error en la búsqueda.';
             }
+        }
+
+        // Salta a un cuadro del tablero: abre su detalle, despliega su grupo y hace scroll.
+        function irACuadro(cuadro) {
+            if (!DATA) return;
+            const c = DATA.cuadros.find(cc => cc.Cuadro === cuadro);
+            if (c) {
+                openRows.add(c.Cuadro);
+                let gkey = null;
+                if (c.EstadoDespacho === 'Finalizado') gkey = 'desp:' + (c.FechaDespacho ? new Date(c.FechaDespacho).toDateString() : 'sin');
+                else if (c.EstadoPicking !== 'Finalizado') gkey = 'pend:' + (c.FechaPlanDespacho ? String(c.FechaPlanDespacho).slice(0, 10) : 'sin');
+                if (gkey) grupoAbierto[gkey] = true;
+                render();
+            }
+            const row = document.getElementById('row-cuadro-' + cuadro);
+            if (row) {
+                document.querySelectorAll('tr.cuadro-row.hl').forEach(e => e.classList.remove('hl'));
+                row.classList.add('hl');
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return !!c;
+        }
+
+        // Buscar todas las OV/TR de un cliente (usa ClienteNombre persistido; no SAP).
+        async function buscarCliente() {
+            const out = document.getElementById('buscarClienteResult');
+            const box = document.getElementById('clienteResultsBox');
+            const q = (document.getElementById('buscarClienteInput').value || '').trim();
+            box.innerHTML = '';
+            if (q.length < 2) { out.textContent = 'Escribí al menos 2 letras.'; return; }
+            out.textContent = 'Buscando…';
+            try {
+                const r = await (await fetch('/api/reportes/plan-despachos/buscar-cliente?q=' + encodeURIComponent(q))).json();
+                const res = r.resultados || [];
+                if (!res.length) { out.innerHTML = 'Sin OV para <b>' + esc(q) + '</b> en este centro.' + (r.nota ? ' <span style="color:#999">' + esc(r.nota) + '</span>' : ''); return; }
+                out.innerHTML = '<b>' + res.length + '</b> documento(s).';
+                // Agrupar por cliente
+                const porCliente = new Map();
+                res.forEach(x => { const k = x.Cliente || '(sin nombre)'; if (!porCliente.has(k)) porCliente.set(k, []); porCliente.get(k).push(x); });
+                let html = '<table style="margin-top:.4rem"><thead><tr><th>Cliente</th><th>Documento</th><th>Cuadro</th><th>Ruta</th><th>Estado</th></tr></thead><tbody>';
+                for (const [cli, docs] of porCliente) {
+                    docs.forEach((x, i) => {
+                        const enTablero = DATA && DATA.cuadros.some(cc => cc.Cuadro === x.Cuadro);
+                        const cuadroCell = enTablero
+                            ? `<a href="#" onclick="event.preventDefault();irACuadro(${x.Cuadro})"><b>${esc(x.Cuadro)}</b></a>`
+                            : `<span title="Fuera del tablero actual">${esc(x.Cuadro)}</span>`;
+                        html += `<tr>
+                            <td>${i === 0 ? esc(cli) : ''}</td>
+                            <td>${esc(x.DocType || '')} ${esc(x.OV)}</td>
+                            <td>${cuadroCell}</td>
+                            <td>${esc(x.Ruta || '')}</td>
+                            <td>${esc(seccionDe(x))}</td></tr>`;
+                    });
+                }
+                html += '</tbody></table>';
+                box.innerHTML = html;
+            } catch (e) {
+                out.textContent = 'Error en la búsqueda por cliente.';
+            }
+        }
+
+        // Descargar el Excel de cuadros programados / listos para programar.
+        async function descargarExcel(btn) {
+            const prev = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generando…';
+            try {
+                const r = await fetch('/api/reportes/plan-despachos/export');
+                if (!r.ok) { let m = 'No se pudo generar el Excel'; try { m = (await r.json()).error || m; } catch (e) {} alert(m); return; }
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'cuadros_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+                document.body.appendChild(a); a.click(); a.remove();
+                URL.revokeObjectURL(url);
+            } catch (e) { alert('Error al descargar el Excel'); }
+            finally { btn.disabled = false; btn.innerHTML = prev; }
         }
 
         // Guardar Fecha Planificada (permiso priorización, Escuintla)
