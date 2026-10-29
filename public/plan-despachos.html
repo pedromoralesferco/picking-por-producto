@@ -533,11 +533,12 @@
                 if (!docs.length) { box.innerHTML = '<div style="color:#999;font-size:0.75rem;padding:0.3rem">Sin documentos.</div>'; return; }
                 box.innerHTML = `
                     <table><thead><tr>
-                        <th>Documento</th><th>Tipo</th><th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Operario</th><th>Estado</th>
+                        <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th><th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Operario</th><th>Estado</th>
                     </tr></thead><tbody>
                     ${docs.map(d => `<tr${d.NoDespachada ? ' style="color:#8a6d3b"' : ''}>
                         <td><b>${esc(d.OV_Number)}</b></td>
                         <td>${esc(d.DocType || '')}</td>
+                        <td>${esc(d.Cliente || '—')}</td>
                         <td class="r">${num(d.TotalLineas ?? d.TotalProductos ?? '')}</td>
                         <td class="r">${num(d.TotalUnidades ?? '')}</td>
                         <td class="r">${d.NoDespachada ? '—' : num(Math.round(d.PesoTotal || 0))}</td>

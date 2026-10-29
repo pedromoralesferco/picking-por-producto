@@ -120,7 +120,9 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     FechaDespacho: r.FechaDespachoFin,
                     FechaPlanDespacho: r.FechaPlanDespacho,
                     Comprometida: !!r.Comprometida,
-                    PesoEstimadoKg: r.PesoEstimado,
+                    // Si no hay estimado (p.ej. complementos, que nacen sin PesoEstimado),
+                    // usar el peso real de las tareas movidas para no mostrar 0 TN.
+                    PesoEstimadoKg: (r.PesoEstimado > 0 ? r.PesoEstimado : (a.PesoTot || 0)),
                     // Tonelaje pendiente: remanente por pickear si ya inició; si no tiene
                     // tareas aún (cuadro Pendiente), es el estimado completo.
                     PesoPendienteKg: (a.PesoTot || 0) > 0 ? Math.max(0, (a.PesoTot || 0) - (a.PesoPick || 0)) : (r.PesoEstimado || 0),
@@ -179,7 +181,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     EstadoPicking: r.Estado, EstadoDespacho: r.EstadoDespacho,
                     FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
-                    PesoEstimadoKg: r.PesoEstimado,
+                    PesoEstimadoKg: (r.PesoEstimado > 0 ? r.PesoEstimado : (a.PesoTot || 0)),
                     PesoPendienteKg: (a.PesoTot || 0) > 0 ? Math.max(0, (a.PesoTot || 0) - (a.PesoPick || 0)) : (r.PesoEstimado || 0),
                     PesoTotalKg: (a.PesoTot || 0) > 0 ? (a.PesoTot || 0) : (r.PesoEstimado || 0),
                     PedidosTot: p.PedidosTot || 0, PedidosFin: p.PedidosFin || 0,

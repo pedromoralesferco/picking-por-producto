@@ -242,16 +242,22 @@ router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
         const out = { quitados: [], agregados: [], errores: [], complemento: null };
 
         // ── Destino de los quitados ──
-        let destinoRoutePlan = null, destinoRn = null, modoQuitar = 'eliminar';
+        let destinoRoutePlan = null, destinoRn = null, modoQuitar = 'eliminar', nombreComp = null;
         const esComplementoNuevo = destino === 'nuevo';
         if (quitar.length) {
             if (destino === 'nuevo') {
                 modoQuitar = 'mover';
                 const prov = await pool.request().query(`SELECT ISNULL(MIN(RouteNumber),0) - 1 AS Prov FROM dbo.OrderRoutePlan WHERE RouteNumber < 0`);
                 destinoRn = prov.recordset[0].Prov; // negativo provisional
+                // Nombre del complemento = nombre de la ruta original + " - COMP"
+                // (ej. "27 OCT SAC" -> "27 OCT SAC - COMP"). Tope 73 chars para no
+                // pasar el U_NombreR de SAP (75). Fallback al número si no hay nombre.
+                var baseName = (A.RouteName || ('COMP-' + rn)).trim();
+                if (baseName.length > 66) baseName = baseName.substring(0, 66).trim();
+                nombreComp = baseName + ' - COMP';
                 const ins = await pool.request()
                     .input('rn', sql.Int, destinoRn)
-                    .input('name', sql.NVarChar(200), 'COMP-' + rn)
+                    .input('name', sql.NVarChar(200), nombreComp)
                     .input('alm', sql.NVarChar(50), A.AlmacenOrigen)
                     .input('fp', sql.DateTime, A.FechaPlanificacion)
                     .input('fpd', sql.Date, A.FechaPlanDespacho)
@@ -302,7 +308,15 @@ router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
             // Complemento nuevo con al menos un doc movido → una sola orden CREATE.
             // El robot crea el cuadro completo en SAP y remapea el RouteNumber provisional.
             if (esComplementoNuevo && out.quitados.length) {
-                await encolar(pool, { rn: destinoRn, ambito: 'HEADER', accion: 'CREATE', payload: { nombre: 'COMP-' + rn, almacen: A.AlmacenOrigen, origen: rn }, autor });
+                await encolar(pool, { rn: destinoRn, ambito: 'HEADER', accion: 'CREATE', payload: { nombre: nombreComp, almacen: A.AlmacenOrigen, origen: rn }, autor });
+                // Conservar el peso: el complemento hereda el tonelaje de los docs movidos
+                // (su PesoTotal ya viene pickeado), para que no quede en 0 TN en el plan.
+                await pool.request().input('drp', sql.Int, destinoRoutePlan)
+                    .query(`UPDATE dbo.OrderRoutePlan
+                            SET PesoEstimado = ISNULL((SELECT SUM(ISNULL(opm.PesoTotal, 0))
+                                                        FROM dbo.OrderPickingManagement opm
+                                                        WHERE opm.ID_RoutePlan = @drp AND opm.NoDespachada = 0), 0)
+                            WHERE ID_RoutePlan = @drp`);
             }
         }
 
