@@ -157,16 +157,17 @@ async function estadosDeOVs(pool, ovs) {
             GROUP BY LTRIM(RTRIM(opm.OV_Number))`);
         a.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
     } catch (e) { console.error('estadosDeOVs app:', e.message); }
-    // SAP: presencia en cuadros (@cuadro_ruta_d) + u_estado='03' = despachado
+    // SAP: presencia en cuadros (@cuadro_ruta_d) + u_estado '03' (despachado) o '04' (liquidado,
+    // posterior al despacho) = finalizado
     try {
         const db = getSapDb('GT');
         const req = pool.request();
         const inP = list.map((v, i) => { req.input('s' + i, sql.VarChar(50), v); return '@s' + i; }).join(',');
         const s = await req.query(`
             SELECT LTRIM(RTRIM(d.U_No_OV)) ov,
-                   MAX(CASE WHEN e.u_estado='03' THEN 2 ELSE 1 END) rk,
-                   MAX(CASE WHEN e.u_estado='03' THEN e.UpdateDate END) desp,
-                   MAX(CASE WHEN e.u_estado='03' THEN e.DocNum END) cuadroFin,
+                   MAX(CASE WHEN e.u_estado IN ('03','04') THEN 2 ELSE 1 END) rk,
+                   MAX(CASE WHEN e.u_estado IN ('03','04') THEN e.UpdateDate END) desp,
+                   MAX(CASE WHEN e.u_estado IN ('03','04') THEN e.DocNum END) cuadroFin,
                    MAX(e.DocNum) cuadroAny
             FROM [server-sql].[${db}].dbo.[@cuadro_ruta_e] e WITH (NOLOCK)
             JOIN [server-sql].[${db}].dbo.[@cuadro_ruta_d] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
