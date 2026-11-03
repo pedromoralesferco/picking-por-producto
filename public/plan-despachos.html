@@ -115,6 +115,16 @@
             padding: 0.45rem 0.9rem; font-weight: 600; font-size: 0.82rem; cursor: pointer; }
         .buscar-result { font-size: 0.82rem; color: #555; }
         .buscar-result b { color: var(--dark); }
+
+        /* Banda superior: buscadores + indicadores en una fila */
+        .top-band { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.7rem; margin-bottom: 1rem; }
+        .top-band .buscador { margin-bottom: 0; flex: 1 1 230px; }
+        .top-band .buscador input { flex: 1 1 110px; min-width: 0; }
+        .top-band .kpi-row { margin-bottom: 0; flex: 3 1 440px; grid-template-columns: repeat(4, minmax(90px, 1fr)); align-items: stretch; }
+        .top-band .kpi { padding: 0.55rem 0.75rem; display: flex; flex-direction: column; justify-content: center; }
+        .top-band .kpi .v { font-size: 1.3rem; }
+        #buscarResultWrap { display: flex; flex-wrap: wrap; gap: 1rem; margin: -0.4rem 0 0.7rem; }
+        #buscarResultWrap:empty { display: none; }
         tr.cuadro-row.hl > td { background: #fff3cd !important; animation: hlfade 3s ease-out; }
         @keyframes hlfade { 0% { background: #ffe08a; } 100% { background: #fff3cd; } }
 
@@ -153,24 +163,26 @@
             </div>
         </div>
 
-        <div class="buscador no-print">
-            <i class="bi bi-search"></i>
-            <input id="buscarInput" type="search" placeholder="Buscar OV o cuadro de ruta…"
-                   onkeydown="if(event.key==='Enter')buscarDoc()">
-            <button onclick="buscarDoc()">Buscar</button>
-            <span id="buscarResult" class="buscar-result"></span>
+        <div class="top-band no-print">
+            <div class="buscador">
+                <i class="bi bi-search"></i>
+                <input id="buscarInput" type="search" placeholder="Buscar OV o cuadro…"
+                       onkeydown="if(event.key==='Enter')buscarDoc()">
+                <button onclick="buscarDoc()">Buscar</button>
+            </div>
+            <div class="buscador">
+                <i class="bi bi-person"></i>
+                <input id="buscarClienteInput" type="search" placeholder="Buscar por cliente…"
+                       onkeydown="if(event.key==='Enter')buscarCliente()">
+                <button onclick="buscarCliente()">Cliente</button>
+            </div>
+            <div class="kpi-row" id="kpis"></div>
         </div>
-
-        <div class="buscador no-print">
-            <i class="bi bi-person"></i>
-            <input id="buscarClienteInput" type="search" placeholder="Buscar por cliente (todas sus OV)…"
-                   onkeydown="if(event.key==='Enter')buscarCliente()">
-            <button onclick="buscarCliente()">Buscar cliente</button>
+        <div id="buscarResultWrap" class="no-print">
+            <span id="buscarResult" class="buscar-result"></span>
             <span id="buscarClienteResult" class="buscar-result"></span>
         </div>
         <div id="clienteResultsBox" class="no-print"></div>
-
-        <div class="kpi-row" id="kpis"></div>
         <div class="refresh-note" id="refreshNote" style="margin-bottom:0.5rem"></div>
 
         <div id="tablero"><div class="loading"><i class="bi bi-hourglass-split"></i> Cargando…</div></div>
@@ -241,14 +253,10 @@
         function kpiCards() {
             const k = DATA.kpis;
             const cards = [
-                { l: 'Cuadros', v: k.cuadros, cls: '' },
+                { l: 'En el plan del día', v: k.cuadros, cls: '' },
                 { l: 'En picking', v: k.enPicking, cls: 'blue' },
                 { l: 'Listos p/ carga', v: k.listos, cls: '' },
-                { l: 'Despachados', v: k.despachados, cls: 'ok' },
-                { l: 'Avance picking', v: k.avancePctGlobal + '%', cls: 'blue' },
-                { l: 'TN totales', v: k.tonTotal.toLocaleString('es-GT', {maximumFractionDigits:1}), cls: '' },
-                { l: 'TN despachadas', v: k.tonDespachada.toLocaleString('es-GT', {maximumFractionDigits:1}), cls: 'ok' },
-                { l: 'TN pendientes', v: k.tonPendiente.toLocaleString('es-GT', {maximumFractionDigits:1}), cls: '' }
+                { l: 'Despachados', v: k.despachados, cls: 'ok' }
             ];
             document.getElementById('kpis').innerHTML = cards.map(c =>
                 `<div class="kpi ${c.cls}"><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`).join('');

@@ -13,7 +13,7 @@ const router = express.Router();
 function requireReportes(req, res, next) {
     const u = req.session && req.session.user;
     if (!u) return res.status(401).json({ error: 'No autenticado' });
-    if (u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo')))) {
+    if (u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo') || u.permisos.includes('reportes_comercial')))) {
         return next();
     }
     return res.status(403).json({ error: 'Sin permiso para reportes' });
@@ -488,19 +488,22 @@ router.get('/plan-despachos/export', requireReportes, async (req, res) => {
             )
             SELECT orp.RouteNumber, orp.RouteName, orp.Prioridad, orp.FechaPlanDespacho,
                    ISNULL(orp.Comprometida,0) AS Comprometida, orp.Estado AS EstadoPicking,
+                   ISNULL(orp.EstadoDespacho,'Pendiente') AS EstadoDespacho,
                    CASE WHEN ISNULL(orp.PesoEstimado,0) > 0 THEN orp.PesoEstimado ELSE ISNULL(av.PesoTot,0) END AS PesoKg
             FROM OrderRoutePlan orp
             LEFT JOIN av ON av.RouteNumber = orp.RouteNumber
             WHERE orp.ID_Centro = @centro AND orp.Pais = @pais
-              AND orp.Estado <> 'Finalizado'
               AND ISNULL(orp.EstadoDespacho,'') <> 'Finalizado'
             ORDER BY CASE WHEN orp.FechaPlanDespacho IS NULL THEN 1 ELSE 0 END,
                      orp.FechaPlanDespacho, ISNULL(orp.Prioridad, 999999), orp.RouteNumber
         `)).recordset;
 
         const fmtFecha = d => d ? new Date(d).toISOString().slice(0, 10) : '';
-        const programados = rows.filter(r => r.FechaPlanDespacho);
-        const listos = rows.filter(r => !r.FechaPlanDespacho);
+        // Listos para despachar: picking finalizado, aún no despachado (incl. "Listo para Carga").
+        const listosDespachar = rows.filter(r => r.EstadoPicking === 'Finalizado');
+        const pendientes = rows.filter(r => r.EstadoPicking !== 'Finalizado');
+        const programados = pendientes.filter(r => r.FechaPlanDespacho);
+        const listos = pendientes.filter(r => !r.FechaPlanDespacho);
 
         const wb = new ExcelJS.Workbook();
         wb.creator = 'Picking por Producto';
@@ -535,6 +538,7 @@ router.get('/plan-despachos/export', requireReportes, async (req, res) => {
         };
         addSheet('Programados', programados, true);
         addSheet('Listos para programar', listos, false);
+        addSheet('Listos para despachar', listosDespachar, true);
 
         const hoy = new Date().toISOString().slice(0, 10);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

@@ -555,7 +555,8 @@
                         <label><input type="checkbox" id="permPriorizacion" value="priorizacion"> Priorizacion</label>
                         <label><input type="checkbox" id="permDespacho" value="despacho"> Despacho</label>
                         <label><input type="checkbox" id="permPaseSalida" value="pase-salida"> Pase de Salida</label>
-                        <label><input type="checkbox" id="permReportes" value="reportes"> Reportes (comercial)</label>
+                        <label><input type="checkbox" id="permReportes" value="reportes"> Reportes comercial + escalamientos</label>
+                        <label><input type="checkbox" id="permReportesComercial" value="reportes_comercial"> Reportes comercial — gerente de tienda (sin escalar)</label>
                         <label><input type="checkbox" id="permReportesOper" value="reportes_operativo"> Reportes operativo (transporte)</label>
                     </div>
                     <p class="hint">Los Admin tienen acceso a todo automaticamente</p>
@@ -807,6 +808,7 @@
             document.getElementById('permDespacho').checked = user ? user.permisos.includes('despacho') : false;
             document.getElementById('permPaseSalida').checked = user ? user.permisos.includes('pase-salida') : false;
             document.getElementById('permReportes').checked = user ? user.permisos.includes('reportes') : false;
+            document.getElementById('permReportesComercial').checked = user ? user.permisos.includes('reportes_comercial') : false;
             document.getElementById('permReportesOper').checked = user ? user.permisos.includes('reportes_operativo') : false;
 
             // Populate centros checkboxes
@@ -846,6 +848,7 @@
             if (document.getElementById('permDespacho').checked) data.permisos.push('despacho');
             if (document.getElementById('permPaseSalida').checked) data.permisos.push('pase-salida');
             if (document.getElementById('permReportes').checked) data.permisos.push('reportes');
+            if (document.getElementById('permReportesComercial').checked) data.permisos.push('reportes_comercial');
             if (document.getElementById('permReportesOper').checked) data.permisos.push('reportes_operativo');
 
             data.centros = [];

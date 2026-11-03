@@ -92,7 +92,7 @@ try {
     app.use('/api/reportes', reportesApiRoutes);
     app.get('/plan-despachos', requireAuthPage, requireCentro, (req, res) => {
         const u = req.session.user;
-        const ok = u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo')));
+        const ok = u.rol === 'Admin' || (u.permisos && (u.permisos.includes('reportes') || u.permisos.includes('reportes_operativo') || u.permisos.includes('reportes_comercial')));
         if (!ok) return res.redirect('/dashboard');
         res.sendFile(path.join(__dirname, 'public', 'plan-despachos.html'));
     });

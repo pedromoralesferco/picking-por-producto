@@ -1133,8 +1133,8 @@
                                     <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasOrder(${ruta.ID_RoutePlan})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
                                         <i class="bi bi-tag-fill"></i> Etiquetas de empaque
                                     </button>
-                                    <button class="btn-print-cuadro" onclick="verBultos(${ruta.ID_RoutePlan}, ${ruta.RouteNumber})" title="Bultos (licencias) a cargar y su ubicación, para el montacarguista">
-                                        <i class="bi bi-box2-heart"></i> Bultos a cargar
+                                    <button class="btn-print-cuadro" onclick="verBultos(${ruta.ID_RoutePlan}, ${ruta.RouteNumber})" title="Orden de carga: bultos (licencias) y su ubicación, para el montacarguista">
+                                        <i class="bi bi-box2-heart"></i> Orden de Carga
                                     </button>
                                 </div>
                                 ${(puedeEditarCuadro && userPais === 'GT' && !yaCompletado) ? (enEdicion ? `
@@ -1560,8 +1560,8 @@
                 rows += `<tr><td style="padding:4px 8px;border-bottom:1px solid #ddd;font-weight:700">${esc(b.Ubicacion || '(sin ubicación)')}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd">${esc(b.Licencia)}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd">${esc(b.DocType || '')} ${esc(b.OV_Number)}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:right">${Math.round(b.Cantidad || 0)}</td></tr>`;
             });
             const w = window.open('', '_blank');
-            w.document.write(`<html><head><title>Bultos a cargar — Cuadro ${esc(bultosRN)}</title></head><body style="font-family:Arial,sans-serif">
-                <h2 style="margin:0 0 .2rem">Bultos a cargar — Cuadro ${esc(bultosRN)}</h2>
+            w.document.write(`<html><head><title>Orden de Carga — Cuadro ${esc(bultosRN)}</title></head><body style="font-family:Arial,sans-serif">
+                <h2 style="margin:0 0 .2rem">Orden de Carga — Cuadro ${esc(bultosRN)}</h2>
                 <div style="color:#555;font-size:.8rem;margin-bottom:.6rem">${bultos.length} bulto(s) · ${new Date().toLocaleString('es-GT')}</div>
                 <table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="text-align:left;border-bottom:2px solid #333"><th style="padding:4px 8px">Ubicación</th><th style="padding:4px 8px">Licencia</th><th style="padding:4px 8px">Documento</th><th style="padding:4px 8px;text-align:right">Cant.</th></tr></thead><tbody>${rows}</tbody></table>
                 </body></html>`);
@@ -1763,7 +1763,7 @@
     <div class="placa-modal-overlay" id="bultosModalOverlay">
         <div class="placa-modal" style="width: 640px;">
             <div class="placa-modal-head">
-                <h3><i class="bi bi-box2-heart"></i> Bultos a cargar — Cuadro <span id="bultosModalRN"></span></h3>
+                <h3><i class="bi bi-box2-heart"></i> Orden de Carga — Cuadro <span id="bultosModalRN"></span></h3>
                 <div>
                     <button type="button" onclick="imprimirBultos()" title="Imprimir hoja de carga" style="font-size:1rem;margin-right:.3rem"><i class="bi bi-printer"></i></button>
                     <button type="button" onclick="cerrarBultos()">&times;</button>
