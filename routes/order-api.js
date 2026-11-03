@@ -876,6 +876,46 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
     }
 });
 
+// GET /api/order/despacho/rutas/:id/bultos — bultos (licencias) a cargar y su ubicación
+// actual, para el montacarguista. Lee DespachoBulto (local, rápido, enlace OV↔Licencia
+// persistido desde el log de picking) y resuelve la ubicación con un lookup liviano a
+// Lisa Locations (IDLocationParent). Resiliente: si Lisa falla, devuelve Ubicacion null.
+router.get('/despacho/rutas/:id/bultos', async (req, res) => {
+    try {
+        const pool = getPool();
+        const id = parseInt(req.params.id);
+        const pais = req.session && req.session.user ? (req.session.user.selectedPais || 'GT') : 'GT';
+        const lisaDb = getLisaDb(pais);
+        let rows, ubicacionDisponible = true;
+        try {
+            rows = (await pool.request().input('id', sql.Int, id).query(`
+                SELECT opm.OV_Number, opm.DocType, b.Licencia, b.Cantidad, par.Name AS Ubicacion
+                FROM dbo.OrderPickingManagement opm
+                INNER JOIN dbo.DespachoBulto b ON b.OV_Number = opm.OV_Number AND b.DocType = opm.DocType
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.Locations lic WITH (NOLOCK) ON lic.idLocation = b.IDLocationLicencia
+                LEFT JOIN [server-sql].[${lisaDb}].dbo.Locations par WITH (NOLOCK) ON par.idLocation = lic.IDLocationParent
+                WHERE opm.ID_RoutePlan = @id AND opm.NoDespachada = 0
+                ORDER BY CASE WHEN par.Name IS NULL THEN 1 ELSE 0 END, par.Name, b.Licencia, opm.OV_Number
+            `)).recordset;
+        } catch (e) {
+            // Lisa no disponible: devolver los bultos sin ubicación (solo lectura local).
+            console.error('Bultos: lookup de ubicación en Lisa no disponible:', e.message);
+            ubicacionDisponible = false;
+            rows = (await pool.request().input('id', sql.Int, id).query(`
+                SELECT opm.OV_Number, opm.DocType, b.Licencia, b.Cantidad, CAST(NULL AS NVARCHAR(220)) AS Ubicacion
+                FROM dbo.OrderPickingManagement opm
+                INNER JOIN dbo.DespachoBulto b ON b.OV_Number = opm.OV_Number AND b.DocType = opm.DocType
+                WHERE opm.ID_RoutePlan = @id AND opm.NoDespachada = 0
+                ORDER BY b.Licencia, opm.OV_Number
+            `)).recordset;
+        }
+        res.json({ ubicacionDisponible, bultos: rows });
+    } catch (err) {
+        console.error('GET /api/order/despacho/rutas/:id/bultos error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 // GET /api/order/despacho/rutas/:id/documentos/:idOrderPicking/productos — Lines for a pedido in despacho
 router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (req, res) => {
     try {

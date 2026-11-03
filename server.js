@@ -215,12 +215,26 @@ function startCuadroSyncReconciler() {
     tick();
 }
 
+// Captura de bultos (licencias destino del picking) para el montacarguista.
+// Lee el log de picking de Lisa y persiste el enlace OV↔Licencia en DespachoBulto.
+// Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a Lisa/SAP.
+function startBultoCapture() {
+    const tick = async () => {
+        try { await db.getPool().request().execute('SP_CaptureBultosEscuintla'); }
+        catch (err) { console.error('AVISO: captura de bultos falló este ciclo:', err.message); }
+    };
+    setInterval(tick, 120 * 1000);
+    tick();
+}
+
 async function start() {
     await db.connect();
     app.listen(PORT, () => {
         console.log(`Picking por Producto running on http://localhost:${PORT}`);
         startCuadroSyncReconciler();
         console.log('Reconciliador de ediciones de cuadro activo (60s).');
+        startBultoCapture();
+        console.log('Captura de bultos (licencias) activa (120s).');
     });
 }
 

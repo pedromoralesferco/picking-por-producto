@@ -1133,6 +1133,9 @@
                                     <button class="btn-print-cuadro btn-etiquetas" onclick="printEtiquetasOrder(${ruta.ID_RoutePlan})" title="Imprimir etiquetas de empaque 4x8 (una por OV)">
                                         <i class="bi bi-tag-fill"></i> Etiquetas de empaque
                                     </button>
+                                    <button class="btn-print-cuadro" onclick="verBultos(${ruta.ID_RoutePlan}, ${ruta.RouteNumber})" title="Bultos (licencias) a cargar y su ubicación, para el montacarguista">
+                                        <i class="bi bi-box2-heart"></i> Bultos a cargar
+                                    </button>
                                 </div>
                                 ${(puedeEditarCuadro && userPais === 'GT' && !yaCompletado) ? (enEdicion ? `
                                     <div class="edit-sq-group">
@@ -1498,6 +1501,72 @@
             ejecutarEdicion(agregarArr, [], null);
         }
         function cerrarDestinoModal() { document.getElementById('editModalOverlay').classList.remove('show'); }
+
+        // ── Bultos a cargar (licencias + ubicación) para el montacarguista ──
+        let bultosActuales = null, bultosRN = null;
+        async function verBultos(idRoutePlan, routeNumber) {
+            bultosRN = routeNumber;
+            document.getElementById('bultosModalRN').textContent = routeNumber;
+            const body = document.getElementById('bultosModalBody');
+            body.innerHTML = '<div class="placa-modal-empty">Cargando bultos…</div>';
+            document.getElementById('bultosModalOverlay').classList.add('show');
+            try {
+                const r = await fetch('/api/order/despacho/rutas/' + idRoutePlan + '/bultos');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                bultosActuales = data.bultos || [];
+                renderBultos(data);
+            } catch (e) {
+                body.innerHTML = '<div class="placa-modal-empty" style="color:#c62828">Error al cargar los bultos.</div>';
+            }
+        }
+        function cerrarBultos() { document.getElementById('bultosModalOverlay').classList.remove('show'); }
+        function bultosOrdenados(bultos) {
+            // Ordenar por ubicación (las sin ubicación al final) y luego por licencia,
+            // para que el montacarguista recorra ubicación por ubicación.
+            return [...bultos].sort((a, b) => {
+                const ua = a.Ubicacion || '￿', ub = b.Ubicacion || '￿';
+                return ua.localeCompare(ub) || String(a.Licencia || '').localeCompare(String(b.Licencia || ''));
+            });
+        }
+        function renderBultos(data) {
+            const body = document.getElementById('bultosModalBody');
+            const bultos = data.bultos || [];
+            if (!bultos.length) {
+                body.innerHTML = '<div class="placa-modal-empty">Aún no hay bultos capturados para este cuadro. Se registran del log de picking cada ~2 min.</div>';
+                return;
+            }
+            const sorted = bultosOrdenados(bultos);
+            const conUbic = bultos.filter(b => b.Ubicacion).length;
+            let html = '';
+            if (data.ubicacionDisponible === false) html += '<div class="placa-modal-sub" style="color:#b8941f">Ubicaciones no disponibles ahora (Lisa sin conexión).</div>';
+            html += `<div class="placa-modal-sub">${bultos.length} bulto(s) · ${conUbic} con ubicación.</div>`;
+            html += '<table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.3rem"><thead><tr style="text-align:left;color:#667;border-bottom:2px solid #dde3ea">'
+                + '<th style="padding:.3rem .4rem">Ubicación</th><th style="padding:.3rem .4rem">Licencia</th><th style="padding:.3rem .4rem">Documento</th><th style="padding:.3rem .4rem;text-align:right">Cant.</th></tr></thead><tbody>';
+            sorted.forEach(b => {
+                const ubic = b.Ubicacion
+                    ? `<span style="color:#1a3a5c;font-weight:700"><i class="bi bi-geo-alt-fill" style="color:var(--primary)"></i> ${esc(b.Ubicacion)}</span>`
+                    : '<span style="color:#b08900">(sin ubicación)</span>';
+                html += `<tr style="border-top:1px solid #eef1f5"><td style="padding:.3rem .4rem">${ubic}</td><td style="padding:.3rem .4rem"><b>${esc(b.Licencia)}</b></td><td style="padding:.3rem .4rem">${esc(b.DocType || '')} ${esc(b.OV_Number)}</td><td style="padding:.3rem .4rem;text-align:right">${Math.round(b.Cantidad || 0)}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            body.innerHTML = html;
+        }
+        function imprimirBultos() {
+            const bultos = bultosActuales || [];
+            if (!bultos.length) return;
+            let rows = '';
+            bultosOrdenados(bultos).forEach(b => {
+                rows += `<tr><td style="padding:4px 8px;border-bottom:1px solid #ddd;font-weight:700">${esc(b.Ubicacion || '(sin ubicación)')}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd">${esc(b.Licencia)}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd">${esc(b.DocType || '')} ${esc(b.OV_Number)}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:right">${Math.round(b.Cantidad || 0)}</td></tr>`;
+            });
+            const w = window.open('', '_blank');
+            w.document.write(`<html><head><title>Bultos a cargar — Cuadro ${esc(bultosRN)}</title></head><body style="font-family:Arial,sans-serif">
+                <h2 style="margin:0 0 .2rem">Bultos a cargar — Cuadro ${esc(bultosRN)}</h2>
+                <div style="color:#555;font-size:.8rem;margin-bottom:.6rem">${bultos.length} bulto(s) · ${new Date().toLocaleString('es-GT')}</div>
+                <table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="text-align:left;border-bottom:2px solid #333"><th style="padding:4px 8px">Ubicación</th><th style="padding:4px 8px">Licencia</th><th style="padding:4px 8px">Documento</th><th style="padding:4px 8px;text-align:right">Cant.</th></tr></thead><tbody>${rows}</tbody></table>
+                </body></html>`);
+            w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+        }
         function mostrarDestinoQuitados(quitarArr, agregarArr) {
             window._editPending = { quitarArr, agregarArr };
             const body = document.getElementById('editModalBody');
@@ -1687,6 +1756,20 @@
                 <button type="button" onclick="cerrarDestinoModal()">&times;</button>
             </div>
             <div class="placa-modal-body" id="editModalBody"></div>
+        </div>
+    </div>
+
+    <!-- Modal: bultos (licencias) a cargar y su ubicación -->
+    <div class="placa-modal-overlay" id="bultosModalOverlay">
+        <div class="placa-modal" style="width: 640px;">
+            <div class="placa-modal-head">
+                <h3><i class="bi bi-box2-heart"></i> Bultos a cargar — Cuadro <span id="bultosModalRN"></span></h3>
+                <div>
+                    <button type="button" onclick="imprimirBultos()" title="Imprimir hoja de carga" style="font-size:1rem;margin-right:.3rem"><i class="bi bi-printer"></i></button>
+                    <button type="button" onclick="cerrarBultos()">&times;</button>
+                </div>
+            </div>
+            <div class="placa-modal-body" id="bultosModalBody" style="max-height:70vh;overflow:auto"></div>
         </div>
     </div>
 </body>
