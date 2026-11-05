@@ -300,13 +300,19 @@ async function start() {
         startBacklogSnapshot();
         console.log('Snapshot del backlog de planificacion activo (15 min).');
     });
+    // Los listeners secundarios NUNCA tumban el principal: si Windows niega el puerto
+    // (EACCES = puerto reservado/excluido) o está ocupado (EADDRINUSE), solo se avisa.
+    const escucharSinTumbar = (srvApp, puerto, nombre, ok) => {
+        const s = srvApp.listen(puerto, ok);
+        s.on('error', (err) => console.error(`AVISO: ${nombre} no pudo escuchar en el puerto ${puerto} (${err.code}); el puerto principal ${PORT} sigue activo.`));
+    };
     if (PORT_ALT && String(PORT_ALT) !== String(PORT)) {
-        app.listen(PORT_ALT, () => console.log(`Picking por Producto tambien en http://localhost:${PORT_ALT} (PORT_ALT)`));
+        escucharSinTumbar(app, PORT_ALT, 'PORT_ALT', () => console.log(`Picking por Producto tambien en http://localhost:${PORT_ALT} (PORT_ALT)`));
     }
     if (REDIRECT_PORT && REDIRECT_TO && String(REDIRECT_PORT) !== String(PORT) && String(REDIRECT_PORT) !== String(PORT_ALT)) {
         const redirectApp = express();
         redirectApp.use((req, res) => res.redirect(301, REDIRECT_TO + req.originalUrl));
-        redirectApp.listen(REDIRECT_PORT, () => console.log(`Redirect 301 ${REDIRECT_PORT} -> ${REDIRECT_TO} activo.`));
+        escucharSinTumbar(redirectApp, REDIRECT_PORT, 'REDIRECT_PORT', () => console.log(`Redirect 301 ${REDIRECT_PORT} -> ${REDIRECT_TO} activo.`));
     } else if (REDIRECT_PORT) {
         console.error('AVISO: REDIRECT_PORT ignorado (falta REDIRECT_TO o coincide con PORT/PORT_ALT).');
     }
