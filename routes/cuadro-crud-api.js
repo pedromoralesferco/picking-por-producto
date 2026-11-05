@@ -473,10 +473,15 @@ router.get('/:routeNumber/roll', requirePrint, async (req, res) => {
         if (ovInts.length) {
             try {
                 const r = await pool.request().query(`
-                    SELECT o.DocNum, c.CardCode, c.CardName, ISNULL(o.Address2, c.Address) AS Direccion, s.SlpName AS Asesor, o.DocDueDate AS FechaEntrega
+                    SELECT o.DocNum, c.CardCode, c.CardName, ISNULL(o.Address2, c.Address) AS Direccion, s.SlpName AS Asesor,
+                           o.DocDueDate AS FechaEntrega, o.U_Celular AS Telefono, o.Comments AS Observaciones,
+                           pag.PymntGroup AS TipoPago, ship.TrnspName AS TipoSalida, ISNULL(suc.U_BranchName,'') AS Sucursal
                     FROM [server-sql].[${db}].dbo.ORDR o WITH (NOLOCK)
                     LEFT JOIN [server-sql].[${db}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode=o.CardCode
                     LEFT JOIN [server-sql].[${db}].dbo.OSLP s WITH (NOLOCK) ON s.SlpCode=o.SlpCode
+                    LEFT JOIN [server-sql].[${db}].dbo.OCTG pag WITH (NOLOCK) ON pag.GroupNum=o.GroupNum
+                    LEFT JOIN [server-sql].[${db}].dbo.OSHP ship WITH (NOLOCK) ON ship.TrnspCode=o.TrnspCode
+                    LEFT JOIN [server-sql].[${db}].dbo.[@sucursal_ccosto] suc WITH (NOLOCK) ON suc.Name=o.U_sucursal
                     WHERE o.DocNum IN (${ovInts.join(',')})`);
                 r.recordset.forEach(x => { cliMap['OV' + x.DocNum] = x; });
             } catch (e) { console.error('roll: enriquecer OV:', e.message); }
@@ -484,10 +489,12 @@ router.get('/:routeNumber/roll', requirePrint, async (req, res) => {
         if (trInts.length) {
             try {
                 const r = await pool.request().query(`
-                    SELECT q.DocNum, c.CardName, w.WhsName AS Destino, q.DocDueDate AS FechaEntrega
+                    SELECT q.DocNum, c.CardName, w.WhsName AS Destino, q.DocDueDate AS FechaEntrega,
+                           q.Comments AS Observaciones, s.SlpName AS Solicitante
                     FROM [server-sql].[${db}].dbo.OWTQ q WITH (NOLOCK)
                     LEFT JOIN [server-sql].[${db}].dbo.OCRD c WITH (NOLOCK) ON c.CardCode=q.CardCode
                     LEFT JOIN [server-sql].[${db}].dbo.OWHS w WITH (NOLOCK) ON w.WhsCode=q.ToWhsCode
+                    LEFT JOIN [server-sql].[${db}].dbo.OSLP s WITH (NOLOCK) ON s.SlpCode=q.SlpCode
                     WHERE q.DocNum IN (${trInts.join(',')})`);
                 r.recordset.forEach(x => { cliMap['TR' + x.DocNum] = x; });
             } catch (e) { console.error('roll: enriquecer TR:', e.message); }
@@ -590,8 +597,12 @@ router.get('/:routeNumber/roll', requirePrint, async (req, res) => {
                 (ovDeliv[num] || []).sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).forEach(dv => {
                     const c = cliMap['OV' + num] || {};
                     pases.push({ tipo: 'OV', doc: d.OV_Number, entrega: dv.entrega, fecha: dv.fecha,
-                        cliente: dv.cliente || c.CardName || '', direccion: dv.direccion || (c.Direccion || ''),
-                        asesor: c.Asesor || '', lineas: dv.lineas });
+                        cliente: dv.cliente || c.CardName || '', codigoCliente: c.CardCode || '',
+                        direccion: dv.direccion || (c.Direccion || ''), asesor: c.Asesor || '',
+                        telefono: c.Telefono || '', tipoPago: c.TipoPago || '', tipoSalida: c.TipoSalida || '',
+                        sucursal: c.Sucursal || '', observaciones: c.Observaciones || '',
+                        fechaComprometida: c.FechaEntrega || null, centro: A.AlmacenOrigen || '',
+                        lineas: dv.lineas });
                 });
             } else if (['TR', 'RESURTIDO'].includes(d.DocType)) {
                 const byDate = trDeliv[num] || {};
@@ -599,7 +610,9 @@ router.get('/:routeNumber/roll', requirePrint, async (req, res) => {
                     const dv = byDate[fkey]; const c = cliMap['TR' + num] || {};
                     pases.push({ tipo: 'TR', doc: d.OV_Number, entrega: fkey, fecha: dv.fecha,
                         cliente: c.CardName || '', destino: c.Destino || '', direccion: c.Destino || '',
-                        lineas: dv.lineas });
+                        observaciones: c.Observaciones || '', solicitante: c.Solicitante || '',
+                        tipoSalida: 'TRASLADO', fechaComprometida: c.FechaEntrega || null,
+                        centro: A.AlmacenOrigen || '', lineas: dv.lineas });
                 });
             }
         });

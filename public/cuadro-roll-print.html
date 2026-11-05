@@ -40,6 +40,14 @@
         .text-right { text-align: right; }
         .pase-sub { font-size: 10px; margin-bottom: 8px; }
         .pase-sub b { display: inline-block; min-width: 95px; }
+        .total-row td { font-weight: 800; }
+        .firma-area { margin-top: 40px; display: flex; gap: 36px; }
+        .firma-box { flex: 1; }
+        .firma-line { border-top: 1px solid #000; margin-top: 34px; padding-top: 4px; }
+        .firma-label { font-weight: 700; font-size: 9px; }
+        .pase-obs { grid-column: 1 / -1; }
+        .condiciones { font-size: 8px; line-height: 1.35; margin-top: 10px; }
+        .condiciones .cond-strong { font-weight: 700; }
         .loading { text-align: center; padding: 40px; color: #666; }
         .err { color: #c00; }
         @media print { .toolbar { display: none; } body { background: #fff; } #pdf-content { margin: 0; } }
@@ -134,33 +142,54 @@
                 ${data.sinPase && data.sinPase.length ? `<div style="margin-top:8px;font-size:9px;color:#c62828"><b>Sin pase de salida generado:</b> ${data.sinPase.map(esc).join(', ')}</div>` : ''}
             </div>`;
 
-            // ── Un pase por entrega ──
+            // ── Pases de salida: formato estándar, 2 copias de cada uno ──
             data.pases.forEach(p => {
+                const esOV = p.tipo === 'OV';
                 const lineas = (p.lineas || []).map(ln => `<tr>
                     <td>${esc(ln.codigo)}</td>
                     <td>${esc(ln.nombre)}</td>
                     <td class="text-right">${fmtNum(ln.cantidad)}</td>
                 </tr>`).join('');
-                html += `
+                const total = (p.lineas || []).reduce((s, ln) => s + (Number(ln.cantidad) || 0), 0);
+                const row = (lbl, val) => `<div class="info-row"><span class="info-label">${lbl}</span><span class="info-value">${esc(val)}</span></div>`;
+                const infoGrid = `
+                    ${row('Fecha:', fmtDate(p.fecha))}
+                    ${row('Centro de Distribución:', p.centro)}
+                    ${row('No. Documento:', p.doc + (esOV ? ' · Entrega ' + p.entrega : ''))}
+                    ${row('Tipo de Salida:', p.tipoSalida || (esOV ? 'RUTA' : 'TRASLADO'))}
+                    ${esOV ? row('Código Cliente:', p.codigoCliente) : ''}
+                    ${row(esOV ? 'Nombre Cliente:' : 'Destino:', esOV ? p.cliente : (p.destino || p.direccion))}
+                    ${row('Dirección:', p.direccion)}
+                    ${esOV ? row('Teléfono:', p.telefono) : ''}
+                    ${row(esOV ? 'Vendedor:' : 'Solicitante:', esOV ? p.asesor : p.solicitante)}
+                    ${esOV ? row('Sucursal:', p.sucursal) : ''}
+                    ${row('F. Comprometida:', fmtDate(p.fechaComprometida))}
+                    ${esOV ? row('Tipo de Pago:', p.tipoPago) : ''}
+                    <div class="info-row pase-obs"><span class="info-label">Observaciones:</span><span class="info-value">${esc(p.observaciones)}</span></div>`;
+                const sheet = (copia) => `
                 <div class="sheet roll-page">
                     <div class="print-header">
                         <div><div class="logo-text">F E R C O</div><div class="logo-sub">C E R &Aacute; M I C A</div></div>
-                        <div class="print-date">Impreso: ${fmtDate(now)} ${now.toLocaleTimeString('es-GT')}</div>
+                        <div class="print-date">Copia ${copia} de 2 · ${fmtDate(now)}</div>
                     </div>
                     <div class="doc-title">Pase de Salida</div>
-                    <div class="doc-number">${p.tipo} ${esc(p.doc)}</div>
-                    <div class="pase-sub">
-                        <div><b>Entrega:</b> ${esc(p.entrega)}${p.tipo === 'TR' ? ' (por fecha)' : ''}</div>
-                        <div><b>Fecha:</b> ${fmtDate(p.fecha)}</div>
-                        ${p.tipo === 'OV'
-                            ? `<div><b>Cliente:</b> ${esc(p.cliente)}</div><div><b>Dirección:</b> ${esc(p.direccion)}</div>${p.asesor ? `<div><b>Asesor:</b> ${esc(p.asesor)}</div>` : ''}`
-                            : `<div><b>Destino:</b> ${esc(p.destino || p.direccion)}</div>${p.cliente ? `<div><b>Cliente:</b> ${esc(p.cliente)}</div>` : ''}`}
-                    </div>
+                    <div class="info-grid">${infoGrid}</div>
                     <table>
-                        <thead><tr><th style="width:90px">Código</th><th>Descripción</th><th style="width:70px" class="text-right">Cantidad</th></tr></thead>
-                        <tbody>${lineas || '<tr><td colspan="3" class="text-center">Sin líneas</td></tr>'}</tbody>
+                        <thead><tr><th style="width:100px">Código Material</th><th>Nombre Material</th><th style="width:70px" class="text-right">Cantidad</th></tr></thead>
+                        <tbody>${lineas || '<tr><td colspan="3" class="text-center">Sin líneas</td></tr>'}
+                            <tr class="total-row"><td colspan="2">Total</td><td class="text-right">${fmtNum(total)}</td></tr></tbody>
                     </table>
+                    <div class="firma-area">
+                        <div class="firma-box"><div class="firma-line"></div><div class="firma-label">Nombre y Firma — Entregado por</div></div>
+                        <div class="firma-box"><div class="firma-line"></div><div class="firma-label">Nombre y Firma — Recibido conforme</div></div>
+                    </div>
+                    <div class="condiciones">
+                        <div class="cond-strong">Se cubrirá garantía únicamente si se coloca nombre y firma</div>
+                        <div class="cond-strong" style="margin-top:5px">Condiciones de Entrega</div>
+                        <div>Yo CLIENTE, estoy consciente de las condiciones de entrega, las cuales acepté en el momento de firmar este documento. El receptor del producto declara: Haber recibido la mercadería descrita a entera satisfacción por lo que FERCO se reserva el derecho a reclamos posteriores. Si no está a entera satisfacción, por favor anotar sus comentarios a continuación:</div>
+                    </div>
                 </div>`;
+                html += sheet(1) + sheet(2);
             });
 
             document.getElementById('pdf-content').innerHTML = html;
