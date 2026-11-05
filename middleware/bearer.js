@@ -91,7 +91,9 @@ async function requireBearer(req, res, next) {
     } catch (e) {
         return res.status(401).json({ error: 'Pase inválido o vencido' });
     }
-    if (CLIENTES.length && !CLIENTES.includes(payload.client_id)) {
+    // Pase de otro conector (p. ej. Ventas Analytics): se rechaza si el pase declara su client_id.
+    // Si el pase no trae client_id no se bloquea: la puerta real es el módulo 'planificacion' del usuario.
+    if (CLIENTES.length && payload.client_id && !CLIENTES.includes(String(payload.client_id))) {
         return res.status(401).json({ error: 'Pase emitido para otro conector' });
     }
 

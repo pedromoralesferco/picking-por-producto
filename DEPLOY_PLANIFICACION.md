@@ -66,8 +66,8 @@ if (Select-String "server.js" -Pattern "Planificacion (MCP)" -Quiet) { "OK" } el
 # Login de Microsoft (Supabase Auth del proyecto de Ventas Analytics)
 PLAN_SUPABASE_URL=https://<proyecto>.supabase.co
 PLAN_SUPABASE_ANON_KEY=<anon key del proyecto>
-# Opcional: solo aceptar pases emitidos para el conector de Planificación (client_id de Supabase OAuth)
-PLAN_ALLOWED_CLIENT_IDS=
+# Solo aceptar pases del cliente OAuth "Ferco Planificación" (Confidential, creado el 5-nov-2026 en Supabase → Authentication → OAuth Apps)
+PLAN_ALLOWED_CLIENT_IDS=659a8adc-20a1-404b-bee6-6436947adf9b
 
 # Staging de rutas (Supabase). Idealmente una llave restringida a rutas_staging
 PLAN_STAGING_URL=https://<proyecto-staging>.supabase.co
@@ -119,7 +119,7 @@ npm install --omit=dev
 ```
 PORT=3002
 PLAN_API_URL=http://localhost:8080
-PLAN_PUBLIC_URL=https://planificacion-mcp.ferco.com.gt
+PLAN_PUBLIC_URL=https://picking.ferco.com.gt
 PLAN_AUTH_SERVER=https://<proyecto>.supabase.co/auth/v1
 PLAN_ALLOWED_ORIGINS=https://claude.ai,https://claude.com
 ```
@@ -132,11 +132,30 @@ pm2 save
 Invoke-WebRequest http://localhost:3002/health -UseBasicParsing     # {"ok":true,...}
 ```
 
-### 3.1 Publicación HTTPS (TI / IIS)
+### 3.1 Publicación HTTPS: sub-ruta del sitio de Picking (TI / IIS)
 
-Igual que el app: un sitio IIS en 443 para `planificacion-mcp.ferco.com.gt` (o el nombre que defina TI) como reverse-proxy a `http://localhost:3002`. Debe pasar los encabezados `Authorization`, `Accept` y `Mcp-Session-Id` sin tocarlos, y permitir `POST` y `GET` en `/mcp` y `/.well-known/*`. El valor final va en `PLAN_PUBLIC_URL` y en el `.mcp.json` del plugin.
+El conector se publica como `https://picking.ferco.com.gt/mcp`, dentro del sitio IIS que ya existe. No hace falta dominio, certificado ni sitio nuevos: solo una regla de URL Rewrite **antes** de la regla general que manda todo a `localhost:8080`, para que estas dos rutas vayan a `localhost:3002`:
 
-Comprobación externa: `https://<url>/.well-known/oauth-protected-resource/mcp` debe responder JSON con `authorization_servers`.
+- `/mcp` (POST y GET)
+- `/.well-known/oauth-protected-resource` y `/.well-known/oauth-protected-resource/mcp` (GET; descubrimiento OAuth)
+
+Regla para el `web.config` del sitio (`system.webServer/rewrite/rules`), colocada **arriba** de la existente:
+
+```xml
+<rule name="MCP Planificacion" stopProcessing="true">
+  <match url="^(mcp|\.well-known/oauth-protected-resource(/mcp)?)$" />
+  <action type="Rewrite" url="http://localhost:3002/{R:0}" />
+</rule>
+```
+
+Debe pasar sin tocar los encabezados `Authorization`, `Accept`, `MCP-Protocol-Version` y `Mcp-Session-Id` (ARR lo hace por defecto). Si alguna respuesta llegara cortada, desactivar el buffer de respuesta de ARR para esa regla.
+
+`PLAN_PUBLIC_URL` del servicio = `https://picking.ferco.com.gt` (sin `/mcp`; el servicio lo agrega), y el `.mcp.json` del plugin apunta a `https://picking.ferco.com.gt/mcp`.
+
+Comprobación externa (desde fuera de la red):
+
+- `https://picking.ferco.com.gt/.well-known/oauth-protected-resource/mcp` → JSON con `authorization_servers`.
+- `POST https://picking.ferco.com.gt/mcp` sin encabezado `Authorization` → 401 con `WWW-Authenticate: Bearer resource_metadata="…"`.
 
 ## 4. Login y alta del conector
 
