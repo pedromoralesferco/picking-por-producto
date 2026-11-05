@@ -220,15 +220,16 @@ router.get('/cuadros-destino', requireCrud, async (req, res) => {
 
 // POST /api/cuadro/:routeNumber/editar — commit batch de la edición del cuadro.
 // Body: { agregar:[{ov,tipo}], quitar:[{ov,tipo}], destino:'eliminar'|'nuevo'|{cuadro:N} }
-router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
-    const pool = getPool();
-    try {
-        const rn = parseInt(req.params.routeNumber);
-        if (!rn) return res.status(400).json({ error: 'RouteNumber requerido' });
-        const agregar = Array.isArray(req.body.agregar) ? req.body.agregar : [];
-        const quitar = Array.isArray(req.body.quitar) ? req.body.quitar : [];
-        const destino = req.body.destino; // 'eliminar' | 'nuevo' | {cuadro:N}
-        const autor = (req.session.user && (req.session.user.nombre || req.session.user.usuario)) || 'Sistema';
+// Lógica de edición de un cuadro (agregar / quitar / mover líneas). La usan la pantalla
+// (POST /:routeNumber/editar) y el conector de Planificación (/api/planificacion), para
+// que los dos caminos hagan exactamente lo mismo. Devuelve { status, body }.
+// Nunca escribe a SAP: deja las órdenes en CuadroEdicionCola para el Sync.
+async function editarCuadro(pool, rn, opciones, autor) {
+    {
+        const agregar = Array.isArray(opciones.agregar) ? opciones.agregar : [];
+        const quitar = Array.isArray(opciones.quitar) ? opciones.quitar : [];
+        const destino = opciones.destino; // 'eliminar' | 'nuevo' | {cuadro:N}
+        autor = autor || 'Sistema';
 
         // Cuadro origen A
         const aRes = await pool.request().input('rn', sql.Int, rn)
@@ -236,8 +237,8 @@ router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
                            Prioridad, Estado, ISNULL(EstadoDespacho,'Pendiente') AS EstadoDespacho
                     FROM dbo.OrderRoutePlan WHERE RouteNumber = @rn AND ID_Centro = 3 AND Pais = 'GT'`);
         const A = aRes.recordset[0];
-        if (!A) return res.status(404).json({ error: 'Cuadro no encontrado en Escuintla' });
-        if (A.EstadoDespacho === 'Finalizado') return res.status(409).json({ error: 'El cuadro ya está despachado; no se puede editar.' });
+        if (!A) return { status: 404, body: { error: 'Cuadro no encontrado en Escuintla' } };
+        if (A.EstadoDespacho === 'Finalizado') return { status: 409, body: { error: 'El cuadro ya está despachado; no se puede editar.' } };
 
         const out = { quitados: [], agregados: [], errores: [], complemento: null };
 
@@ -275,7 +276,7 @@ router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
                 destinoRn = parseInt(destino.cuadro);
                 const bRes = await pool.request().input('rn', sql.Int, destinoRn)
                     .query(`SELECT TOP 1 ID_RoutePlan FROM dbo.OrderRoutePlan WHERE RouteNumber=@rn AND ID_Centro=3 AND Pais='GT' AND ISNULL(EstadoDespacho,'')<>'Finalizado'`);
-                if (!bRes.recordset[0]) return res.status(400).json({ error: 'Cuadro destino inválido o ya despachado' });
+                if (!bRes.recordset[0]) return { status: 400, body: { error: 'Cuadro destino inválido o ya despachado' } };
                 destinoRoutePlan = bRes.recordset[0].ID_RoutePlan;
             }
 
@@ -355,7 +356,17 @@ router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
             }
         }
 
-        res.json({ ok: true, ...out });
+        return { status: 200, body: { ok: true, ...out } };
+    }
+}
+
+router.post('/:routeNumber/editar', requireCrud, async (req, res) => {
+    try {
+        const rn = parseInt(req.params.routeNumber);
+        if (!rn) return res.status(400).json({ error: 'RouteNumber requerido' });
+        const autor = (req.session.user && (req.session.user.nombre || req.session.user.usuario)) || 'Sistema';
+        const r = await editarCuadro(getPool(), rn, { agregar: req.body.agregar, quitar: req.body.quitar, destino: req.body.destino }, autor);
+        res.status(r.status).json(r.body);
     } catch (err) {
         console.error('POST /cuadro/:rn/editar error:', err);
         res.status(500).json({ error: 'Error al guardar la edición del cuadro' });
@@ -628,3 +639,5 @@ router.get('/:routeNumber/roll', requirePrint, async (req, res) => {
 });
 
 module.exports = router;
+// Reusado por /api/planificacion (conector MCP)
+module.exports.editarCuadro = editarCuadro;

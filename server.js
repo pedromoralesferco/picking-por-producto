@@ -125,6 +125,16 @@ try {
     console.error('AVISO: Escalamientos deshabilitado (fallo al cargar el modulo):', err.message);
 }
 
+// Planificación (conector MCP "Ferco Planificación", blindado): API de lectura
+// autenticada por pase (Bearer de Supabase Auth), no por sesión.
+try {
+    const planificacionApiRoutes = require('./routes/planificacion-api');
+    app.use('/api/planificacion', planificacionApiRoutes);
+    console.log('Modulo Planificacion (MCP) cargado.');
+} catch (err) {
+    console.error('AVISO: Planificacion (MCP) deshabilitada (fallo al cargar el modulo):', err.message);
+}
+
 app.use('/api', apiRoutes);
 
 // Centro selection page
@@ -227,6 +237,29 @@ function startBultoCapture() {
     tick();
 }
 
+// Snapshot del backlog sin cuadro para el conector de Planificación (MCP): corre
+// SP_MCP_BacklogSinCuadro por cada centro con ConfigPlanDiario. Tarda ~1 min por
+// centro (lee SAP y Lisa por linked server), por eso va en el pool de jobs.
+// Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a SAP/Lisa.
+function startBacklogSnapshot() {
+    let corriendo = false;
+    const tick = async () => {
+        if (corriendo) return;
+        corriendo = true;
+        try {
+            const pool = await db.getJobPool();
+            const centros = await pool.request().query('SELECT ID_Centro FROM ConfigPlanDiario');
+            for (const c of centros.recordset) {
+                try { await pool.request().input('ID_Centro', db.sql.Int, c.ID_Centro).execute('SP_MCP_BacklogSinCuadro'); }
+                catch (err) { console.error(`AVISO: snapshot del backlog (centro ${c.ID_Centro}) falló este ciclo:`, err.message); }
+            }
+        } catch (err) { console.error('AVISO: snapshot del backlog falló este ciclo:', err.message); }
+        finally { corriendo = false; }
+    };
+    setInterval(tick, 15 * 60 * 1000);
+    setTimeout(tick, 20 * 1000); // no competir con el arranque
+}
+
 async function start() {
     await db.connect();
     app.listen(PORT, () => {
@@ -235,6 +268,8 @@ async function start() {
         console.log('Reconciliador de ediciones de cuadro activo (60s).');
         startBultoCapture();
         console.log('Captura de bultos (licencias) activa (120s).');
+        startBacklogSnapshot();
+        console.log('Snapshot del backlog de planificacion activo (15 min).');
     });
 }
 

@@ -106,3 +106,7 @@ Los scripts SQL (carpeta `sql/`) se corren aparte, contra la BD `Picking_Managem
 Instalar **Git for Windows** en el servidor y convertir `C:\PickingManagementV2` en un clon
 real para poder hacer `git pull` (más limpio que descargar archivo por archivo).
 Mientras tanto, este método (raw download) es el oficial.
+
+## Conector de Planificación (MCP)
+
+El despliegue del conector "Ferco Planificación" (scripts SQL, archivos del app, servicio MCP en PM2 y alta en Claude) está en `DEPLOY_PLANIFICACION.md`.

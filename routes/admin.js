@@ -9,12 +9,26 @@ router.use(requireAdmin);
 
 // ── Usuarios CRUD ──
 
+// Correo de Microsoft del usuario (lo usa el conector de Planificación para
+// reconocerlo). Vacío → NULL; único entre usuarios.
+function normalizarEmail(email) {
+    const e = (email == null ? '' : String(email)).trim().toLowerCase();
+    return e ? e.slice(0, 200) : null;
+}
+async function emailEnUso(pool, email, idActual) {
+    const r = await pool.request()
+        .input('email', sql.NVarChar(200), email)
+        .input('id', sql.Int, idActual || 0)
+        .query(`SELECT COUNT(*) AS c FROM Usuario WHERE LOWER(Email) = @email AND ID_Usuario <> @id`);
+    return r.recordset[0].c > 0;
+}
+
 // GET /api/admin/usuarios - List all users with permisos
 router.get('/usuarios', async (req, res) => {
     try {
         const pool = getPool();
         const users = await pool.request().query(`
-            SELECT u.ID_Usuario, u.NombreUsuario, u.Nombre, u.Rol, u.Activo, u.FechaCreacion
+            SELECT u.ID_Usuario, u.NombreUsuario, u.Nombre, u.Rol, u.Activo, u.FechaCreacion, u.Email
             FROM Usuario u
             ORDER BY u.Activo DESC, u.Nombre
         `);
@@ -55,12 +69,17 @@ router.get('/usuarios', async (req, res) => {
 // POST /api/admin/usuarios - Create user
 router.post('/usuarios', async (req, res) => {
     try {
-        const { nombreUsuario, nombre, password, rol, permisos, centros } = req.body;
+        const { nombreUsuario, nombre, password, rol, permisos, centros, email } = req.body;
         if (!nombreUsuario || !nombre || !password || !rol) {
             return res.status(400).json({ error: 'Campos requeridos: nombreUsuario, nombre, password, rol' });
         }
 
         const pool = getPool();
+
+        const emailNorm = normalizarEmail(email);
+        if (emailNorm && await emailEnUso(pool, emailNorm, null)) {
+            return res.status(400).json({ error: 'Ese correo ya está asignado a otro usuario' });
+        }
 
         // Check duplicate
         const dup = await pool.request()
@@ -77,10 +96,11 @@ router.post('/usuarios', async (req, res) => {
             .input('nombre', sql.NVarChar, nombre)
             .input('hash', sql.NVarChar, hash)
             .input('rol', sql.NVarChar, rol)
+            .input('email', sql.NVarChar(200), emailNorm)
             .query(`
-                INSERT INTO Usuario (NombreUsuario, Nombre, PasswordHash, Rol, Activo, FechaCreacion)
+                INSERT INTO Usuario (NombreUsuario, Nombre, PasswordHash, Rol, Activo, FechaCreacion, Email)
                 OUTPUT INSERTED.ID_Usuario
-                VALUES (@usuario, @nombre, @hash, @rol, 1, GETDATE())
+                VALUES (@usuario, @nombre, @hash, @rol, 1, GETDATE(), @email)
             `);
 
         const userId = result.recordset[0].ID_Usuario;
@@ -116,14 +136,20 @@ router.post('/usuarios', async (req, res) => {
 router.put('/usuarios/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const { nombre, password, rol, permisos, activo, centros } = req.body;
+        const { nombre, password, rol, permisos, activo, centros, email } = req.body;
         const pool = getPool();
 
-        let query = `UPDATE Usuario SET Nombre = @nombre, Rol = @rol`;
+        const emailNorm = normalizarEmail(email);
+        if (emailNorm && await emailEnUso(pool, emailNorm, id)) {
+            return res.status(400).json({ error: 'Ese correo ya está asignado a otro usuario' });
+        }
+
+        let query = `UPDATE Usuario SET Nombre = @nombre, Rol = @rol, Email = @email`;
         const request = pool.request()
             .input('id', sql.Int, id)
             .input('nombre', sql.NVarChar, nombre)
-            .input('rol', sql.NVarChar, rol);
+            .input('rol', sql.NVarChar, rol)
+            .input('email', sql.NVarChar(200), emailNorm);
 
         if (typeof activo !== 'undefined') {
             query += `, Activo = @activo`;

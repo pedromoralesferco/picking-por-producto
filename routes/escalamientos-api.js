@@ -341,3 +341,6 @@ router.post('/:id/archivar', requireEsc, async (req, res) => {
 });
 
 module.exports = router;
+// Reusados por /api/planificacion (conector MCP)
+module.exports.estadosDeOVs = estadosDeOVs;
+module.exports.ESTADO_NOMBRE = ESTADO_NOMBRE;

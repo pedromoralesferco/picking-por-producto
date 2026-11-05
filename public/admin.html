@@ -537,6 +537,11 @@
                     <input type="text" id="userNombre" placeholder="ej. Juan Perez">
                 </div>
                 <div class="form-group">
+                    <label>Correo (cuenta Microsoft)</label>
+                    <input type="email" id="userEmail" placeholder="nombre@ferco.com.gt">
+                    <p class="hint">Necesario para "Planificacion con Claude": une el inicio de sesion con Microsoft a este usuario</p>
+                </div>
+                <div class="form-group">
                     <label>Contrasena</label>
                     <input type="password" id="userPassword" placeholder="Minimo 4 caracteres">
                     <p class="hint" id="passwordHint" style="display:none">Dejar vacio para mantener la actual</p>
@@ -558,6 +563,7 @@
                         <label><input type="checkbox" id="permReportes" value="reportes"> Reportes comercial + escalamientos</label>
                         <label><input type="checkbox" id="permReportesComercial" value="reportes_comercial"> Reportes comercial — gerente de tienda (sin escalar)</label>
                         <label><input type="checkbox" id="permReportesOper" value="reportes_operativo"> Reportes operativo (transporte)</label>
+                        <label><input type="checkbox" id="permPlanificacion" value="planificacion"> Planificacion con Claude (conector MCP, solo lectura)</label>
                     </div>
                     <p class="hint">Los Admin tienen acceso a todo automaticamente</p>
                 </div>
@@ -810,6 +816,8 @@
             document.getElementById('permReportes').checked = user ? user.permisos.includes('reportes') : false;
             document.getElementById('permReportesComercial').checked = user ? user.permisos.includes('reportes_comercial') : false;
             document.getElementById('permReportesOper').checked = user ? user.permisos.includes('reportes_operativo') : false;
+            document.getElementById('permPlanificacion').checked = user ? user.permisos.includes('planificacion') : false;
+            document.getElementById('userEmail').value = user ? (user.Email || '') : '';
 
             // Populate centros checkboxes
             const userCentros = user ? (user.centros || []) : [];
@@ -850,6 +858,8 @@
             if (document.getElementById('permReportes').checked) data.permisos.push('reportes');
             if (document.getElementById('permReportesComercial').checked) data.permisos.push('reportes_comercial');
             if (document.getElementById('permReportesOper').checked) data.permisos.push('reportes_operativo');
+            if (document.getElementById('permPlanificacion').checked) data.permisos.push('planificacion');
+            data.email = document.getElementById('userEmail').value.trim();
 
             data.centros = [];
             document.querySelectorAll('.centroCb:checked').forEach(cb => {
