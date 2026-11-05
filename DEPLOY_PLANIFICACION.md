@@ -118,9 +118,9 @@ npm install --omit=dev
 
 ```
 PORT=3002
-PLAN_API_URL=http://localhost:8080
-PLAN_PUBLIC_URL=https://picking.ferco.com.gt
-PLAN_AUTH_SERVER=https://<proyecto>.supabase.co/auth/v1
+PLAN_API_URL=http://localhost:8081
+PLAN_PUBLIC_URL=https://picking.ferco.com.gt:8443
+PLAN_AUTH_SERVER=https://anauitftpqxpppdvkzym.supabase.co/auth/v1
 PLAN_ALLOWED_ORIGINS=https://claude.ai,https://claude.com
 ```
 
@@ -132,30 +132,35 @@ pm2 save
 Invoke-WebRequest http://localhost:3002/health -UseBasicParsing     # {"ok":true,...}
 ```
 
-### 3.1 Publicación HTTPS: sub-ruta del sitio de Picking (TI / IIS)
+### 3.1 Publicación HTTPS: `https://picking.ferco.com.gt:8443` (FortiGate → Node)
 
-El conector se publica como `https://picking.ferco.com.gt/mcp`, dentro del sitio IIS que ya existe. No hace falta dominio, certificado ni sitio nuevos: solo una regla de URL Rewrite **antes** de la regla general que manda todo a `localhost:8080`, para que estas dos rutas vayan a `localhost:3002`:
+Cómo está la red: el DNS público apunta a la DMZ; el FortiGate tiene una IP virtual que manda `picking.ferco.com.gt:8443` (HTTPS) **directo a Node** en `10.240.9.121` y el `:8080` (HTTP, el link viejo) también a Node. **No pasa por IIS**, así que el conector no usa ninguna regla de IIS: el propio `server.js` reenvía `/mcp` y `/.well-known/oauth-protected-resource*` al servicio MCP (`MCP_UPSTREAM`, por defecto `http://localhost:3002`).
 
-- `/mcp` (POST y GET)
-- `/.well-known/oauth-protected-resource` y `/.well-known/oauth-protected-resource/mcp` (GET; descubrimiento OAuth)
+El FortiGate no redirige, por eso la migración del 8080 al HTTPS la hace la app en **dos pasos**:
 
-Regla para el `web.config` del sitio (`system.webServer/rewrite/rules`), colocada **arriba** de la existente:
+**Paso A — app en 8080 y 8081 a la vez** (`.env` del app):
 
-```xml
-<rule name="MCP Planificacion" stopProcessing="true">
-  <match url="^(mcp|\.well-known/oauth-protected-resource(/mcp)?)$" />
-  <action type="Rewrite" url="http://localhost:3002/{R:0}" />
-</rule>
 ```
+PORT=8080
+PORT_ALT=8081
+```
+`pm2 restart picking`. Avisar a TI: "ya se puede apuntar el HTTPS 8443 al 8081".
 
-Debe pasar sin tocar los encabezados `Authorization`, `Accept`, `MCP-Protocol-Version` y `Mcp-Session-Id` (ARR lo hace por defecto). Si alguna respuesta llegara cortada, desactivar el buffer de respuesta de ARR para esa regla.
+**Paso B — cuando TI apunte el 8443 al 8081**, el 8080 pasa a ser solo redirect (el link viejo sigue funcionando y lleva al HTTPS conservando la ruta):
 
-`PLAN_PUBLIC_URL` del servicio = `https://picking.ferco.com.gt` (sin `/mcp`; el servicio lo agrega), y el `.mcp.json` del plugin apunta a `https://picking.ferco.com.gt/mcp`.
+```
+PORT=8081
+REDIRECT_PORT=8080
+REDIRECT_TO=https://picking.ferco.com.gt:8443
+```
+(quitar `PORT_ALT`) y `pm2 restart picking`. Comprobar: `http://picking.ferco.com.gt:8080/login` → 301 a `https://picking.ferco.com.gt:8443/login`.
+
+`PLAN_PUBLIC_URL` del servicio MCP = `https://picking.ferco.com.gt:8443` (sin `/mcp`; el servicio lo agrega) y el `.mcp.json` del plugin apunta a `https://picking.ferco.com.gt:8443/mcp`.
 
 Comprobación externa (desde fuera de la red):
 
-- `https://picking.ferco.com.gt/.well-known/oauth-protected-resource/mcp` → JSON con `authorization_servers`.
-- `POST https://picking.ferco.com.gt/mcp` sin encabezado `Authorization` → 401 con `WWW-Authenticate: Bearer resource_metadata="…"`.
+- `https://picking.ferco.com.gt:8443/.well-known/oauth-protected-resource/mcp` → JSON con `authorization_servers` y `resource` = `https://picking.ferco.com.gt:8443/mcp`.
+- `POST https://picking.ferco.com.gt:8443/mcp` sin encabezado `Authorization` → 401 con `WWW-Authenticate: Bearer resource_metadata="…"`.
 
 ## 4. Login y alta del conector
 

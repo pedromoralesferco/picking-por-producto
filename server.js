@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const path = require('path');
 const session = require('express-session');
 const helmet = require('helmet');
@@ -22,6 +23,24 @@ app.use(helmet({
 
 // Trust proxy (para que rate-limit funcione con IIS reverse proxy)
 app.set('trust proxy', 1);
+
+// Conector de Planificación (MCP): el FortiGate manda el HTTPS directo a Node, así que
+// Node reenvía /mcp y el descubrimiento OAuth al servicio MCP (proceso aparte, puerto 3002).
+// Va ANTES de express.json() para pasar el cuerpo tal cual (stream) y no consumirlo aquí.
+const MCP_UPSTREAM = new URL(process.env.MCP_UPSTREAM || 'http://localhost:3002');
+function proxyMcp(req, res) {
+    const headers = { ...req.headers, host: MCP_UPSTREAM.host };
+    const up = http.request({ hostname: MCP_UPSTREAM.hostname, port: MCP_UPSTREAM.port || 80, method: req.method, path: req.originalUrl, headers }, (r) => {
+        res.writeHead(r.statusCode, r.headers);
+        r.pipe(res);
+    });
+    up.on('error', (err) => {
+        console.error('AVISO: proxy MCP no disponible:', err.message);
+        if (!res.headersSent) res.status(502).json({ error: 'Servicio de planificación (MCP) no disponible' });
+    });
+    req.pipe(up);
+}
+app.all(['/mcp', '/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp'], proxyMcp);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -260,6 +279,16 @@ function startBacklogSnapshot() {
     setTimeout(tick, 20 * 1000); // no competir con el arranque
 }
 
+// Puertos:
+//  PORT          → app completa (producción: 8081, donde el FortiGate manda el HTTPS 8443)
+//  PORT_ALT      → segundo puerto con la app completa (para migrar sin corte: 8080 y 8081 a la vez)
+//  REDIRECT_PORT → puerto que SOLO redirige (301) a REDIRECT_TO conservando la ruta, para que el
+//                  link viejo http://picking.ferco.com.gt:8080 siga funcionando y lleve al HTTPS.
+//                  El FortiGate no redirige en estos puertos; por eso lo hace la app.
+const PORT_ALT = process.env.PORT_ALT;
+const REDIRECT_PORT = process.env.REDIRECT_PORT;
+const REDIRECT_TO = (process.env.REDIRECT_TO || '').replace(/\/$/, '');
+
 async function start() {
     await db.connect();
     app.listen(PORT, () => {
@@ -271,6 +300,16 @@ async function start() {
         startBacklogSnapshot();
         console.log('Snapshot del backlog de planificacion activo (15 min).');
     });
+    if (PORT_ALT && String(PORT_ALT) !== String(PORT)) {
+        app.listen(PORT_ALT, () => console.log(`Picking por Producto tambien en http://localhost:${PORT_ALT} (PORT_ALT)`));
+    }
+    if (REDIRECT_PORT && REDIRECT_TO && String(REDIRECT_PORT) !== String(PORT) && String(REDIRECT_PORT) !== String(PORT_ALT)) {
+        const redirectApp = express();
+        redirectApp.use((req, res) => res.redirect(301, REDIRECT_TO + req.originalUrl));
+        redirectApp.listen(REDIRECT_PORT, () => console.log(`Redirect 301 ${REDIRECT_PORT} -> ${REDIRECT_TO} activo.`));
+    } else if (REDIRECT_PORT) {
+        console.error('AVISO: REDIRECT_PORT ignorado (falta REDIRECT_TO o coincide con PORT/PORT_ALT).');
+    }
 }
 
 start().catch(console.error);
