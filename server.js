@@ -29,7 +29,9 @@ app.set('trust proxy', 1);
 // Va ANTES de express.json() para pasar el cuerpo tal cual (stream) y no consumirlo aquí.
 const MCP_UPSTREAM = new URL(process.env.MCP_UPSTREAM || 'http://localhost:3002');
 function proxyMcp(req, res) {
-    const headers = { ...req.headers, host: MCP_UPSTREAM.host };
+    const ip = req.socket.remoteAddress || '';
+    const xff = req.headers['x-forwarded-for'] ? `${req.headers['x-forwarded-for']}, ${ip}` : ip;
+    const headers = { ...req.headers, host: MCP_UPSTREAM.host, 'x-forwarded-for': xff, 'x-forwarded-proto': req.headers['x-forwarded-proto'] || req.protocol };
     const up = http.request({ hostname: MCP_UPSTREAM.hostname, port: MCP_UPSTREAM.port || 80, method: req.method, path: req.originalUrl, headers }, (r) => {
         res.writeHead(r.statusCode, r.headers);
         r.pipe(res);

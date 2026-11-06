@@ -118,7 +118,7 @@ npm install --omit=dev
 
 ```
 PORT=3002
-PLAN_API_URL=http://localhost:8081
+PLAN_API_URL=http://localhost:8080   # puerto donde escucha el app (tras el Paso B: 8090)
 PLAN_PUBLIC_URL=https://picking.ferco.com.gt:8443
 PLAN_AUTH_SERVER=https://anauitftpqxpppdvkzym.supabase.co/auth/v1
 PLAN_ALLOWED_ORIGINS=https://claude.ai,https://claude.com
@@ -138,18 +138,20 @@ Cómo está la red: el DNS público apunta a la DMZ; el FortiGate tiene una IP v
 
 El FortiGate no redirige, por eso la migración del 8080 al HTTPS la hace la app en **dos pasos**:
 
-**Paso A — app en 8080 y 8081 a la vez** (`.env` del app):
+> El 8081 **no sirve** en este Windows (rango reservado por el sistema: `listen EACCES`). Se usa el **8090**. Con el `server.js` de `fcf2db3` un puerto alterno que falle solo deja un AVISO en el log; con versiones anteriores tumbaba todo el proceso.
+
+**Paso A — app en 8080 y 8090 a la vez** (`.env` del app) — HECHO el 5-nov-2026:
 
 ```
 PORT=8080
-PORT_ALT=8081
+PORT_ALT=8090
 ```
-`pm2 restart picking`. Avisar a TI: "ya se puede apuntar el HTTPS 8443 al 8081".
+`pm2 restart picking`. Hoy el 8443 del FortiGate apunta al 8080. Avisar a TI: "ya se puede apuntar el HTTPS 8443 al 8090".
 
-**Paso B — cuando TI apunte el 8443 al 8081**, el 8080 pasa a ser solo redirect (el link viejo sigue funcionando y lleva al HTTPS conservando la ruta):
+**Paso B — cuando TI apunte el 8443 al 8090**, el 8080 pasa a ser solo redirect (el link viejo sigue funcionando y lleva al HTTPS conservando la ruta):
 
 ```
-PORT=8081
+PORT=8090
 REDIRECT_PORT=8080
 REDIRECT_TO=https://picking.ferco.com.gt:8443
 ```
