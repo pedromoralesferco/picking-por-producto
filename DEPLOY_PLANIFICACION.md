@@ -86,6 +86,8 @@ UIPATH_RELEASE_KEY=...
 UIPATH_ORG_UNIT=...
 ```
 
+> **Ojo con el secret de UiPath:** contiene `#`. `dotenv` corta un valor sin comillas en el primer `#`, y UiPath responde `token HTTP 400`. Debe ir **entre comillas dobles**: `UIPATH_CLIENT_SECRET="..."`. En PowerShell, pegarlo con comillas simples para que no expanda `$`.
+
 **Nunca** poner en producción `PLAN_DEV_LOCAL_JWKS`, `PLAN_JWKS_JSON` ni `PLAN_JWT_ISSUER`: son solo para firmar pases de prueba en desarrollo.
 
 ### 2.3 Reiniciar y comprobar

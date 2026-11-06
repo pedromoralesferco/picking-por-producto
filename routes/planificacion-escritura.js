@@ -57,7 +57,7 @@ async function lanzarRobotRutas() {
         method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ grant_type: 'client_credentials', client_id: process.env.UIPATH_CLIENT_ID, client_secret: process.env.UIPATH_CLIENT_SECRET, scope: 'OR.Jobs' })
     });
-    if (!tr.ok) throw new Error(`UiPath token HTTP ${tr.status}`);
+    if (!tr.ok) { const t = (await tr.text().catch(() => '')).slice(0, 200); throw new Error(`UiPath token HTTP ${tr.status}: ${t} (revisa UIPATH_CLIENT_SECRET en el .env: si trae # debe ir entre comillas)`); }
     const tok = await tr.json();
     const sr = await fetch(process.env.UIPATH_STARTJOBS_URL, {
         method: 'POST',
