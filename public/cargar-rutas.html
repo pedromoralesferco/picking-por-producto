@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cargar Rutas</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  :root {
+    --primary:#d4a826; --primary-dark:#b8941f; --dark:#222; --bg:#f5f5f5;
+    --success:#2e7d32; --danger:#c62828; --warn:#ef6c00; --ink:#333; --muted:#888;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; }
+  .navbar-app { background:var(--dark); color:#fff; padding:.7rem 1.3rem; display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid var(--primary); box-shadow:0 2px 8px rgba(0,0,0,.3); }
+  .navbar-app .brand { display:flex; align-items:center; gap:.6rem; font-weight:700; }
+  .navbar-app .brand i { color:var(--primary); font-size:1.2rem; }
+  .navbar-app a { color:#ccc; text-decoration:none; font-size:.85rem; display:flex; align-items:center; gap:.3rem; }
+  .navbar-app a:hover { color:var(--primary); }
+
+  .wrap { max-width:1000px; margin:0 auto; padding:1.3rem 1.3rem 3rem; }
+  .card { background:#fff; border:1px solid #e9e9e9; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:1.2rem; overflow:hidden; }
+  .card-h { padding:.85rem 1.1rem; border-bottom:1px solid #eee; font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:.5rem; }
+  .card-h i { color:var(--warn); }
+  .card-b { padding:1.1rem; }
+  .muted { color:var(--muted); font-size:.82rem; }
+
+  .drop { display:block; border:2px dashed #ccc; border-radius:12px; padding:1.6rem; text-align:center; cursor:pointer; transition:.15s; background:#fafafa; }
+  .drop:hover, .drop.over { border-color:var(--primary); background:#fffdf3; }
+  .drop i { font-size:2rem; color:var(--primary); }
+  .drop .big { font-weight:700; margin-top:.4rem; }
+  .drop input[type=file] { display:none; }
+
+  .row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-top:1rem; }
+  .field { display:flex; align-items:center; gap:.45rem; font-size:.85rem; color:#555; }
+  input[type=date], input[type=text] { padding:.45rem .6rem; border:1px solid #ccc; border-radius:7px; font-size:.85rem; }
+
+  .btn { border:none; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:.45rem; padding:.6rem 1.15rem; font-size:.9rem; }
+  .btn-primary { background:var(--primary); color:#222; }
+  .btn-primary:hover { background:var(--primary-dark); }
+  .btn-go { background:var(--warn); color:#fff; }
+  .btn-go:hover { background:#d35f00; }
+  .btn-ghost { background:#eee; color:#444; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .link { background:none; border:none; color:var(--primary-dark); cursor:pointer; font-size:.82rem; text-decoration:underline; padding:0; }
+
+  table { width:100%; border-collapse:collapse; font-size:.83rem; }
+  th, td { padding:.5rem .6rem; border-bottom:1px solid #eee; text-align:left; }
+  th { background:#faf8f0; font-weight:700; color:#555; position:sticky; top:0; }
+  td.n, th.n { text-align:right; }
+  .tbl-wrap { max-height:340px; overflow:auto; border:1px solid #eee; border-radius:8px; }
+
+  .chip { display:inline-flex; align-items:center; gap:.35rem; background:#f0f0f0; border-radius:20px; padding:.25rem .65rem; font-size:.78rem; margin:.15rem .2rem 0 0; }
+  .pill { display:inline-block; padding:.12rem .5rem; border-radius:12px; font-size:.72rem; font-weight:700; }
+  .pill.ok { background:#e6f4ea; color:var(--success); }
+  .pill.err { background:#fdecea; color:var(--danger); }
+  .pill.pend { background:#fff4e5; color:var(--warn); }
+
+  .alert { border-radius:8px; padding:.7rem .9rem; font-size:.84rem; margin-top:.9rem; }
+  .alert.warn { background:#fff4e5; border:1px solid #ffd9a8; color:#8a5200; }
+  .alert.err { background:#fdecea; border:1px solid #f5c2bd; color:#8a1a12; }
+  .alert.ok { background:#e6f4ea; border:1px solid #b5ddc0; color:#1f5a2c; }
+  .hidden { display:none; }
+  .spin { display:inline-block; width:15px; height:15px; border:2px solid rgba(0,0,0,.2); border-top-color:#222; border-radius:50%; animation:sp .7s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<nav class="navbar-app">
+  <div class="brand"><i class="bi bi-cloud-arrow-up"></i> Cargar Rutas</div>
+  <a href="/dashboard"><i class="bi bi-arrow-left"></i> Dashboard</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- Paso 1: archivo -->
+  <div class="card">
+    <div class="card-h"><i class="bi bi-filetype-csv"></i> 1. Subí la plantilla de rutas</div>
+    <div class="card-b">
+      <label class="drop" id="drop">
+        <i class="bi bi-cloud-arrow-up"></i>
+        <div class="big" id="dropTitle">Arrastrá el archivo o hacé clic para elegirlo</div>
+        <div class="muted" id="dropSub">CSV / TXT con cabecera RUTA;PESO;DOCUMENTO;TIPO;CAPACIDAD;ALMACENORIGEN</div>
+        <input type="file" id="file" accept=".csv,.txt,text/csv,text/plain">
+      </label>
+      <div class="row">
+        <div class="field">
+          <label for="fecha"><i class="bi bi-calendar-event"></i> Fecha de despacho (opcional)</label>
+          <input type="date" id="fecha">
+        </div>
+        <button class="link" onclick="descargarPlantilla()"><i class="bi bi-download"></i> Descargar plantilla vacía</button>
+      </div>
+      <div id="parseAlert"></div>
+    </div>
+  </div>
+
+  <!-- Paso 2: preview -->
+  <div class="card hidden" id="previewCard">
+    <div class="card-h"><i class="bi bi-list-check"></i> 2. Revisá lo que se va a cargar <span id="pvResumen" class="muted" style="margin-left:auto"></span></div>
+    <div class="card-b">
+      <div class="tbl-wrap">
+        <table id="pvTable">
+          <thead><tr><th>Ruta</th><th class="n">Docs</th><th class="n">Peso (kg)</th><th class="n">Cap. (T)</th><th>Almacén</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="invalidBox"></div>
+      <div class="row" style="justify-content:flex-end; margin-top:1rem">
+        <div class="muted" style="margin-right:auto">El robot procesa <b>todo lo pendiente</b> del staging (todos los equipos).</div>
+        <button class="btn btn-go" id="btnProcesar" onclick="procesar()">
+          <i class="bi bi-robot"></i> Procesar y correr robot
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paso 3: resultado + estado -->
+  <div class="card hidden" id="resultCard">
+    <div class="card-h"><i class="bi bi-check2-circle"></i> 3. Resultado
+      <button class="btn btn-ghost" style="margin-left:auto; padding:.35rem .7rem; font-size:.8rem" onclick="refrescarEstado()"><i class="bi bi-arrow-clockwise"></i> Actualizar estado</button>
+    </div>
+    <div class="card-b">
+      <div id="resultAlert"></div>
+      <div class="tbl-wrap" style="margin-top:.8rem">
+        <table id="stTable">
+          <thead><tr><th>Ruta</th><th class="n">Docs</th><th>Estado</th><th>Cuadro(s) SAP</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:.6rem">El app ingesta los cuadros nuevos en ~5 min. Luego podés fijar prioridad/fecha en Priorización.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let texto = null, archivoNombre = null, lotesActuales = [], pollTimer = null;
+
+const $ = id => document.getElementById(id);
+
+// ---- carga de archivo ----
+const drop = $('drop'), fileInput = $('file');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) leerArchivo(f); });
+fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) leerArchivo(f); });
+
+function leerArchivo(f) {
+  archivoNombre = f.name;
+  const rd = new FileReader();
+  rd.onload = () => { texto = rd.result; $('dropTitle').textContent = f.name; $('dropSub').textContent = (f.size/1024).toFixed(1) + ' KB — analizando…'; preview(); };
+  rd.onerror = () => setAlert('parseAlert', 'err', 'No se pudo leer el archivo.');
+  rd.readAsText(f, 'utf-8');
+}
+
+function setAlert(box, tipo, html) { $(box).innerHTML = html ? `<div class="alert ${tipo}">${html}</div>` : ''; }
+
+// ---- preview ----
+async function preview() {
+  setAlert('parseAlert','',''); $('previewCard').classList.add('hidden'); $('resultCard').classList.add('hidden');
+  try {
+    const r = await fetch('/api/cargar-rutas/preview', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ texto }) });
+    const d = await r.json();
+    if (!r.ok) { $('dropSub').textContent = archivoNombre || ''; return setAlert('parseAlert','err','<i class="bi bi-exclamation-triangle"></i> ' + (d.error || 'No se pudo leer la plantilla.')); }
+    if (!d.totalFilas) { $('dropSub').textContent = archivoNombre || ''; return setAlert('parseAlert','warn','No encontré filas válidas en el archivo.'); }
+
+    $('dropSub').textContent = archivoNombre || '';
+    $('pvResumen').textContent = `${d.totalRutas} ruta(s) · ${d.totalFilas} documento(s)`;
+    const tb = $('pvTable').querySelector('tbody'); tb.innerHTML = '';
+    d.rutas.forEach(x => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(x.ruta)}</td><td class="n">${x.docs}</td><td class="n">${x.pesoKg.toLocaleString()}</td><td class="n">${x.capacidad ?? '—'}</td><td>${x.almacenes.map(a=>`<span class="chip">${esc(a)}</span>`).join('')}</td>`;
+      tb.appendChild(tr);
+    });
+    if (d.invalidas && d.invalidas.length) {
+      const items = d.invalidas.slice(0,20).map(i => `<li>Línea ${i.linea}: ${esc(i.motivo)}</li>`).join('');
+      const extra = d.invalidas.length > 20 ? `<li>…y ${d.invalidas.length - 20} más</li>` : '';
+      $('invalidBox').innerHTML = `<div class="alert warn"><b>${d.invalidas.length} fila(s) se van a omitir</b> (no se cargan):<ul style="margin:.4rem 0 0 1.1rem">${items}${extra}</ul></div>`;
+    } else $('invalidBox').innerHTML = '';
+    $('previewCard').classList.remove('hidden');
+    $('previewCard').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  } catch (e) { setAlert('parseAlert','err','Error de red al analizar: ' + e.message); }
+}
+
+// ---- procesar ----
+async function procesar() {
+  const resumen = $('pvResumen').textContent;
+  if (!confirm(`Se cargarán ${resumen} al staging y se correrá el robot de UiPath.\n\n¿Continuar?`)) return;
+  const btn = $('btnProcesar'); btn.disabled = true; const prev = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> Procesando…';
+  try {
+    const fecha = $('fecha').value || null;
+    const r = await fetch('/api/cargar-rutas/procesar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ texto, fecha, archivo: archivoNombre }) });
+    const d = await r.json();
+    if (!r.ok) { setAlert('parseAlert','err','<i class="bi bi-x-circle"></i> ' + (d.error || 'No se pudo procesar.')); return; }
+    lotesActuales = (d.lotes || []).map(l => l.lote_id);
+    $('resultCard').classList.remove('hidden');
+    const okRobot = !d.errorRobot;
+    const jobTxt = d.robot && d.robot.id ? ` (job #${d.robot.id})` : '';
+    setAlert('resultAlert', okRobot ? 'ok' : 'warn',
+      `<b>${d.filasInsertadas} documento(s)</b> en ${d.totalRutas} ruta(s) cargados al staging${d.omitidas ? ` · ${d.omitidas} omitido(s)` : ''}.<br>` +
+      (okRobot ? `<i class="bi bi-robot"></i> Robot encolado${jobTxt}. ${esc(d.nota||'')}` : `<i class="bi bi-exclamation-triangle"></i> Robot NO arrancó: ${esc(d.errorRobot)}. Las rutas quedaron en staging.`));
+    // sembrar tabla de estado con lo cargado
+    const tb = $('stTable').querySelector('tbody'); tb.innerHTML = '';
+    (d.lotes || []).forEach(l => {
+      const tr = document.createElement('tr'); tr.dataset.lote = l.lote_id;
+      tr.innerHTML = `<td>${esc(l.ruta)}</td><td class="n">—</td><td><span class="pill pend">en cola</span></td><td>—</td>`;
+      tb.appendChild(tr);
+    });
+    $('resultCard').scrollIntoView({ behavior:'smooth', block:'nearest' });
+    // arrancar polling de estado
+    if (pollTimer) clearInterval(pollTimer);
+    let veces = 0;
+    pollTimer = setInterval(() => { veces++; refrescarEstado(); if (veces >= 20) clearInterval(pollTimer); }, 15000);
+    setTimeout(refrescarEstado, 4000);
+  } catch (e) {
+    setAlert('parseAlert','err','Error de red al procesar: ' + e.message);
+  } finally { btn.disabled = false; btn.innerHTML = prev; }
+}
+
+// ---- estado ----
+async function refrescarEstado() {
+  if (!lotesActuales.length) return;
+  try {
+    const r = await fetch('/api/cargar-rutas/estado?lotes=' + encodeURIComponent(lotesActuales.join(',')));
+    const d = await r.json();
+    if (!r.ok) return;
+    const byLote = {}; (d.lotes||[]).forEach(l => byLote[l.lote_id] = l);
+    $('stTable').querySelectorAll('tbody tr').forEach(tr => {
+      const g = byLote[tr.dataset.lote]; if (!g) return;
+      let pill = '<span class="pill pend">en cola</span>';
+      if (g.error > 0 && g.completado + g.pendiente === 0) pill = '<span class="pill err">error</span>';
+      else if (g.pendiente === 0 && g.completado > 0) pill = '<span class="pill ok">creado</span>';
+      else if (g.completado > 0) pill = `<span class="pill ok">${g.completado}/${g.total}</span> <span class="pill pend">resto en cola</span>`;
+      const cuadros = (g.cuadros||[]).length ? g.cuadros.join(', ') : (g.error>0 ? ('<span class="muted">'+esc((g.errores||[])[0]||'error')+'</span>') : '—');
+      tr.innerHTML = `<td>${esc(g.ruta)}</td><td class="n">${g.total}</td><td>${pill}</td><td>${cuadros}</td>`;
+    });
+  } catch (e) { /* silencioso */ }
+}
+
+// ---- plantilla vacía ----
+function descargarPlantilla() {
+  const csv = '﻿RUTA;PESO;DOCUMENTO;TIPO;CAPACIDAD;ALMACENORIGEN\r\n06NOV EJEMPLO RUTA 10T;1250;200900001;OV;10;138\r\n06NOV EJEMPLO RUTA 10T;340.5;112100001;TR;10;138\r\n';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  a.download = 'plantilla_rutas.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function esc(s) { return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+</script>
+</body>
+</html>

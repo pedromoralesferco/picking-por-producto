@@ -98,10 +98,14 @@ app.use('/api/wms', wmsApiRoutes);
 try {
     const planificadorApiRoutes = require('./routes/planificador-api');
     app.use('/api/planificador', planificadorApiRoutes);
+    // El módulo "Planificador de Rutas" se reutiliza como "Cargar Rutas":
+    // subir la plantilla -> staging (Supabase) + robot UiPath. Mismo permiso.
+    const cargarRutasApi = require('./routes/cargar-rutas-api');
+    app.use('/api/cargar-rutas', cargarRutasApi);
     app.get('/planificador', requireAuthPage, requireCentro, requirePermisoPage('planificador'), (req, res) => {
-        res.sendFile(path.join(__dirname, 'public', 'planificador.html'));
+        res.sendFile(path.join(__dirname, 'public', 'cargar-rutas.html'));
     });
-    console.log('Modulo Planificador cargado.');
+    console.log('Modulo Planificador / Cargar Rutas cargado.');
 } catch (err) {
     console.error('AVISO: Planificador deshabilitado (fallo al cargar el modulo):', err.message);
 }
