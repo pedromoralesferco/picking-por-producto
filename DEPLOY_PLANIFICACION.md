@@ -119,7 +119,7 @@ npm install --omit=dev
 ```
 PORT=3002
 PLAN_API_URL=http://localhost:8080   # puerto donde escucha el app (tras el Paso B: 8090)
-PLAN_PUBLIC_URL=https://picking.ferco.com.gt:8443
+PLAN_PUBLIC_URL=https://picking-mcp.ferco.com.gt
 PLAN_AUTH_SERVER=https://anauitftpqxpppdvkzym.supabase.co/auth/v1
 PLAN_ALLOWED_ORIGINS=https://claude.ai,https://claude.com
 ```
@@ -157,12 +157,14 @@ REDIRECT_TO=https://picking.ferco.com.gt:8443
 ```
 (quitar `PORT_ALT`) y `pm2 restart picking`. Comprobar: `http://picking.ferco.com.gt:8080/login` → 301 a `https://picking.ferco.com.gt:8443/login`.
 
-`PLAN_PUBLIC_URL` del servicio MCP = `https://picking.ferco.com.gt:8443` (sin `/mcp`; el servicio lo agrega) y el `.mcp.json` del plugin apunta a `https://picking.ferco.com.gt:8443/mcp`.
+**Conector (6-nov-2026):** Claude no alcanza puertos distintos del 443 (los intentos al `:8443` nunca llegaron al FortiGate), y el 443 de `picking.ferco.com.gt` lo ocupa Tableau. TI publicó **`https://picking-mcp.ferco.com.gt`** (otra IP pública, 443 → el mismo Node del app, que reenvía `/mcp` al servicio). Por eso `PLAN_PUBLIC_URL=https://picking-mcp.ferco.com.gt` (sin `/mcp`; el servicio lo agrega) y el `.mcp.json` del plugin apunta a `https://picking-mcp.ferco.com.gt/mcp`. El sitio para las personas sigue en `https://picking.ferco.com.gt:8443`.
+
+Rangos de salida de Anthropic por si el firewall filtra por IP (fijos, solo IPv4): `160.79.104.0/21` y `153.61.208.0/20` (https://platform.claude.com/docs/en/api/ip-addresses).
 
 Comprobación externa (desde fuera de la red):
 
-- `https://picking.ferco.com.gt:8443/.well-known/oauth-protected-resource/mcp` → JSON con `authorization_servers` y `resource` = `https://picking.ferco.com.gt:8443/mcp`.
-- `POST https://picking.ferco.com.gt:8443/mcp` sin encabezado `Authorization` → 401 con `WWW-Authenticate: Bearer resource_metadata="…"`.
+- `https://picking-mcp.ferco.com.gt/.well-known/oauth-protected-resource/mcp` → JSON con `authorization_servers` y `resource` = `https://picking-mcp.ferco.com.gt/mcp`.
+- `POST https://picking-mcp.ferco.com.gt/mcp` sin encabezado `Authorization` → 401 con `WWW-Authenticate: Bearer resource_metadata="…"`.
 
 ## 4. Login y alta del conector
 
