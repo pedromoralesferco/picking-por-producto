@@ -253,7 +253,10 @@ async function editarCuadro(pool, rn, opciones, autor) {
                 // Nombre del complemento = nombre de la ruta original + " - COMP"
                 // (ej. "27 OCT SAC" -> "27 OCT SAC - COMP"). Tope 73 chars para no
                 // pasar el U_NombreR de SAP (75). Fallback al número si no hay nombre.
-                var baseName = (A.RouteName || ('COMP-' + rn)).trim();
+                var baseName = (A.RouteName || ('Ruta ' + rn)).trim();
+                // Si la ruta origen YA es un complemento ("... - COMP"), no duplicar el
+                // sufijo: un complemento de complemento se sigue llamando "<ruta> - COMP".
+                baseName = baseName.replace(/\s*-\s*COMP\s*$/i, '').trim();
                 if (baseName.length > 66) baseName = baseName.substring(0, 66).trim();
                 nombreComp = baseName + ' - COMP';
                 const ins = await pool.request()
