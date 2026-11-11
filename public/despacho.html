@@ -191,6 +191,14 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        .rc-prio {
+            display: inline-block;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 4px;
+            padding: 0 0.3rem;
+            font-size: 0.66rem;
+        }
 
         .rc-meta {
             font-size: 0.62rem;
@@ -795,7 +803,15 @@
             });
 
             const byRoute = (a, b) => (a.RouteNumber || 0) - (b.RouteNumber || 0);
-            [slotPicking, slotCompletado, slotListo].forEach(s => s.sort(byRoute));
+            // Picking terminado: en el orden de la cola de despacho (1 = primero).
+            const byPrioDespacho = (a, b) => {
+                const pa = a.PrioridadDespacho == null ? 999999 : a.PrioridadDespacho;
+                const pb = b.PrioridadDespacho == null ? 999999 : b.PrioridadDespacho;
+                return pa - pb || byRoute(a, b);
+            };
+            slotPicking.sort(byRoute);
+            slotCompletado.sort(byPrioDespacho);
+            slotListo.sort(byPrioDespacho);
 
             const slotHtml = (cls, icon, titulo, list) => `
                 <div class="kanban-slot ${cls}">
@@ -831,7 +847,7 @@
 
             return `
                 <div class="route-chip ${estadoClass} ${isActive ? 'active' : ''}" onclick="${onClickFn}">
-                    <div class="rc-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
+                    <div class="rc-title">${r.PrioridadDespacho != null && r.Estado === 'Finalizado' ? `<span class="rc-prio" title="Prioridad de despacho">D${r.PrioridadDespacho}</span> ` : ''}#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
                     <div class="rc-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
                     <div class="rc-bar"><div class="fill ${pickingPct === 100 ? 'complete' : ''}" style="width:${pickingPct}%"></div></div>
                     <div class="rc-pct">${pickingPct}%</div>
