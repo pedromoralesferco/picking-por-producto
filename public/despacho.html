@@ -1690,7 +1690,9 @@
         }
 
         function guardarBultos() {
-            const map = {};
+            // Se combina con lo ya guardado (Gestión de picking también guarda bultos por OV).
+            let map = {};
+            try { map = JSON.parse(localStorage.getItem('etiquetasBultos') || '{}') || {}; } catch (e) {}
             document.querySelectorAll('.bultos-input').forEach(inp => {
                 const ov = inp.getAttribute('data-ov');
                 let n = parseInt(inp.value, 10);

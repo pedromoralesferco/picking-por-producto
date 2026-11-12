@@ -660,6 +660,20 @@ function renderPedido(idRoutePlan, p) {
     const detailBtn = `<button class="btn-action btn-detalle" onclick="togglePedidoDetail(${p.ID_OrderPicking}, this)" title="Ver lineas">
         <i class="bi bi-chevron-down"></i></button>`;
 
+    // Etiqueta 4x8 de este pedido: se elige el # de bultos (una etiqueta por bulto)
+    const etiquetaHtml = noDesp ? '' : `<div class="etq-row">
+        <div class="etq-ctrl" title="Imprimir etiquetas de este pedido (una por bulto)">
+            <span class="etq-lbl">Bultos</span>
+            <input type="number" min="1" max="${MAX_BULTOS_ETIQUETA}" step="1" class="etq-input"
+                   data-ov="${esc(p.OV_Number)}" value="${bultosGuardados(p.OV_Number)}"
+                   oninput="setBultosOV(this.dataset.ov, this.value)"
+                   onkeydown="if (event.key === 'Enter') this.nextElementSibling.click()">
+            <button class="btn-action btn-etiqueta" title="Imprimir etiqueta"
+                    data-route="${idRoutePlan}" data-pedido="${p.ID_OrderPicking}"
+                    onclick="imprimirEtiquetaPedido(this)">
+                <i class="bi bi-tag"></i></button>
+        </div></div>`;
+
     return `
         <div class="pedido-card estado-${estadoClean}">
             <div class="pedido-header">
@@ -675,11 +689,44 @@ function renderPedido(idRoutePlan, p) {
                 <div class="pedido-actions">
                     ${detailBtn}
                     ${buttonsHtml}
+                    ${etiquetaHtml}
                 </div>
             </div>
             <div class="tareas-container" id="pedido-detail-${p.ID_OrderPicking}" style="display:none"></div>
         </div>
     `;
+}
+
+// --- Etiquetas por pedido ---------------------------------------------------
+// El # de bultos por OV se guarda en localStorage ('etiquetasBultos'), la misma
+// llave que usa Despacho y que lee /etiqueta-print.html.
+const MAX_BULTOS_ETIQUETA = 50;
+
+function leerBultosMap() {
+    try { return JSON.parse(localStorage.getItem('etiquetasBultos') || '{}') || {}; } catch (e) { return {}; }
+}
+
+function bultosGuardados(ov) {
+    const n = parseInt(leerBultosMap()[String(ov)], 10);
+    return (Number.isFinite(n) && n >= 1) ? Math.min(n, MAX_BULTOS_ETIQUETA) : 1;
+}
+
+function setBultosOV(ov, val) {
+    let n = parseInt(val, 10);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    if (n > MAX_BULTOS_ETIQUETA) n = MAX_BULTOS_ETIQUETA;
+    const map = leerBultosMap();
+    map[String(ov)] = n;
+    try { localStorage.setItem('etiquetasBultos', JSON.stringify(map)); } catch (e) {}
+    return n;
+}
+
+function imprimirEtiquetaPedido(btn) {
+    const input = btn.parentElement.querySelector('.etq-input');
+    if (input) input.value = setBultosOV(input.dataset.ov, input.value);
+    const url = `/etiqueta-print.html?mode=order&idRoutePlan=${encodeURIComponent(btn.dataset.route)}`
+              + `&pedido=${encodeURIComponent(btn.dataset.pedido)}`;
+    window.open(url, '_blank');
 }
 
 async function togglePedidoDetail(idOrderPicking, btn) {
@@ -1037,6 +1084,8 @@ async function refreshData() {
     await loadRutas();
 
     if (pickingMode === 'order' && selectedRoutePlanId) {
+        // No redibujar mientras alguien escribe los bultos de una etiqueta (perdería el foco)
+        if (document.activeElement && document.activeElement.classList.contains('etq-input')) return;
         try {
             const ruta = rutasCache.find(r => r.ID_RoutePlan === selectedRoutePlanId);
             if (ruta) await selectRutaOrder(selectedRoutePlanId, ruta.RouteNumber);
