@@ -702,6 +702,7 @@ router.get('/despacho/rutas', async (req, res) => {
                 orp.Estado,
                 orp.EstadoDespacho,
                 orp.FechaDespachoFin,
+                orp.PrioridadDespacho,
                 orp.ID_Carril,
                 orp.ID_Centro,
                 orp.Pais,

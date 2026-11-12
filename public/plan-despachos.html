@@ -290,6 +290,23 @@
             });
         }
 
+        // Cola de despacho: por PrioridadDespacho; sin número aún (recién terminado,
+        // el job de 30 s se lo asigna) al final por hora de fin de picking (FIFO).
+        function sortByPrioridadDespacho(arr) {
+            const t = c => c.FechaFin ? new Date(c.FechaFin).getTime() : Infinity;
+            return arr.slice().sort((x, y) => {
+                const px = x.PrioridadDespacho == null ? 999999 : x.PrioridadDespacho;
+                const py = y.PrioridadDespacho == null ? 999999 : y.PrioridadDespacho;
+                return px - py || t(x) - t(y) || x.Cuadro - y.Cuadro;
+            });
+        }
+        function prioDespachoCell(c, puede) {
+            const v = c.PrioridadDespacho;
+            return puede
+                ? `<input type="number" min="1" step="1" class="prio-input" value="${v ?? ''}" placeholder="—" title="Prioridad de despacho (1 = primero)" onclick="event.stopPropagation()" onchange="setPrioridadDespacho(${c.ID_RoutePlan}, this.value)">`
+                : `<span class="prio-badge ${v == null ? 'none' : ''}">${v ?? '–'}</span>`;
+        }
+
         const fmtTon = t => (Number(t) || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         function statusCargaHtml(c) {
             if (c.EstadoDespacho === 'Finalizado') return '<span class="pill fin">Finalizado</span>';
@@ -310,7 +327,7 @@
                 ? `<input type="date" class="fp-input" value="${fISO}" onclick="event.stopPropagation()" onchange="setFechaPlan(${c.ID_RoutePlan}, this.value)">`
                 : (fISO ? esc(new Date(fISO + 'T00:00:00').toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })) : '—');
         }
-        function filaCuadro(c, acum, tonHtml, oculto, fechaEditable) {
+        function filaCuadro(c, acum, tonHtml, oculto, fechaEditable, prioDesp) {
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
             const tonCell = (tonHtml == null ? fmtTon((c.PesoEstimadoKg || 0) / 1000) : tonHtml);
@@ -321,7 +338,7 @@
             return `
                 <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     ${fechaTd}
-                    <td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>
+                    ${prioDesp ? `<td class="c" onclick="event.stopPropagation()">${prioDespachoCell(c, !!DATA.puedePriorizar)}</td>` : `<td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>`}
                     <td class="cuadro-num">${esc(c.Cuadro)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
                     <td class="r">${tonCell}</td>
@@ -345,10 +362,11 @@
             const tonHeader = opts.tonHeader || 'Ton';
             const acumHeader = opts.acumHeader || 'Acum. TN';
             const fechaEd = !!opts.fechaEditable;
+            const prioDesp = !!opts.prioDespacho;
             const head = sub ? `<h4 class="sub-title">${titulo}</h4>` : `<h3 class="sec-title ${cls}">${titulo}</h3>`;
             if (!cuadros.length) return `${head}<div class="empty" style="padding:0.6rem;font-size:0.8rem">Sin cuadros.</div>`;
             let acum = 0;
-            const rows = cuadros.map(c => { const w = wf(c); acum += w / 1000; return filaCuadro(c, acum, tonHtmlFn(c), null, fechaEd); }).join('');
+            const rows = cuadros.map(c => { const w = wf(c); acum += w / 1000; return filaCuadro(c, acum, tonHtmlFn(c), null, fechaEd, prioDesp); }).join('');
             const totalTon = cuadros.reduce((s, c) => s + wf(c), 0) / 1000;
             const totalRow = `<tr class="total-row">
                 <td colspan="${fechaEd ? 4 : 3}">TOTAL (${cuadros.length} cuadros)</td>
@@ -357,7 +375,7 @@
             return `${head}
                 <table>
                     <thead class="${cls}"><tr>
-                        ${fechaEd ? '<th>Fecha Plan.</th>' : ''}<th class="c">Prio</th><th>Cuadro</th><th>Ruta</th><th class="r">${tonHeader}</th><th class="r">${acumHeader}</th>
+                        ${fechaEd ? '<th>Fecha Plan.</th>' : ''}<th class="c">${prioDesp ? 'Prio desp.' : 'Prio'}</th><th>Cuadro</th><th>Ruta</th><th class="r">${tonHeader}</th><th class="r">${acumHeader}</th>
                         <th>Status Picking</th><th>Status Carga</th><th>Despachado</th><th>Hora desp.</th>
                         <th class="op-col">Tipo unidad</th><th class="op-col">Placa</th><th class="op-col">Transportista</th>
                         <th class="c"></th>
@@ -518,12 +536,12 @@
                 return;
             }
             const despachados = sortByDespDesc(DATA.cuadros.filter(c => c.EstadoDespacho === 'Finalizado'));
-            const listos = sortByPrioridad(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado' && c.EstadoDespacho !== 'Finalizado'));
+            const listos = sortByPrioridadDespacho(DATA.cuadros.filter(c => c.EstadoPicking === 'Finalizado' && c.EstadoDespacho !== 'Finalizado'));
             const pendientes = DATA.cuadros.filter(c => c.EstadoPicking !== 'Finalizado');
 
             document.getElementById('tablero').innerHTML =
                 sectionTableDespachado('1. Despachado (agrupado por fecha)', despachados) +
-                sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos, false, { fechaEditable: true }) +
+                sectionTable('2. Picking finalizado / Listo para despachar', 'listo', listos, false, { fechaEditable: true, prioDespacho: true }) +
                 sectionPendientes('3. Pendientes — plan diario por fecha', pendientes) +
                 '<div id="detalleSection"></div>';
 
@@ -753,6 +771,19 @@
                     });
                 }
             } catch (e) { alert('Error al guardar prioridad'); }
+            load();
+        }
+        // Mover un cuadro en la cola de DESPACHO. El servidor recorre a los demás,
+        // compacta 1..N y alinea la Fecha Planificada con el de arriba (#1 → hoy).
+        async function setPrioridadDespacho(idRoutePlan, val) {
+            if (String(val ?? '').trim() === '') { load(); return; }
+            try {
+                const r = await fetch('/api/reportes/plan-despachos/prioridad-despacho', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_routePlan: idRoutePlan, prioridad: val })
+                });
+                if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || 'Error al guardar la prioridad de despacho'); }
+            } catch (e) { alert('Error al guardar la prioridad de despacho'); }
             load();
         }
         // Marcar / quitar "Comprometida" (mismo permiso que priorizar)

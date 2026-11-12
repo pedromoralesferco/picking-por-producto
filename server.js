@@ -285,6 +285,18 @@ function startBacklogSnapshot() {
     setTimeout(tick, 20 * 1000); // no competir con el arranque
 }
 
+// Cola de prioridad de DESPACHO (HUB Escuintla): cada cuadro que termina el picking
+// entra al final (FIFO) y la cola se mantiene 1..N. Ver SP_NormalizePrioridadDespacho.
+// Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a SAP/Lisa.
+function startPrioridadDespacho() {
+    const tick = async () => {
+        try { await db.getPool().request().input('ID_Centro', db.sql.Int, 3).execute('SP_NormalizePrioridadDespacho'); }
+        catch (err) { console.error('AVISO: cola de prioridad de despacho falló este ciclo:', err.message); }
+    };
+    setInterval(tick, 30 * 1000);
+    tick();
+}
+
 // Puertos:
 //  PORT          → app completa (producción: 8081, donde el FortiGate manda el HTTPS 8443)
 //  PORT_ALT      → segundo puerto con la app completa (para migrar sin corte: 8080 y 8081 a la vez)
@@ -305,6 +317,8 @@ async function start() {
         console.log('Captura de bultos (licencias) activa (120s).');
         startBacklogSnapshot();
         console.log('Snapshot del backlog de planificacion activo (15 min).');
+        startPrioridadDespacho();
+        console.log('Cola de prioridad de despacho activa (30s).');
     });
     // Los listeners secundarios NUNCA tumban el principal: si Windows niega el puerto
     // (EACCES = puerto reservado/excluido) o está ocupado (EADDRINUSE), solo se avisa.

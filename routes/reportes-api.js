@@ -69,7 +69,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
         if (modo === 'order') {
             // Cabeceras de cuadros: activos + los del día (finalizados/despachados hoy)
             const cab = await pool.request().input('centro', sql.Int, centro).query(`
-                SELECT orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Prioridad,
+                SELECT orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Prioridad, orp.PrioridadDespacho,
                        orp.Estado, orp.EstadoDespacho, orp.FechaFin, orp.FechaDespachoFin,
                        orp.FechaPlanDespacho, orp.Comprometida,
                        ISNULL(orp.PesoEstimado, 0) AS PesoEstimado, c.Nombre AS CarrilNombre
@@ -114,7 +114,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 const p = pedMap[r.RouteNumber] || {};
                 return {
                     ID_RoutePlan: r.ID_RoutePlan, Cuadro: r.RouteNumber, Ruta: r.RouteName,
-                    Prioridad: r.Prioridad, Carril: r.CarrilNombre,
+                    Prioridad: r.Prioridad, PrioridadDespacho: r.PrioridadDespacho, Carril: r.CarrilNombre,
                     EstadoPicking: r.Estado, EstadoDespacho: r.EstadoDespacho,
                     FechaFin: r.FechaFin,
                     FechaDespacho: r.FechaDespachoFin,
@@ -302,6 +302,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
                         OR (orp.Estado = 'Finalizado' AND CAST(orp.FechaFin AS DATE) = CAST(GETDATE() AS DATE))
                         OR (orp.EstadoDespacho = 'Finalizado' AND CAST(orp.FechaDespachoFin AS DATE) = CAST(GETDATE() AS DATE)) )
                 ORDER BY CASE WHEN orp.Estado = 'Finalizado' THEN 0 ELSE 1 END,
+                         CASE WHEN orp.Estado = 'Finalizado' THEN orp.PrioridadDespacho END,
                          CASE WHEN orp.Estado = 'Finalizado' THEN orp.FechaFin END,
                          CASE WHEN orp.Estado <> 'Finalizado' AND orp.Prioridad IS NULL THEN 1 ELSE 0 END,
                          CASE WHEN orp.Estado <> 'Finalizado' THEN orp.Prioridad END,
@@ -635,6 +636,69 @@ router.post('/plan-despachos/sync-fecha', requirePriorizar, async (req, res) => 
     } catch (err) {
         console.error('POST /api/reportes/plan-despachos/sync-fecha error:', err);
         res.status(500).json({ error: 'Error al sincronizar la fecha' });
+    }
+});
+
+// POST /api/reportes/plan-despachos/prioridad-despacho — mueve un cuadro dentro de la
+// cola de DESPACHO (picking terminado, sin despachar). Recorre a los demás para hacerle
+// lugar, compacta 1..N y alinea la Fecha Planificada con el cuadro que le queda justo
+// encima (si queda de #1 o encima no tiene fecha → HOY). Solo Escuintla.
+// La cola y su asignación FIFO las mantiene SP_NormalizePrioridadDespacho.
+router.post('/plan-despachos/prioridad-despacho', requirePriorizar, async (req, res) => {
+    const id = parseInt(req.body.id_routePlan);
+    const prio = parseInt(req.body.prioridad);
+    if (!id) return res.status(400).json({ error: 'id_routePlan requerido' });
+    if (isNaN(prio) || prio < 1) return res.status(400).json({ error: 'Prioridad inválida (1 o mayor)' });
+    const CENTRO = 3;
+    const tx = new sql.Transaction(getPool());
+    try {
+        await tx.begin();
+        const rq = () => new sql.Request(tx).input('centro', sql.Int, CENTRO);
+        await rq().query(`EXEC sp_getapplock @Resource = N'PrioridadDespacho_3', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000`);
+        // Asegura que la cola esté al día (incluye recién terminados) antes de mover.
+        await new sql.Request(tx).input('ID_Centro', sql.Int, CENTRO).execute('SP_NormalizePrioridadDespacho');
+        const cur = (await rq().input('id', sql.Int, id).query(`
+            SELECT PrioridadDespacho,
+                   (SELECT COUNT(*) FROM OrderRoutePlan q
+                    WHERE q.ID_Centro = @centro AND q.Estado = 'Finalizado'
+                      AND ISNULL(q.EstadoDespacho, 'Pendiente') <> 'Finalizado') AS Total
+            FROM OrderRoutePlan
+            WHERE ID_RoutePlan = @id AND ID_Centro = @centro AND Estado = 'Finalizado'
+              AND ISNULL(EstadoDespacho, 'Pendiente') <> 'Finalizado'`)).recordset[0];
+        if (!cur || cur.PrioridadDespacho == null) {
+            await tx.rollback();
+            return res.status(409).json({ error: 'El cuadro no está en la cola de despacho (picking sin terminar, ya despachado o no es de Escuintla)' });
+        }
+        const viejo = cur.PrioridadDespacho;
+        const nuevo = Math.min(prio, cur.Total);
+        if (nuevo !== viejo) {
+            const cola = `ID_Centro = @centro AND Estado = 'Finalizado' AND ISNULL(EstadoDespacho, 'Pendiente') <> 'Finalizado' AND ID_RoutePlan <> @id`;
+            const r2 = rq().input('id', sql.Int, id).input('viejo', sql.Int, viejo).input('nuevo', sql.Int, nuevo);
+            await r2.query(nuevo < viejo
+                ? `UPDATE OrderRoutePlan SET PrioridadDespacho = PrioridadDespacho + 1 WHERE ${cola} AND PrioridadDespacho >= @nuevo AND PrioridadDespacho < @viejo;
+                   UPDATE OrderRoutePlan SET PrioridadDespacho = @nuevo WHERE ID_RoutePlan = @id;`
+                : `UPDATE OrderRoutePlan SET PrioridadDespacho = PrioridadDespacho - 1 WHERE ${cola} AND PrioridadDespacho > @viejo AND PrioridadDespacho <= @nuevo;
+                   UPDATE OrderRoutePlan SET PrioridadDespacho = @nuevo WHERE ID_RoutePlan = @id;`);
+            // La fecha es resultado de la prioridad: hereda la del cuadro de arriba; #1 → hoy.
+            await rq().input('id', sql.Int, id).input('nuevo', sql.Int, nuevo).query(`
+                UPDATE orp
+                SET orp.FechaPlanDespacho = COALESCE(prev.FechaPlanDespacho, CAST(GETDATE() AS DATE))
+                FROM OrderRoutePlan orp
+                OUTER APPLY (
+                    SELECT TOP 1 p.FechaPlanDespacho FROM OrderRoutePlan p
+                    WHERE p.ID_Centro = @centro AND p.Estado = 'Finalizado'
+                      AND ISNULL(p.EstadoDespacho, 'Pendiente') <> 'Finalizado'
+                      AND p.PrioridadDespacho = @nuevo - 1
+                ) prev
+                WHERE orp.ID_RoutePlan = @id`);
+            await new sql.Request(tx).input('ID_Centro', sql.Int, CENTRO).execute('SP_NormalizePrioridadDespacho');
+        }
+        await tx.commit();
+        res.json({ ok: true, antes: viejo, ahora: nuevo });
+    } catch (err) {
+        try { await tx.rollback(); } catch { /* ya revertida */ }
+        console.error('POST /api/reportes/plan-despachos/prioridad-despacho error:', err);
+        res.status(500).json({ error: 'Error al guardar la prioridad de despacho' });
     }
 });
 
