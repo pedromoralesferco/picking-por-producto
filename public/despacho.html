@@ -520,6 +520,8 @@
         .estado-pill.picking-iniciado { background: rgba(255,152,0,0.12); color: #e65100; }
         .estado-pill.picking-finalizado { background: rgba(46,125,50,0.12); color: var(--success); }
         .estado-pill.pase-generado { background: #e1f3fc; color: #1565c0; }
+        .estado-pill.cerrada-sin-pase { background: #fdecea; color: #c62828; border: 1px solid #ef9a9a; }
+        .doc-card.cerrada-sin-pase { border-left: 4px solid #c62828; background: #fffafa; }
 
         .route-header-actions {
             display: flex;
@@ -1225,7 +1227,7 @@
             const marcadoRm = editMode && editQuitar.has(docKey(d.OV_Number, d.DocType));
 
             return `
-                <div class="doc-card ${marcadoRm ? 'rm-marked' : ''}">
+                <div class="doc-card ${marcadoRm ? 'rm-marked' : ''} ${d.CerradaSinPase && !d.PaseGenerado ? 'cerrada-sin-pase' : ''}">
                     <div class="doc-card-header" onclick="toggleDocOrder(${d.ID_OrderPicking})">
                         <div class="doc-icon ${isDone ? 'done' : 'pending'}">
                             <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
@@ -1238,6 +1240,8 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status">${d.PaseGenerado
                                 ? `<span class="estado-pill pase-generado" style="font-size:0.6rem" title="Entrega/pase de salida generado en SAP"><i class="bi bi-check-circle-fill"></i> Pase de Salida</span>`
+                                : d.CerradaSinPase
+                                ? `<span class="estado-pill cerrada-sin-pase" style="font-size:0.6rem" title="La OV se ${d.CanceladaSAP ? 'canceló' : 'cerró manualmente'} en SAP sin entrega ni pase de salida. No despachar."><i class="bi bi-x-octagon-fill"></i> ${d.CanceladaSAP ? 'Cancelada' : 'Cerrada'} sin pase</span>`
                                 : `<span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span>`}</div>
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">

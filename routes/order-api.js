@@ -860,6 +860,35 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                 console.error('PaseGenerado (InventoryTransactionLog) no disponible:', e.message);
             }
 
+            // OV cerrada/cancelada en SAP sin pase de salida: DocStatus='C' o CANCELED='Y'
+            // y sin ninguna entrega (DLN1 basada en la OV). Típico: pedido cancelado justo
+            // antes de despachar. Resiliente: si SAP falla, CerradaSinPase queda en 0.
+            try {
+                const ovs = [...new Set(docs
+                    .filter(d => d.DocType === 'OV' && !d.PaseGenerado)
+                    .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                if (ovs.length) {
+                    const sapDb = getSapDb(docs[0].Pais || 'GT');
+                    const cr = await pool.request().query(`
+                        SELECT o.DocNum, o.CANCELED
+                        FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+                        WHERE o.DocNum IN (${ovs.join(',')})
+                          AND (o.DocStatus = 'C' OR o.CANCELED = 'Y')
+                          AND NOT EXISTS (SELECT 1 FROM [server-sql].[${sapDb}].dbo.DLN1 l WITH (NOLOCK)
+                                          WHERE l.BaseType = 17 AND l.BaseEntry = o.DocEntry)`);
+                    const cerradas = new Map(cr.recordset.map(r => [r.DocNum, r.CANCELED === 'Y']));
+                    docs.forEach(d => {
+                        const n = parseInt(d.OV_Number);
+                        if (d.DocType === 'OV' && !d.PaseGenerado && cerradas.has(n)) {
+                            d.CerradaSinPase = 1;
+                            d.CanceladaSAP = cerradas.get(n) ? 1 : 0;
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('CerradaSinPase (ORDR) no disponible:', e.message);
+            }
+
             // Nombre del cliente (OV) / destino (TR) desde el valor ya persistido en la
             // ingesta (OPM.ClienteNombre). No consulta SAP en runtime. Para TR se antepone
             // "Traslado → " al nombre del destino guardado.
