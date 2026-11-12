@@ -340,6 +340,40 @@ async function editarCuadro(pool, rn, opciones, autor) {
                         WHERE opm.OV_Number COLLATE DATABASE_DEFAULT=@ov COLLATE DATABASE_DEFAULT AND opm.DocType=@tipo
                           AND opm.NoDespachada=0 AND orp.ID_Centro=3 AND orp.Pais='GT' AND opm.ID_RoutePlan<>@idrp`);
             try {
+                // Estaba en ESTE cuadro pero se había quitado (NoDespachada=1) y no está en
+                // otro cuadro → reactivarlo. Antes se llamaba a SP_AddDocToCuadroApp, que al
+                // ver que el doc "ya existe" salía sin hacer nada y el app reportaba OK.
+                if (yaAqui.recordset[0] && !enOtro.recordset[0]) {
+                    const idOP = yaAqui.recordset[0].ID_OrderPicking;
+                    await pool.request().input('id', sql.Int, idOP)
+                        .query(`UPDATE dbo.OrderPickingManagement
+                                SET NoDespachada=0, FechaNoDespachada=NULL, RemocionPendienteSync=0, PendienteSync=1
+                                WHERE ID_OrderPicking=@id`);
+                    await pool.request().input('idrp', sql.Int, A.ID_RoutePlan)
+                        .query(`UPDATE dbo.OrderRoutePlan
+                                SET PesoEstimado = ISNULL((SELECT SUM(ISNULL(opm.PesoTotal, 0))
+                                                            FROM dbo.OrderPickingManagement opm
+                                                            WHERE opm.ID_RoutePlan = @idrp AND opm.NoDespachada = 0), 0)
+                                WHERE ID_RoutePlan = @idrp`);
+                    // Si la baja aún no llegó a SAP, se descarta (SAP todavía tiene el doc) y no
+                    // hace falta un ADD. Si ya llegó, se encola un ADD (uno solo, sin duplicar).
+                    const desc = await pool.request().input('rn', sql.Int, rn).input('ov', sql.NVarChar(50), ov).input('tipo', sql.NVarChar(10), tipo)
+                        .query(`UPDATE dbo.CuadroEdicionCola
+                                SET Estado='descartado', Error='Cancelado: el documento se volvió a agregar al cuadro'
+                                WHERE RouteNumber=@rn AND Ambito='LINEA' AND Accion='REMOVE' AND Estado IN ('pendiente','error')
+                                  AND OV_Number COLLATE DATABASE_DEFAULT=@ov COLLATE DATABASE_DEFAULT AND DocType=@tipo`);
+                    if (desc.rowsAffected[0] === 0) {
+                        const yaEnCola = await pool.request().input('rn', sql.Int, rn).input('ov', sql.NVarChar(50), ov).input('tipo', sql.NVarChar(10), tipo)
+                            .query(`SELECT TOP 1 1 AS x FROM dbo.CuadroEdicionCola
+                                    WHERE RouteNumber=@rn AND Ambito='LINEA' AND Accion='ADD' AND Estado IN ('pendiente','error')
+                                      AND OV_Number COLLATE DATABASE_DEFAULT=@ov COLLATE DATABASE_DEFAULT AND DocType=@tipo`);
+                        if (!yaEnCola.recordset[0]) {
+                            await encolar(pool, { rn, ambito: 'LINEA', accion: 'ADD', ov, tipo, payload: { origen: null, reactivado: true }, autor });
+                        }
+                    }
+                    out.agregados.push(`${tipo} ${ov}`);
+                    continue;
+                }
                 if (enOtro.recordset[0]) {
                     const idOP = enOtro.recordset[0].ID_OrderPicking, origenRn = enOtro.recordset[0].OrigenRn;
                     await pool.request().input('id', sql.Int, idOP).input('drp', sql.Int, A.ID_RoutePlan).input('drn', sql.Int, rn)
@@ -351,6 +385,12 @@ async function editarCuadro(pool, rn, opciones, autor) {
                     // materializar desde Lisa
                     await pool.request().input('idrp', sql.Int, A.ID_RoutePlan).input('ov', sql.NVarChar(50), ov).input('tipo', sql.NVarChar(10), tipo)
                         .query(`EXEC dbo.SP_AddDocToCuadroApp @ID_RoutePlan=@idrp, @OV=@ov, @DocType=@tipo, @EmitResult=0`);
+                    // Candado: no reportar OK si el doc no quedó visible en el cuadro.
+                    const chk = await pool.request().input('idrp', sql.Int, A.ID_RoutePlan).input('ov', sql.NVarChar(50), ov).input('tipo', sql.NVarChar(10), tipo)
+                        .query(`SELECT TOP 1 1 AS x FROM dbo.OrderPickingManagement
+                                WHERE ID_RoutePlan=@idrp AND NoDespachada=0
+                                  AND OV_Number COLLATE DATABASE_DEFAULT=@ov COLLATE DATABASE_DEFAULT AND DocType=@tipo`);
+                    if (!chk.recordset[0]) { out.errores.push(`${tipo} ${ov}: no se pudo agregar al cuadro`); continue; }
                     await encolar(pool, { rn, ambito: 'LINEA', accion: 'ADD', ov, tipo, payload: { origen: null }, autor });
                 }
                 out.agregados.push(`${tipo} ${ov}`);
