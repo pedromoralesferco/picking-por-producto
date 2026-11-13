@@ -88,7 +88,9 @@ FROM {db}.dbo.OWTQ q WITH (NOLOCK) JOIN {db}.dbo.WTQ1 l WITH (NOLOCK) ON l.DocEn
  LEFT JOIN {db}.dbo.OITW w WITH (NOLOCK) ON w.ItemCode=l.ItemCode AND w.WhsCode=q.Filler
 WHERE q.U_Estado2=''03'' AND q.Filler=''{whs}'' AND l.LineStatus=''O'' AND q.DocDate>=DATEADD(day,-365,GETDATE()) AND NOT EXISTS (SELECT 1 FROM C WHERE C.doc=CAST(q.DocNum AS varchar(20)))
 GROUP BY q.DocNum,q.DocEntry,q.DocDueDate,q.DocDate,q.CardName,CAST(ISNULL(q.Comments,'''') AS nvarchar(400)),q.U_SUCURSAL';
-        -- RMA: solo las que están en Lisa (HUB), con cantidad aún no despachada
+        -- RMA: en Lisa, con cantidad aún no despachada y cuya OV original (OSCL.U_NWR_PO) es
+        -- de este almacén. Lisa tiene los RMA de todo el país (Zona 5, HUB, tiendas) y la línea
+        -- del RMA no trae almacén, así que el centro se toma del almacén de la OV original.
         IF @whs = '138' SET @q = @q + N'
 UNION ALL
 SELECT ''RMA'', s.callID, s.callID, NULL, s.createDate, -2, ''RMA'', LEFT(s.custmrName,100), '''', LEFT(ISNULL(o.U_SF_MUNI,''''),40),
@@ -98,7 +100,8 @@ FROM {db}.dbo.OSCL s WITH (NOLOCK) JOIN {db}.dbo.[@NWR_RMADT] l WITH (NOLOCK) ON
 JOIN (SELECT DISTINCT NoServiceCallSAP FROM {lisa}.dbo.CustServiceCall WITH (NOLOCK)) cs ON cs.NoServiceCallSAP=s.callID
 LEFT JOIN (SELECT c.NoServiceCallSAP, p.InternIDProduct, SUM(sl.Quantity) Qty FROM {lisa}.dbo.CustRMAShippingLine sl WITH (NOLOCK) JOIN {lisa}.dbo.CustRMAShipping sh WITH (NOLOCK) ON sh.idCustRMAShipping=sl.idCustRMAShipping JOIN {lisa}.dbo.CustServiceCall c WITH (NOLOCK) ON c.idCustServiceCall=sh.idCustServiceCall JOIN {lisa}.dbo.Product p WITH (NOLOCK) ON p.IDProduct=sl.idProduct GROUP BY c.NoServiceCallSAP, p.InternIDProduct) sh ON sh.NoServiceCallSAP=s.callID AND sh.InternIDProduct=l.U_NWR_ItemNo
 LEFT JOIN {db}.dbo.OITM i WITH (NOLOCK) ON i.ItemCode=l.U_NWR_ItemNo LEFT JOIN {db}.dbo.ORDR o WITH (NOLOCK) ON o.DocNum=s.U_NWR_PO
-WHERE s.status=-3 AND s.createDate>=DATEADD(day,-365,GETDATE()) AND l.U_NWR_ItemNo IS NOT NULL AND l.U_NWR_Qty_RMA-ISNULL(sh.Qty,0)>0 AND NOT EXISTS (SELECT 1 FROM C WHERE C.doc=CAST(s.callID AS varchar(20)))
+WHERE s.status=-3 AND s.createDate>=DATEADD(day,-365,GETDATE()) AND l.U_NWR_ItemNo IS NOT NULL AND l.U_NWR_Qty_RMA-ISNULL(sh.Qty,0)>0
+ AND EXISTS (SELECT 1 FROM {db}.dbo.RDR1 r WITH (NOLOCK) WHERE r.DocEntry=o.DocEntry AND r.WhsCode=''{whs}'') AND NOT EXISTS (SELECT 1 FROM C WHERE C.doc=CAST(s.callID AS varchar(20)))
 GROUP BY s.callID,s.createDate,s.custmrName,o.U_SF_MUNI,CAST(ISNULL(o.Address2,'''') AS nvarchar(400)),CAST(ISNULL(s.subject,'''') AS nvarchar(400)),o.U_SUCURSAL';
         SET @q = REPLACE(REPLACE(REPLACE(@q, '{db}', @db), '{lisa}', @lisa), '{whs}', @whs);
         DECLARE @sql NVARCHAR(MAX) = N'SELECT * FROM OPENQUERY([SERVER-SQL], ''' + REPLACE(@q, '''', '''''') + ''')';
