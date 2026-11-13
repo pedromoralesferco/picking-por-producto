@@ -95,6 +95,21 @@ BEGIN
         RETURN;
     END
 
+    -- Solo el saldo: si el doc ya se pickeó en parte (p. ej. el saldo de un cuadro
+    -- ya despachado), este cuadro lleva solo lo pendiente en Lisa: sin las líneas
+    -- ya pickeadas y con Cantidad = pendiente, para que peso/unidades del pedido y
+    -- del cuadro (y la línea que el robot crea en SAP) reflejen lo que sale aquí.
+    -- En un doc nuevo ToPick = cantidad pedida, así que no cambia nada.
+    DECLARE @lineasInv INT = (SELECT COUNT(*) FROM #src WHERE ISNULL(InvntItem, 'Y') <> 'N');
+    DELETE FROM #src WHERE ISNULL(InvntItem, 'Y') <> 'N' AND ISNULL(CantidadPendiente, 0) <= 0;
+    UPDATE #src SET Cantidad = CantidadPendiente WHERE ISNULL(InvntItem, 'Y') <> 'N';
+    IF @lineasInv > 0 AND NOT EXISTS (SELECT 1 FROM #src WHERE ISNULL(InvntItem, 'Y') <> 'N')
+    BEGIN
+        DROP TABLE #src;
+        RAISERROR('El documento no tiene saldo pendiente de picking en Lisa.', 16, 1);
+        RETURN;
+    END
+
     DECLARE @addPed INT = 0, @addTask INT = 0;
 
     BEGIN TRY

@@ -186,7 +186,9 @@ router.get('/doc-lookup', requireCrud, async (req, res) => {
                         INNER JOIN dbo.OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                         WHERE opm.OV_Number COLLATE DATABASE_DEFAULT = @ov COLLATE DATABASE_DEFAULT
                           AND opm.DocType = @tipo AND opm.NoDespachada = 0
-                          AND orp.ID_Centro = 3 AND orp.Pais = 'GT'`);
+                          AND orp.ID_Centro = 3 AND orp.Pais = 'GT'
+                          -- Un cuadro ya despachado no cede el doc: se agrega nuevo con el saldo de Lisa.
+                          AND ISNULL(orp.EstadoDespacho,'Pendiente') <> 'Finalizado'`);
             info.enCuadroApp = r.recordset[0] ? r.recordset[0].RouteNumber : null;
         }
         res.json(info);
@@ -338,7 +340,10 @@ async function editarCuadro(pool, rn, opciones, autor) {
                 .query(`SELECT TOP 1 opm.ID_OrderPicking, orp.RouteNumber AS OrigenRn
                         FROM dbo.OrderPickingManagement opm INNER JOIN dbo.OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                         WHERE opm.OV_Number COLLATE DATABASE_DEFAULT=@ov COLLATE DATABASE_DEFAULT AND opm.DocType=@tipo
-                          AND opm.NoDespachada=0 AND orp.ID_Centro=3 AND orp.Pais='GT' AND opm.ID_RoutePlan<>@idrp`);
+                          AND opm.NoDespachada=0 AND orp.ID_Centro=3 AND orp.Pais='GT' AND opm.ID_RoutePlan<>@idrp
+                          -- Cuadro despachado: no se mueve ni se toca (ni en el app ni en SAP); el doc
+                          -- se materializa nuevo desde Lisa con su saldo pendiente (SP_AddDocToCuadroApp).
+                          AND ISNULL(orp.EstadoDespacho,'Pendiente') <> 'Finalizado'`);
             try {
                 // Estaba en ESTE cuadro pero se había quitado (NoDespachada=1) y no está en
                 // otro cuadro → reactivarlo. Antes se llamaba a SP_AddDocToCuadroApp, que al
