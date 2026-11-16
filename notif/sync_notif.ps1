@@ -58,7 +58,8 @@ try {
     $cfg = @{}
     Get-Content $envPath -Encoding UTF8 | Where-Object { $_ -match '^\s*NOTIF_[A-Z_]+\s*=' } | ForEach-Object {
         $k, $v = $_ -split '=', 2
-        $v = $v.Trim()
+        # Quitar caracteres de control (p. ej. el ^V que deja pegar con Ctrl+V en la consola)
+        $v = ($v -replace '[\x00-\x1F\x7F]', '').Trim()
         # Quitar comillas solo si envuelven todo el valor (una contrasena puede
         # empezar o terminar con comilla y no hay que tocarla)
         if ($v.Length -ge 2 -and (($v[0] -eq '"' -and $v[-1] -eq '"') -or ($v[0] -eq "'" -and $v[-1] -eq "'"))) {
@@ -70,6 +71,12 @@ try {
                      'NOTIF_SUPABASE_URL','NOTIF_SUPABASE_KEY','NOTIF_PAISES') {
         if (-not $cfg[$req]) { throw "Falta $req en .env" }
     }
+    $k0 = $cfg['NOTIF_SUPABASE_KEY']
+    if (-not ($k0.StartsWith('sb_secret_') -or $k0.StartsWith('eyJ'))) {
+        throw ("NOTIF_SUPABASE_KEY no parece la llave secreta de Supabase (debe empezar con sb_secret_ o eyJ; " +
+               "tiene {0} caracteres y empieza con '{1}'). Volver a pegarla en el .env." -f $k0.Length, $k0.Substring(0, [Math]::Min(4, $k0.Length)))
+    }
+    if ($k0.StartsWith('sb_publishable_')) { throw 'NOTIF_SUPABASE_KEY es la publishable; se necesita la secret.' }
     $soloRuta = if ($cfg['NOTIF_SOLO_RUTA'] -eq '1') { 1 } else { 0 }   # por defecto: todos los tipos de entrega
 
     # NOTIF_PAISES=pais:baseSAP:almacenes, varios paises separados por coma y
