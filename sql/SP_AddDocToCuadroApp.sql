@@ -95,20 +95,11 @@ BEGIN
         RETURN;
     END
 
-    -- Solo el saldo: si el doc ya se pickeó en parte (p. ej. el saldo de un cuadro
-    -- ya despachado), este cuadro lleva solo lo pendiente en Lisa: sin las líneas
-    -- ya pickeadas y con Cantidad = pendiente, para que peso/unidades del pedido y
-    -- del cuadro (y la línea que el robot crea en SAP) reflejen lo que sale aquí.
-    -- En un doc nuevo ToPick = cantidad pedida, así que no cambia nada.
-    DECLARE @lineasInv INT = (SELECT COUNT(*) FROM #src WHERE ISNULL(InvntItem, 'Y') <> 'N');
-    DELETE FROM #src WHERE ISNULL(InvntItem, 'Y') <> 'N' AND ISNULL(CantidadPendiente, 0) <= 0;
-    UPDATE #src SET Cantidad = CantidadPendiente WHERE ISNULL(InvntItem, 'Y') <> 'N';
-    IF @lineasInv > 0 AND NOT EXISTS (SELECT 1 FROM #src WHERE ISNULL(InvntItem, 'Y') <> 'N')
-    BEGIN
-        DROP TABLE #src;
-        RAISERROR('El documento no tiene saldo pendiente de picking en Lisa.', 16, 1);
-        RETURN;
-    END
+    -- Siempre la OV completa (no se despachan OVs parciales): Cantidad = lo pedido.
+    -- Lo que ya se pickeó en Lisa (ToPick = 0) entra 'Finalizado' con pendiente 0,
+    -- así un doc ya pickeado (p. ej. que viaja en otro camión) se puede agregar
+    -- sin crear picking fantasma; lo que aún tiene ToPick queda 'Pendiente'.
+    UPDATE #src SET CantidadPendiente = 0 WHERE ISNULL(CantidadPendiente, 0) < 0;
 
     DECLARE @addPed INT = 0, @addTask INT = 0;
 
@@ -133,9 +124,9 @@ BEGIN
              UnitWeight, Estado, FechaLiberacion, ID_Centro, Pais)
         SELECT opm.ID_OrderPicking, @RouteNumber, s.OV_Number, s.DocType, s.IdCustomerOrder, s.IdAccountableOrder,
                s.Line_ID, s.IdProduct, s.InternIdProduct, s.ProductName, s.Cantidad,
-               CASE WHEN s.InvntItem = 'N' THEN 0 ELSE s.CantidadPendiente END,
+               CASE WHEN s.InvntItem = 'N' THEN 0 ELSE ISNULL(s.CantidadPendiente, 0) END,
                s.UnitWeight,
-               CASE WHEN s.InvntItem = 'N' THEN 'Finalizado' ELSE 'Pendiente' END,
+               CASE WHEN s.InvntItem = 'N' OR ISNULL(s.CantidadPendiente, 0) <= 0 THEN 'Finalizado' ELSE 'Pendiente' END,
                GETDATE(), @ID_Centro, @Pais
         FROM #src s
         INNER JOIN dbo.OrderPickingManagement opm
@@ -155,6 +146,14 @@ BEGIN
             WHERE o.ID_RoutePlan = @ID_RoutePlan AND o.OV_Number = @OV AND o.DocType = @DocType
             GROUP BY t.ID_OrderPicking
         ) x ON x.ID_OrderPicking = opm.ID_OrderPicking;
+
+        -- Doc ya pickeado completo en Lisa: el pedido nace Finalizado.
+        UPDATE opm
+        SET opm.Estado = 'Finalizado', opm.FechaFin = GETDATE()
+        FROM dbo.OrderPickingManagement opm
+        WHERE opm.ID_RoutePlan = @ID_RoutePlan AND opm.OV_Number = @OV AND opm.DocType = @DocType
+          AND NOT EXISTS (SELECT 1 FROM dbo.OrderPickingTask t
+                          WHERE t.ID_OrderPicking = opm.ID_OrderPicking AND t.Estado <> 'Finalizado');
 
         COMMIT;
     END TRY
