@@ -51,7 +51,13 @@ try {
     $cfg = @{}
     Get-Content $envPath -Encoding UTF8 | Where-Object { $_ -match '^\s*NOTIF_[A-Z_]+\s*=' } | ForEach-Object {
         $k, $v = $_ -split '=', 2
-        $cfg[$k.Trim()] = $v.Trim().Trim('"').Trim("'")
+        $v = $v.Trim()
+        # Quitar comillas solo si envuelven todo el valor (una contrasena puede
+        # empezar o terminar con comilla y no hay que tocarla)
+        if ($v.Length -ge 2 -and (($v[0] -eq '"' -and $v[-1] -eq '"') -or ($v[0] -eq "'" -and $v[-1] -eq "'"))) {
+            $v = $v.Substring(1, $v.Length - 2)
+        }
+        $cfg[$k.Trim()] = $v
     }
     foreach ($req in 'NOTIF_DB_SERVER','NOTIF_DB_NAME','NOTIF_DB_USER','NOTIF_DB_PASSWORD',
                      'NOTIF_SUPABASE_URL','NOTIF_SUPABASE_KEY','NOTIF_PAISES') {
@@ -102,9 +108,15 @@ try {
     }
 
     # -- SQL ---------------------------------------------------------
-    $cs = "Server=$($cfg['NOTIF_DB_SERVER']);Database=$($cfg['NOTIF_DB_NAME']);User ID=$($cfg['NOTIF_DB_USER']);" +
-          "Password=$($cfg['NOTIF_DB_PASSWORD']);Application Name=SACWhatsappSync;Connect Timeout=30"
-    $cn = New-Object System.Data.SqlClient.SqlConnection $cs
+    # El builder escapa ; " ' { } en la contrasena (armarla a mano rompe con esos caracteres)
+    $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+    $csb['Data Source']      = $cfg['NOTIF_DB_SERVER']
+    $csb['Initial Catalog']  = $cfg['NOTIF_DB_NAME']
+    $csb['User ID']          = $cfg['NOTIF_DB_USER']
+    $csb['Password']         = $cfg['NOTIF_DB_PASSWORD']
+    $csb['Application Name'] = 'SACWhatsappSync'
+    $csb['Connect Timeout']  = 30
+    $cn = New-Object System.Data.SqlClient.SqlConnection $csb.ConnectionString
     $cn.Open()
 
     function Exec-SP([string]$nombre, [hashtable]$params, [int]$timeout = 600) {
