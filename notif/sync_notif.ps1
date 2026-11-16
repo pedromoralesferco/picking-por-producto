@@ -34,8 +34,15 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out
 $logFile = Join-Path $logDir ("notif_{0:yyyyMMdd}.log" -f (Get-Date))
 function Log([string]$msg, [string]$nivel = 'INFO') {
     $line = "{0:yyyy-MM-dd HH:mm:ss} [{1}] {2}" -f (Get-Date), $nivel, $msg
-    Add-Content -Path $logFile -Value $line -Encoding UTF8
     Write-Host $line
+    # Si no se puede escribir el log (permisos, archivo abierto), la corrida sigue
+    try { Add-Content -Path $logFile -Value $line -Encoding UTF8 -ErrorAction Stop }
+    catch {
+        if (-not $script:avisoLog) {
+            Write-Host "AVISO: no se pudo escribir en $logFile ($($_.Exception.Message)). Correr como administrador." -ForegroundColor Yellow
+            $script:avisoLog = $true
+        }
+    }
 }
 Get-ChildItem $logDir -Filter 'notif_*.log' |
     Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -ErrorAction SilentlyContinue
