@@ -27,19 +27,19 @@ SAP + Picking_Management ──(sync_notif.ps1 cada 10 min)──► Supabase no
 | `supabase/notif_06_almacen_en_vista.sql` | Supabase (ya aplicado) | Columna `almacen` en la vista |
 | `supabase/notif_03_prueba.sql` | Supabase | Prueba de humo (pedido ficticio `ZZ`, se borra solo) |
 | `notif/sync_notif.ps1` | Servidor del app | El sync |
-| `notif/instalar_tarea.ps1` | Servidor del app | Registra la tarea `\Ferco\NotifSync` |
+| `notif/instalar_tarea.ps1` | Servidor del app | Registra la tarea `\Ferco\SACWhatsappSync` |
 
 ## Despliegue en el servidor
 
 1. **SQL**: correr `sql/Notif_01_Schema_y_SPs.sql` en SSMS (crea todo en `Picking_Management`).
-2. **Carpeta**: crear `C:\NotifSync` y copiar ahí `sync_notif.ps1`, `instalar_tarea.ps1` y `.env.example`.
+2. **Carpeta**: crear `C:\SACWhatsappSync` y copiar ahí `sync_notif.ps1`, `instalar_tarea.ps1` y `.env.example`.
 3. **.env**: copiar `.env.example` como `.env` y llenarlo. Para empezar se puede usar el mismo
    usuario SQL del app (`DB_USER` del `.env` del app), porque los SPs leen SAP por el
    linked server con esa misma conexión. La llave de Supabase es la secreta (service_role) de SAC_FERCO.
 4. **Carga inicial silenciosa**, a mano (sube lo que ya está abierto sin escribirle a nadie).
    La primera corrida de un país siempre es silenciosa, aunque se olvide el `-Silencioso`:
    ```
-   cd C:\NotifSync
+   cd C:\SACWhatsappSync
    powershell -NoProfile -ExecutionPolicy Bypass -File .\sync_notif.ps1 -Silencioso
    ```
    Revisar el log (`.\logs\`) y la vista `notif.v_pedidos_activos` en Supabase.

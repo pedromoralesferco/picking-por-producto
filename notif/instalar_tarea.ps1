@@ -1,7 +1,7 @@
-# instalar_tarea.ps1 - registra la tarea programada "Ferco\NotifSync" (cada 10 min).
+# instalar_tarea.ps1 - registra la tarea programada "Ferco\SACWhatsappSync" (cada 10 min).
 # Correr UNA vez, como administrador, desde la carpeta donde quedo sync_notif.ps1:
 #   powershell -ExecutionPolicy Bypass -File .\instalar_tarea.ps1
-# Para quitarla:  Unregister-ScheduledTask -TaskName NotifSync -TaskPath \Ferco\ -Confirm:$false
+# Para quitarla:  Unregister-ScheduledTask -TaskName SACWhatsappSync -TaskPath \Ferco\ -Confirm:$false
 $ErrorActionPreference = 'Stop'
 $script = Join-Path $PSScriptRoot 'sync_notif.ps1'
 if (-not (Test-Path $script)) { throw "No encuentro $script" }
@@ -16,6 +16,6 @@ $ajustes = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenA
 # SYSTEM: corre aunque nadie tenga sesion abierta. Se autentica en SQL con el usuario del .env.
 $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 
-Register-ScheduledTask -TaskName 'NotifSync' -TaskPath '\Ferco\' -Action $accion -Trigger $disparador `
+Register-ScheduledTask -TaskName 'SACWhatsappSync' -TaskPath '\Ferco\' -Action $accion -Trigger $disparador `
     -Settings $ajustes -Principal $principal -Description 'Notificaciones a clientes: SQL Server -> Supabase (cada 10 min)' -Force
-Write-Host 'Tarea \Ferco\NotifSync registrada. Log en .\logs\' -ForegroundColor Green
+Write-Host 'Tarea \Ferco\SACWhatsappSync registrada. Log en .\logs\' -ForegroundColor Green

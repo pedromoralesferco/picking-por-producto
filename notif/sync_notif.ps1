@@ -41,7 +41,7 @@ Get-ChildItem $logDir -Filter 'notif_*.log' |
     Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -ErrorAction SilentlyContinue
 
 # -- Una sola corrida a la vez (si la anterior sigue, esta se salta) -
-$mutex = New-Object System.Threading.Mutex($false, 'Global\FercoNotifSync')
+$mutex = New-Object System.Threading.Mutex($false, 'Global\SACWhatsappSync')
 if (-not $mutex.WaitOne(0)) { Log 'Otra corrida sigue en curso; me salto este ciclo.' 'WARN'; exit 0 }
 
 try {
@@ -103,7 +103,7 @@ try {
 
     # -- SQL ---------------------------------------------------------
     $cs = "Server=$($cfg['NOTIF_DB_SERVER']);Database=$($cfg['NOTIF_DB_NAME']);User ID=$($cfg['NOTIF_DB_USER']);" +
-          "Password=$($cfg['NOTIF_DB_PASSWORD']);Application Name=NotifSync;Connect Timeout=30"
+          "Password=$($cfg['NOTIF_DB_PASSWORD']);Application Name=SACWhatsappSync;Connect Timeout=30"
     $cn = New-Object System.Data.SqlClient.SqlConnection $cs
     $cn.Open()
 
