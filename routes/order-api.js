@@ -737,6 +737,88 @@ router.get('/despacho/rutas', async (req, res) => {
     }
 });
 
+// Columnas de un cuadro para el tablero de despacho (mismas que /despacho/rutas),
+// reutilizadas por "despachados hoy" y el buscador.
+const DESPACHO_RUTA_SELECT = `
+    SELECT
+        orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Estado, orp.EstadoDespacho,
+        orp.FechaDespachoFin, orp.PrioridadDespacho, orp.ID_Carril, orp.ID_Centro, orp.Pais,
+        c.Nombre AS CarrilNombre, cd.Nombre AS CentroNombre,
+        ISNULL(orp.PesoEstimado, 0) AS PesoEstimado,
+        ISNULL(opm.TotalPedidos, 0) AS TotalPedidos,
+        ISNULL(opm.PedidosFinalizados, 0) AS PedidosFinalizados
+    FROM OrderRoutePlan orp
+    LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
+    LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = orp.ID_Centro
+    LEFT JOIN (
+        SELECT ID_RoutePlan,
+               COUNT(*) AS TotalPedidos,
+               SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFinalizados
+        FROM OrderPickingManagement
+        GROUP BY ID_RoutePlan
+    ) opm ON opm.ID_RoutePlan = orp.ID_RoutePlan`;
+
+// GET /api/order/despacho/despachados-hoy — cuadros despachados hoy (para reimprimir)
+router.get('/despacho/despachados-hoy', async (req, res) => {
+    try {
+        const pool = getPool();
+        const request = pool.request();
+        const centroFilter = buildCentroFilter(request, getUserCentros(req), 'orp');
+        const result = await request.query(`
+            ${DESPACHO_RUTA_SELECT}
+            WHERE orp.EstadoDespacho = 'Finalizado'
+              AND orp.FechaDespachoFin >= CAST(GETDATE() AS date)
+              ${centroFilter}
+            ORDER BY orp.FechaDespachoFin DESC, orp.RouteNumber DESC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/order/despacho/despachados-hoy error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// GET /api/order/despacho/buscar?q= — ubica un cuadro (por número) o una OV/TR/RMA
+// (en el app o en el detalle del cuadro en SAP, por si aún no se importó el pedido).
+router.get('/despacho/buscar', async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q || q.length > 30) return res.json([]);
+        const qi = /^\d{1,9}$/.test(q) ? parseInt(q) : null;
+        const pool = getPool();
+        const request = pool.request();
+        request.input('q', sql.NVarChar(30), q).input('qi', sql.Int, qi);
+        const centroFilter = buildCentroFilter(request, getUserCentros(req), 'orp');
+        const sapDb = getSapDb(req.session?.user?.selectedPais || 'GT');
+        const result = await request.query(`
+            SELECT m.Tipo, m.Doc, r.*
+            FROM (
+                SELECT orp.ID_RoutePlan, CAST('cuadro' AS varchar(10)) AS Tipo, CAST(NULL AS nvarchar(50)) AS Doc
+                FROM OrderRoutePlan orp WHERE orp.RouteNumber = @qi
+                UNION
+                SELECT opm.ID_RoutePlan, 'doc', LTRIM(RTRIM(opm.OV_Number))
+                FROM OrderPickingManagement opm WHERE LTRIM(RTRIM(opm.OV_Number)) = @q
+                UNION
+                SELECT orp.ID_RoutePlan, 'doc', LTRIM(RTRIM(d.U_No_OV))
+                FROM [server-sql].[${sapDb}].dbo.[@CUADRO_RUTA_D] d WITH (NOLOCK)
+                INNER JOIN [server-sql].[${sapDb}].dbo.[@CUADRO_RUTA_E] e WITH (NOLOCK) ON e.DocEntry = d.DocEntry
+                INNER JOIN OrderRoutePlan orp ON orp.RouteNumber = e.DocNum
+                WHERE d.U_No_OV = @q
+            ) m
+            INNER JOIN (${DESPACHO_RUTA_SELECT}) r ON r.ID_RoutePlan = m.ID_RoutePlan
+            INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = m.ID_RoutePlan
+            WHERE 1 = 1 ${centroFilter}
+            ORDER BY r.RouteNumber DESC
+        `);
+        // Una fila por cuadro (una OV puede aparecer en el app y en SAP a la vez)
+        const vistos = new Set();
+        res.json(result.recordset.filter(r => !vistos.has(r.ID_RoutePlan) && vistos.add(r.ID_RoutePlan)).slice(0, 20));
+    } catch (err) {
+        console.error('GET /api/order/despacho/buscar error:', err);
+        res.status(500).json({ error: 'Error en la búsqueda' });
+    }
+});
+
 router.post('/despacho/estado', async (req, res) => {
     try {
         const { idRoutePlan, estado } = req.body;
