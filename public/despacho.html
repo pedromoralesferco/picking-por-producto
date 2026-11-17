@@ -771,6 +771,8 @@
             .panel-detail { padding: 0.8rem; }
         }
     </style>
+    <!-- Códigos de barras de la Orden de Carga: se generan aquí (carga diferida, queda en caché) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
 </head>
 <body>
     <div class="header">
@@ -1778,37 +1780,41 @@
             html += '</tbody></table>';
             body.innerHTML = html;
         }
+        // Code128 con solo el número del documento, generado en esta página (SVG en
+        // texto) para que la ventana de impresión no dependa de internet. Un SVG por
+        // documento, reutilizado en todas sus filas. Sin JsBarcode: se imprime sin código.
+        function barcodeSvgDoc(doc, cache) {
+            if (!doc || typeof JsBarcode !== 'function') return '';
+            if (cache.has(doc)) return cache.get(doc);
+            let out = '';
+            try {
+                const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                JsBarcode(el, doc, { format: 'CODE128', width: 1.6, height: 48, fontSize: 13, margin: 2, textMargin: 2, displayValue: true });
+                out = el.outerHTML;
+            } catch (e) { out = ''; }
+            cache.set(doc, out);
+            return out;
+        }
         function imprimirBultos() {
             const bultos = bultosActuales || [];
             if (!bultos.length) return;
-            // A la derecha de cada fila, un código de barras (Code128) con solo el
-            // número del documento, para escanearlo al cargar. Filas más altas.
+            // A la derecha de cada fila, el código de barras del documento. Filas más altas.
             const td = 'padding:8px;border-bottom:1px solid #ccc;vertical-align:middle';
+            const cache = new Map();
             let rows = '';
             bultosOrdenados(bultos).forEach(b => {
                 const doc = String(b.OV_Number || '').trim();
-                rows += `<tr><td style="${td};font-weight:700">${esc(b.Ubicacion || '(sin ubicación)')}</td><td style="${td}">${esc(b.Licencia)}</td><td style="${td}">${esc(b.DocType || '')} ${esc(doc)}</td><td style="${td};text-align:right">${Math.round(b.Cantidad || 0)}</td><td style="${td};text-align:right;width:1%;white-space:nowrap">${doc ? `<svg class="bc" data-doc="${esc(doc)}"></svg>` : ''}</td></tr>`;
+                rows += `<tr><td style="${td};font-weight:700">${esc(b.Ubicacion || '(sin ubicación)')}</td><td style="${td}">${esc(b.Licencia)}</td><td style="${td}">${esc(b.DocType || '')} ${esc(doc)}</td><td style="${td};text-align:right">${Math.round(b.Cantidad || 0)}</td><td style="${td};text-align:right;width:1%;white-space:nowrap">${barcodeSvgDoc(doc, cache)}</td></tr>`;
             });
             const w = window.open('', '_blank');
             w.document.write(`<html><head><title>Orden de Carga — Cuadro ${esc(bultosRN)}</title>
-                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
-                <style>@media print { tr { page-break-inside: avoid; } } svg.bc { display: block; margin-left: auto; }</style>
+                <style>@media print { tr { page-break-inside: avoid; } } td svg { display: block; margin-left: auto; }</style>
                 </head><body style="font-family:Arial,sans-serif">
                 <h2 style="margin:0 0 .2rem">Orden de Carga — Cuadro ${esc(bultosRN)}</h2>
                 <div style="color:#555;font-size:.8rem;margin-bottom:.6rem">${bultos.length} bulto(s) · ${new Date().toLocaleString('es-GT')}</div>
                 <table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="text-align:left;border-bottom:2px solid #333"><th style="padding:4px 8px">Ubicación</th><th style="padding:4px 8px">Licencia</th><th style="padding:4px 8px">Documento</th><th style="padding:4px 8px;text-align:right">Cant.</th><th style="padding:4px 8px;text-align:right">Código</th></tr></thead><tbody>${rows}</tbody></table>
-                <script>
-                    window.addEventListener('load', function () {
-                        document.querySelectorAll('svg.bc').forEach(function (el) {
-                            try {
-                                JsBarcode(el, el.getAttribute('data-doc'), { format: 'CODE128', width: 1.6, height: 48, fontSize: 13, margin: 2, textMargin: 2, displayValue: true });
-                            } catch (e) {}
-                        });
-                        setTimeout(function () { window.focus(); window.print(); }, 200);
-                    });
-                <\/script>
                 </body></html>`);
-            w.document.close();
+            w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
         }
         function mostrarDestinoQuitados(quitarArr, agregarArr) {
             window._editPending = { quitarArr, agregarArr };
