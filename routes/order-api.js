@@ -860,6 +860,51 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                 console.error('PaseGenerado (InventoryTransactionLog) no disponible:', e.message);
             }
 
+            // Facturas (FEL) de las OV con pase de salida (solo GT): OV → entrega (DLN1)
+            // → factura (INV1 BaseType 15), o factura directa de la OV (BaseType 17).
+            // El link al documento certificado está en OINV.U_url_infile. Una OV puede
+            // tener varias facturas (entregas parciales); se devuelven todas, la más
+            // reciente primero. Resiliente: si SAP falla, Facturas queda vacío.
+            try {
+                const ovsPase = [...new Set(docs
+                    .filter(d => d.DocType === 'OV' && d.PaseGenerado && (d.Pais || 'GT') === 'GT')
+                    .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                if (ovsPase.length) {
+                    const sapDb = getSapDb('GT');
+                    const fr = await pool.request().query(`
+                        SELECT DISTINCT f.OV, i.DocNum, i.DocDate, i.DocTime,
+                               CAST(i.U_url_infile AS nvarchar(1000)) AS Url
+                        FROM (
+                            SELECT o.DocNum AS OV, l.DocEntry
+                            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+                            JOIN [server-sql].[${sapDb}].dbo.DLN1 d WITH (NOLOCK) ON d.BaseType = 17 AND d.BaseEntry = o.DocEntry
+                            JOIN [server-sql].[${sapDb}].dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 15 AND l.BaseEntry = d.DocEntry
+                            WHERE o.DocNum IN (${ovsPase.join(',')})
+                            UNION
+                            SELECT o.DocNum, l.DocEntry
+                            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+                            JOIN [server-sql].[${sapDb}].dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 17 AND l.BaseEntry = o.DocEntry
+                            WHERE o.DocNum IN (${ovsPase.join(',')})
+                        ) f
+                        JOIN [server-sql].[${sapDb}].dbo.OINV i WITH (NOLOCK) ON i.DocEntry = f.DocEntry
+                        WHERE i.CANCELED = 'N'
+                          AND CAST(i.U_url_infile AS nvarchar(1000)) LIKE 'http%'`);
+                    const porOv = new Map();
+                    fr.recordset
+                        .sort((a, b) => (new Date(b.DocDate) - new Date(a.DocDate)) || ((b.DocTime || 0) - (a.DocTime || 0)) || (b.DocNum - a.DocNum))
+                        .forEach(r => {
+                            if (!porOv.has(r.OV)) porOv.set(r.OV, []);
+                            porOv.get(r.OV).push({ DocNum: r.DocNum, Fecha: r.DocDate, Url: r.Url });
+                        });
+                    docs.forEach(d => {
+                        const f = porOv.get(parseInt(d.OV_Number));
+                        if (d.DocType === 'OV' && d.PaseGenerado && f) d.Facturas = f;
+                    });
+                }
+            } catch (e) {
+                console.error('Facturas FEL (OINV.U_url_infile) no disponibles:', e.message);
+            }
+
             // OV cerrada/cancelada en SAP sin pase de salida: DocStatus='C' o CANCELED='Y'
             // y sin ninguna entrega (DLN1 basada en la OV). Típico: pedido cancelado justo
             // antes de despachar. Resiliente: si SAP falla, CerradaSinPase queda en 0.

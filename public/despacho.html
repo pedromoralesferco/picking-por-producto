@@ -445,6 +445,44 @@
         }
         .btn-print-pedido:hover { background: #2e7d32; color: #fff; border-color: #2e7d32; }
 
+        /* Factura FEL (SAT) de la OV con pase de salida: azul, mismo tamaño que los
+           botones de impresión. Sin factura se deja un hueco del mismo ancho para
+           que las columnas del grid no se desalineen. */
+        .btn-fac-sat {
+            position: relative;
+            background: #0b4f9c; color: #fff;
+            border: 1px solid #0b4f9c;
+            width: 30px; height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex: none;
+            transition: all 0.15s;
+        }
+        .btn-fac-sat:hover { background: #083a73; border-color: #083a73; }
+        .btn-fac-sat.vacio { visibility: hidden; pointer-events: none; }
+        .btn-fac-sat .fac-count {
+            position: absolute; top: -6px; right: -6px;
+            min-width: 16px; height: 16px; padding: 0 3px;
+            border-radius: 8px; background: #fff; color: #0b4f9c;
+            border: 1px solid #0b4f9c;
+            font-size: 0.6rem; font-weight: 800; line-height: 14px; text-align: center;
+        }
+        .fac-menu {
+            position: absolute; z-index: 3000; min-width: 220px;
+            background: #fff; border: 1px solid #cfd8e3; border-radius: 8px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15); padding: 0.3rem;
+        }
+        .fac-menu .fm-title { font-size: 0.68rem; font-weight: 700; color: #667; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.5rem; }
+        .fac-menu a {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.45rem 0.55rem; border-radius: 6px;
+            color: #0b4f9c; text-decoration: none; font-size: 0.82rem; font-weight: 600;
+        }
+        .fac-menu a:hover { background: #e8f0fb; }
+        .fac-menu a small { margin-left: auto; color: #889; font-weight: 400; }
+
         /* Control de bultos por OV (para las etiquetas de empaque) */
         .bultos-ctrl { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: none; }
         .bultos-ctrl label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.04em; color: #999; font-weight: 700; }
@@ -1254,6 +1292,7 @@
                         <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaOrder(${d.ID_OrderPicking}, '${esc(d.OV_Number)}')">
                             <i class="bi bi-tag"></i>
                         </button>
+                        ${renderBtnFactura(d)}
                         ${editMode ? `<button class="btn-doc-rm ${marcadoRm ? 'deshacer' : ''}" title="${marcadoRm ? 'Deshacer la eliminación' : 'Quitar del cuadro'}" onclick="event.stopPropagation(); toggleQuitarDoc('${esc(d.OV_Number)}','${esc(d.DocType)}')">${marcadoRm ? 'Deshacer' : 'Eliminar'}</button>` : ''}
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
@@ -1261,6 +1300,45 @@
                 </div>
             `;
         }
+
+        // Botón azul de factura FEL (SAT). Solo OV con pase de salida y factura en SAP;
+        // si no aplica, un hueco invisible del mismo tamaño para no descuadrar el grid.
+        function renderBtnFactura(d) {
+            const facs = Array.isArray(d.Facturas) ? d.Facturas : [];
+            if (!facs.length) return '<span class="btn-fac-sat vacio" aria-hidden="true"></span>';
+            facturasPorDoc[d.ID_OrderPicking] = facs;
+            const tip = facs.length === 1
+                ? 'Factura ' + facs[0].DocNum + ' (SAT) — abrir para imprimir'
+                : facs.length + ' facturas de esta OV (SAT) — elegir cuál imprimir';
+            return `<button class="btn-fac-sat" title="${esc(tip)}" onclick="event.stopPropagation(); abrirFactura(event, ${d.ID_OrderPicking})">
+                            <i class="bi bi-receipt"></i>${facs.length > 1 ? '<span class="fac-count">' + facs.length + '</span>' : ''}
+                        </button>`;
+        }
+        var facturasPorDoc = {};
+        function cerrarMenuFactura() {
+            const m = document.getElementById('facMenu');
+            if (m) m.remove();
+        }
+        function abrirFactura(ev, idOrderPicking) {
+            const facs = facturasPorDoc[idOrderPicking] || [];
+            cerrarMenuFactura();
+            if (!facs.length) return;
+            if (facs.length === 1) { window.open(facs[0].Url, '_blank', 'noopener'); return; }
+            const fdt = f => { const x = new Date(f); return isNaN(x) ? '' : x.toLocaleDateString('es-GT', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }); };
+            const m = document.createElement('div');
+            m.id = 'facMenu';
+            m.className = 'fac-menu';
+            m.innerHTML = '<div class="fm-title">Facturas de la OV</div>' + facs.map(f =>
+                `<a href="${esc(f.Url)}" target="_blank" rel="noopener"><i class="bi bi-receipt"></i> ${esc(String(f.DocNum))}<small>${fdt(f.Fecha)}</small></a>`).join('');
+            m.addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('a')) setTimeout(cerrarMenuFactura, 0); });
+            document.body.appendChild(m);
+            const r = ev.currentTarget.getBoundingClientRect();
+            const left = Math.max(8, Math.min(window.scrollX + r.right - m.offsetWidth, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8));
+            m.style.left = left + 'px';
+            m.style.top = (window.scrollY + r.bottom + 4) + 'px';
+        }
+        document.addEventListener('click', cerrarMenuFactura);
+        window.addEventListener('scroll', cerrarMenuFactura, true);
 
         async function toggleDocOrder(idOrderPicking) {
             const key = 'order-' + idOrderPicking;
