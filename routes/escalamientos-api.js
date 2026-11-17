@@ -269,10 +269,11 @@ router.get('/', requireEsc, async (req, res) => {
             WHERE e.Archivado = 0
             ORDER BY e.FechaCreacion ASC`);
         const estados = await estadosDeOVs(pool, r.recordset.map(x => x.OV_Number));
+        const adj = await contarAdjuntos(pool);
         const cut = Date.now() - 24 * 3600 * 1000; // Finalizados: visibles solo 24h tras el despacho
         const data = r.recordset.map(x => {
             const st = estados[String(x.OV_Number).trim()] || { rank: 0, desp: null, cuadro: null };
-            return { ...x, Estado: ESTADO_NOMBRE[st.rank], FechaDespacho: st.desp, Cuadro: st.cuadro };
+            return { ...x, Estado: ESTADO_NOMBRE[st.rank], FechaDespacho: st.desp, Cuadro: st.cuadro, Adjuntos: adj[x.ID_Escalamiento] || 0 };
         }).filter(x => {
             if (x.Estado !== 'Finalizado') return true;
             if (!x.FechaDespacho) return true; // sin fecha de despacho -> no se puede datar, se mantiene
@@ -310,7 +311,14 @@ router.get('/:id', requireEsc, async (req, res) => {
                          orp.FechaDespachoFin DESC, orp.RouteNumber DESC`);
             if (h.recordset.length) historial = h.recordset[0];
         } catch (e) { console.error('historial:', e.message); }
-        res.json({ escalamiento: esc, estado: ESTADO_NOMBRE[st.rank], cuadro: st.cuadro, comentarios: coms.recordset, lineas, historial });
+        let adjuntos = [];
+        try {
+            const a = await pool.request().input('id', sql.Int, id).query(`
+                SELECT ID_Adjunto, Nombre, Tamano, SubidoPor, Fecha
+                FROM dbo.EscalamientoAdjuntos WHERE ID_Escalamiento = @id ORDER BY Fecha ASC`);
+            adjuntos = a.recordset;
+        } catch (e) { console.error('adjuntos detalle:', e.message); }
+        res.json({ escalamiento: esc, estado: ESTADO_NOMBRE[st.rank], cuadro: st.cuadro, comentarios: coms.recordset, lineas, historial, adjuntos });
     } catch (err) { console.error('GET /escalamientos/:id', err); res.status(500).json({ error: 'Error al obtener detalle' }); }
 });
 
@@ -338,6 +346,82 @@ router.post('/:id/archivar', requireEsc, async (req, res) => {
             .query(`UPDATE dbo.Escalamientos SET Archivado = @v WHERE ID_Escalamiento = @id`);
         res.json({ ok: true });
     } catch (err) { console.error('POST archivar', err); res.status(500).json({ error: 'Error al archivar' }); }
+});
+
+// ── Adjuntos: PDF de la OC del cliente (llega por correo y hay que imprimirla) ──
+const MAX_ADJUNTO_MB = 10;
+const leerPdf = express.raw({ type: () => true, limit: MAX_ADJUNTO_MB + 'mb' });
+
+// Conteo de adjuntos por escalamiento (consulta aparte: si la tabla aún no existe,
+// el tablero sigue funcionando).
+async function contarAdjuntos(pool) {
+    const out = {};
+    try {
+        const r = await pool.request().query(`
+            SELECT ID_Escalamiento, COUNT(*) AS N FROM dbo.EscalamientoAdjuntos GROUP BY ID_Escalamiento`);
+        r.recordset.forEach(x => { out[x.ID_Escalamiento] = x.N; });
+    } catch (e) { console.error('contarAdjuntos:', e.message); }
+    return out;
+}
+
+function nombreSeguro(raw) {
+    let n = '';
+    try { n = decodeURIComponent(String(raw || '')); } catch (e) { n = String(raw || ''); }
+    n = n.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim().slice(0, 200);
+    if (!n) n = 'OC.pdf';
+    if (!/\.pdf$/i.test(n)) n += '.pdf';
+    return n;
+}
+
+// POST /api/escalamientos/:id/adjuntos — cuerpo = el PDF tal cual; nombre en X-Nombre-Archivo
+router.post('/:id/adjuntos', requireEsc, (req, res, next) => {
+    leerPdf(req, res, (err) => {
+        if (err) {
+            if (err.type === 'entity.too.large') return res.status(413).json({ error: `El PDF pasa de ${MAX_ADJUNTO_MB} MB.` });
+            return res.status(400).json({ error: 'No se pudo leer el archivo.' });
+        }
+        next();
+    });
+}, async (req, res) => {
+    try {
+        const pool = getPool();
+        const id = parseInt(req.params.id);
+        const buf = req.body;
+        if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: 'Archivo vacío.' });
+        if (buf.slice(0, 5).toString('latin1') !== '%PDF-') return res.status(400).json({ error: 'Solo se aceptan archivos PDF.' });
+        const ex = await pool.request().input('id', sql.Int, id)
+            .query(`SELECT 1 AS ok FROM dbo.Escalamientos WHERE ID_Escalamiento = @id`);
+        if (!ex.recordset.length) return res.status(404).json({ error: 'Escalamiento no encontrado' });
+        const nombre = nombreSeguro(req.get('X-Nombre-Archivo'));
+        const ins = await pool.request()
+            .input('id', sql.Int, id)
+            .input('n', sql.NVarChar(255), nombre)
+            .input('t', sql.Int, buf.length)
+            .input('c', sql.VarBinary(sql.MAX), buf)
+            .input('u', sql.NVarChar(100), identidad(req.session.user))
+            .query(`INSERT INTO dbo.EscalamientoAdjuntos (ID_Escalamiento, Nombre, Tamano, Contenido, SubidoPor)
+                    OUTPUT INSERTED.ID_Adjunto VALUES (@id, @n, @t, @c, @u)`);
+        res.json({ ok: true, id: ins.recordset[0].ID_Adjunto, nombre });
+    } catch (err) { console.error('POST adjuntos', err); res.status(500).json({ error: 'Error al guardar el adjunto' }); }
+});
+
+// GET /api/escalamientos/:id/adjuntos/:aid — abre el PDF en el navegador (para imprimir)
+router.get('/:id/adjuntos/:aid', requireEsc, async (req, res) => {
+    try {
+        const r = await getPool().request()
+            .input('id', sql.Int, parseInt(req.params.id))
+            .input('aid', sql.Int, parseInt(req.params.aid))
+            .query(`SELECT Nombre, Contenido FROM dbo.EscalamientoAdjuntos WHERE ID_Adjunto = @aid AND ID_Escalamiento = @id`);
+        if (!r.recordset.length) return res.status(404).send('Adjunto no encontrado');
+        const { Nombre, Contenido } = r.recordset[0];
+        const ascii = String(Nombre).replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '');
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(Nombre)}`,
+            'Cache-Control': 'private, max-age=0'
+        });
+        res.send(Contenido);
+    } catch (err) { console.error('GET adjunto', err); res.status(500).send('Error al abrir el adjunto'); }
 });
 
 module.exports = router;

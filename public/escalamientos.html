@@ -70,6 +70,21 @@
   .coms { margin-top:0.6rem; }
   .com { background:#f6f7f9; border-radius:7px; padding:0.4rem 0.6rem; margin-bottom:0.4rem; font-size:0.82rem; white-space:pre-wrap; }
   .com .who { font-size:0.66rem; color:#999; margin-top:0.2rem; }
+  /* Adjuntos (PDF de la OC) */
+  .adj-pick { display:flex; align-items:center; gap:0.5rem; border:1px dashed #c9c9c9; border-radius:7px; padding:0.4rem 0.55rem; font-size:0.8rem; color:#666; }
+  .adj-pick .nom { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .adj-pick .nom.ok { color:#222; font-weight:600; }
+  .btn.sm { padding:0.3rem 0.6rem; font-size:0.75rem; }
+  .adjs { display:flex; flex-direction:column; gap:0.35rem; margin-top:0.3rem; }
+  .adj { display:flex; align-items:center; gap:0.55rem; background:#f6f7f9; border-radius:7px; padding:0.4rem 0.6rem; font-size:0.8rem; }
+  .adj .bi-file-earmark-pdf-fill { color:#c62828; font-size:1.1rem; flex:none; }
+  .adj .info { flex:1; min-width:0; }
+  .adj .info .n { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .adj .info .who { font-size:0.66rem; color:#999; }
+  .adj a.abrir { color:#1565c0; font-weight:700; text-decoration:none; white-space:nowrap; font-size:0.78rem; }
+  .adj a.abrir:hover { text-decoration:underline; }
+  .card .crow .adj-badge { margin-left:auto; color:#c62828; font-weight:700; }
+  .card .crow .adj-badge + .coms-badge { margin-left:0.5rem; }
 </style>
 </head>
 <body>
@@ -110,6 +125,14 @@
       <div class="lookup" id="lookup">Escribí/pegá la OV para ver sus datos…</div>
       <label>Comentario inicial</label>
       <textarea id="f-com" placeholder="Contexto del escalamiento"></textarea>
+      <label>OC del cliente (PDF, opcional)</label>
+      <div class="adj-pick">
+        <i class="bi bi-paperclip"></i>
+        <span class="nom" id="f-adj-nom">Sin archivo</span>
+        <button type="button" class="btn ghost sm" id="f-adj-quitar" onclick="quitarAdjNuevo()" style="display:none">Quitar</button>
+        <button type="button" class="btn ghost sm" onclick="document.getElementById('f-adj').click()">Elegir PDF</button>
+        <input type="file" id="f-adj" accept="application/pdf,.pdf" style="display:none" onchange="elegirAdjNuevo(this)">
+      </div>
       <div class="modal-actions">
         <button class="btn ghost" onclick="cerrar('maskNuevo')">Cancelar</button>
         <button class="btn" id="btnGuardar" onclick="guardar()">Crear escalamiento</button>
@@ -175,7 +198,7 @@ function card(e){
     <div class="crow"><span class="k">Máx. neg.</span><span class="v ${vencida?'vencida':''}">${fdate(e.FechaRequerida)}</span></div>
     <div class="crow"><span class="k">Escalado</span><span class="v">${fdatetime(e.FechaCreacion)}</span></div>
     ${datos.length?`<div class="crow"><span class="k">Pedido</span><span class="v">${datos.join(' · ')}</span></div>`:''}
-    <div class="crow"><span class="k">Por</span><span class="v">${esc(e.CreadoPor||'—')}</span>${e.Comentarios?`<span class="coms-badge"><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`:''}</div>
+    <div class="crow"><span class="k">Por</span><span class="v">${esc(e.CreadoPor||'—')}</span>${e.Adjuntos?`<span class="adj-badge" title="OC adjunta"><i class="bi bi-file-earmark-pdf-fill"></i> ${e.Adjuntos}</span>`:''}${e.Comentarios?`<span class="coms-badge"><i class="bi bi-chat-left-text"></i> ${e.Comentarios}</span>`:''}</div>
   </div>`;
 }
 
@@ -215,6 +238,7 @@ function setTipo(t){ tipoManual=true; updateTipoButtons(t); doLookup(); }
 function abrirNuevo(){
   document.getElementById('pegar').value=''; document.getElementById('f-ov').value='';
   document.getElementById('f-com').value='';
+  quitarAdjNuevo();
   const mn=fechaMinNeg();
   const f=document.getElementById('f-fecha'); f.min=mn; f.value=mn;
   document.getElementById('lookup').innerHTML='Escribí/pegá la OV para ver sus datos…';
@@ -276,11 +300,60 @@ async function guardar(){
   try{
     const r=await fetch('/api/escalamientos',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ ov, docType:currentTipo(), fechaRequerida:fecha, comentario:document.getElementById('f-com').value })});
-    if(!r.ok){ const d=await r.json(); alert(d.error||'Error'); }
-    else { cerrar('maskNuevo'); load(); }
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||'Error'); }
+    else {
+      const f=document.getElementById('f-adj').files[0];
+      if(f && d.id){
+        btn.textContent='Subiendo PDF…';
+        const err=await subirAdjunto(d.id, f);
+        if(err) alert('El escalamiento se creó, pero el PDF no se pudo adjuntar: '+err+'\nPodés adjuntarlo desde el detalle.');
+      }
+      cerrar('maskNuevo'); load();
+    }
   }catch(e){ alert('Error al guardar'); }
   btn.disabled=false; btn.textContent='Crear escalamiento';
 }
+
+// ── Adjuntos (PDF de la OC) ──
+const MAX_ADJ_MB = 10;
+function validarPdf(f){
+  if(!f) return 'Sin archivo';
+  if(!/\.pdf$/i.test(f.name) && f.type!=='application/pdf') return 'Solo se aceptan archivos PDF.';
+  if(f.size > MAX_ADJ_MB*1024*1024) return `El PDF pasa de ${MAX_ADJ_MB} MB.`;
+  return null;
+}
+function elegirAdjNuevo(inp){
+  const f=inp.files[0]; const err=f && validarPdf(f);
+  if(err){ alert(err); quitarAdjNuevo(); return; }
+  const n=document.getElementById('f-adj-nom');
+  n.textContent=f?f.name:'Sin archivo'; n.classList.toggle('ok',!!f);
+  document.getElementById('f-adj-quitar').style.display=f?'':'none';
+}
+function quitarAdjNuevo(){
+  document.getElementById('f-adj').value='';
+  const n=document.getElementById('f-adj-nom'); n.textContent='Sin archivo'; n.classList.remove('ok');
+  document.getElementById('f-adj-quitar').style.display='none';
+}
+// Sube el PDF tal cual (sin base64). Devuelve null si salió bien, o el mensaje de error.
+async function subirAdjunto(id, f){
+  const err=validarPdf(f); if(err) return err;
+  try{
+    const r=await fetch('/api/escalamientos/'+id+'/adjuntos',{method:'POST',
+      headers:{'Content-Type':'application/pdf','X-Nombre-Archivo':encodeURIComponent(f.name)}, body:f});
+    if(r.ok) return null;
+    const d=await r.json().catch(()=>({}));
+    return d.error||('Error '+r.status);
+  }catch(e){ return 'Error de conexión'; }
+}
+async function adjuntarEnDetalle(id, inp){
+  const f=inp.files[0]; inp.value=''; if(!f) return;
+  const btn=document.getElementById('btnAdjDet'); btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Subiendo…';
+  const err=await subirAdjunto(id, f);
+  if(err){ alert(err); btn.disabled=false; btn.innerHTML='<i class="bi bi-paperclip"></i> Adjuntar PDF'; return; }
+  verDetalle(id); load();
+}
+function fsize(b){ b=Number(b)||0; return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'; }
 
 // ── Detalle ──
 let detId=null;
@@ -299,6 +372,11 @@ async function verDetalle(id){
     const coms = (d.comentarios&&d.comentarios.length)
       ? d.comentarios.map(c=>`<div class="com">${esc(c.Comentario)}<div class="who">${esc(c.Autor||'—')} · ${new Date(c.Fecha).toLocaleString('es-GT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')
       : '<div class="empty">Sin comentarios</div>';
+    const adjs = (d.adjuntos&&d.adjuntos.length)
+      ? `<div class="adjs">${d.adjuntos.map(a=>`<div class="adj"><i class="bi bi-file-earmark-pdf-fill"></i>
+          <div class="info"><div class="n" title="${esc(a.Nombre)}">${esc(a.Nombre)}</div><div class="who">${fsize(a.Tamano)} · ${esc(a.SubidoPor||'—')} · ${fdatetime(a.Fecha)}</div></div>
+          <a class="abrir" href="/api/escalamientos/${id}/adjuntos/${a.ID_Adjunto}" target="_blank" rel="noopener"><i class="bi bi-printer"></i> Abrir / imprimir</a></div>`).join('')}</div>`
+      : '<div class="empty" style="text-align:left;padding:0.3rem 0 0.2rem">Sin OC adjunta</div>';
     const h = d.historial || {};
     const step=(label,val,color)=>`<div style="display:flex;align-items:center;gap:0.5rem;padding:0.12rem 0">
       <span style="width:11px;height:11px;border-radius:50%;background:${val?color:'#ccc'};flex:none"></span>
@@ -315,7 +393,14 @@ async function verDetalle(id){
       <div style="font-size:0.85rem;margin-bottom:0.3rem"><b>${esc(e.ClienteNombre||'—')}</b> ${e.DocType==='OV'&&e.Monto!=null?' · '+money(e.Monto):''}</div>
       <div style="font-size:0.78rem;color:#666;margin-bottom:0.6rem"><i class="bi bi-calendar-event"></i> Máx. negociada: ${fdate(e.FechaRequerida)} &nbsp;·&nbsp; ${e.PesoKg!=null?num(Math.round(e.PesoKg))+' kg':''} ${e.TotalLineas!=null?' · '+e.TotalLineas+' líneas':''} &nbsp;·&nbsp; creado por ${esc(e.CreadoPor||'—')}</div>
       ${tl}
-      <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888">Detalle del pedido</label>
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.1rem">
+        <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888;margin:0">OC del cliente</label>
+        <span style="flex:1"></span>
+        <button class="btn ghost sm" id="btnAdjDet" onclick="document.getElementById('adjDet').click()"><i class="bi bi-paperclip"></i> Adjuntar PDF</button>
+        <input type="file" id="adjDet" accept="application/pdf,.pdf" style="display:none" onchange="adjuntarEnDetalle(${id}, this)">
+      </div>
+      ${adjs}
+      <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888;display:block;margin-top:0.8rem">Detalle del pedido</label>
       ${lin}
       <label style="font-size:0.68rem;font-weight:700;text-transform:uppercase;color:#888;display:block;margin-top:0.8rem">Comentarios</label>
       <div class="coms">${coms}</div>

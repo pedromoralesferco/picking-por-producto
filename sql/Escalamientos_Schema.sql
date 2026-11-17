@@ -38,3 +38,21 @@ BEGIN
 END
 GO
 PRINT 'Escalamientos: tablas OK';
+
+-- Adjuntos (PDF de la OC del cliente, para imprimirla desde el app).
+-- El contenido va en su propia tabla para no viajar en cada SELECT del ticket.
+IF OBJECT_ID('dbo.EscalamientoAdjuntos') IS NULL
+BEGIN
+    CREATE TABLE dbo.EscalamientoAdjuntos (
+        ID_Adjunto        INT IDENTITY(1,1) PRIMARY KEY,
+        ID_Escalamiento   INT             NOT NULL,
+        Nombre            NVARCHAR(255)   NOT NULL,
+        Tamano            INT             NOT NULL,
+        Contenido         VARBINARY(MAX)  NOT NULL,
+        SubidoPor         NVARCHAR(100)   NULL,
+        Fecha             DATETIME        NOT NULL DEFAULT GETDATE()
+    );
+    CREATE INDEX IX_EscAdjuntos_Esc ON dbo.EscalamientoAdjuntos (ID_Escalamiento);
+END
+GO
+PRINT 'Escalamientos: adjuntos OK';
