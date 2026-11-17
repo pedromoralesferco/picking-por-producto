@@ -357,6 +357,37 @@ body {
 .btn-reasignar { background: #fdf6e3; color: #b8941f; }
 .btn-reasignar:hover { background: #f5ecc8; }
 
+/* Etiqueta por pedido: # de bultos + botón imprimir.
+   Va en su propia línea, abajo a la derecha, para que quede alineada en todas las tarjetas
+   (los botones de arriba cambian según el estado del pedido). */
+.pedido-actions { flex-wrap: wrap; justify-content: flex-end; }
+.etq-row { flex-basis: 100%; display: flex; justify-content: flex-end; margin-top: 0.1rem; }
+.etq-ctrl {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #ecdfb4;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+.etq-ctrl .etq-lbl {
+    display: flex; align-items: center;
+    padding: 0 0.45rem;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: #b8941f; background: #fdf6e3;
+}
+.etq-ctrl .etq-input {
+    width: 2.8rem;
+    border: none;
+    border-left: 1px solid #ecdfb4;
+    border-right: 1px solid #ecdfb4;
+    text-align: center;
+    font-size: 0.85rem; font-weight: 700;
+}
+.etq-ctrl .etq-input:focus { outline: none; background: #fffbea; }
+.etq-ctrl .btn-etiqueta { border-radius: 0; background: #fdf6e3; color: #b8941f; }
+.etq-ctrl .btn-etiqueta:hover { background: #f5ecc8; }
+
 .btn-cerrar-pedido { background: #ffebee; color: var(--danger); }
 .btn-cerrar-pedido:hover { background: #ffcdd2; }
 

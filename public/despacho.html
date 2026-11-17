@@ -164,6 +164,44 @@
         }
         .kanban-routes .route-chip { min-width: 0; max-width: none; width: 100%; }
 
+        /* Buscador de cuadro / OV (modo pedido) */
+        .despacho-buscar { padding: 0.5rem 0.5rem 0; }
+        .despacho-buscar form { display: flex; gap: 0.35rem; }
+        .despacho-buscar input {
+            flex: 1; min-width: 0; padding: 0.4rem 0.6rem; font-size: 0.8rem;
+            border: 1px solid #d9d9d9; border-radius: 6px; outline: none;
+        }
+        .despacho-buscar input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(212,168,38,0.2); }
+        .despacho-buscar button {
+            background: var(--dark); color: var(--primary); border: none; border-radius: 6px;
+            padding: 0 0.7rem; font-size: 0.8rem; cursor: pointer; flex: none;
+        }
+        .buscar-res { margin-top: 0.4rem; font-size: 0.74rem; color: #666; }
+        .buscar-res:empty { display: none; }
+        .buscar-res .br-item {
+            display: flex; align-items: center; gap: 0.4rem; width: 100%; text-align: left;
+            background: #fff; border: 1px solid #e3e3e3; border-radius: 6px;
+            padding: 0.35rem 0.5rem; margin-top: 0.3rem; cursor: pointer; font-size: 0.74rem; color: var(--dark);
+        }
+        .buscar-res .br-item:hover { border-color: var(--primary); background: #fffbef; }
+        .buscar-res .br-item b { white-space: nowrap; }
+        .buscar-res .br-item .br-ruta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .br-estado { flex: none; font-size: 0.62rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 8px; background: #eee; color: #555; }
+        .br-estado.picking { background: #f6edd3; color: #8a6d1a; }
+        .br-estado.completado { background: #e1ecf9; color: #1565c0; }
+        .br-estado.listo { background: #e3f1e4; color: #2e7d32; }
+        .br-estado.despachado { background: #e8e8e8; color: #444; }
+        .route-chip.hl { animation: chiphl 2.5s ease-out; }
+        @keyframes chiphl { 0% { box-shadow: 0 0 0 4px rgba(212,168,38,0.75); } 100% { box-shadow: 0 0 0 2px rgba(212,168,38,0.3); } }
+
+        /* Despachados hoy: al final del tablero, colapsado por defecto */
+        .kanban-slot.slot-despachados .kanban-slot-header { background: #546e7a; cursor: pointer; user-select: none; }
+        .kanban-slot.slot-despachados .kanban-slot-header .chev { margin-left: 0.3rem; transition: transform 0.15s; }
+        .kanban-slot.slot-despachados.abierto .kanban-slot-header .chev { transform: rotate(90deg); }
+        .kanban-slot.slot-despachados .kanban-routes { display: none; }
+        .kanban-slot.slot-despachados.abierto .kanban-routes { display: flex; }
+        .rc-hora { float: right; font-weight: 600; color: #607d8b; }
+
         /* ── Route chip (compact, horizontal) ── */
         .route-chip {
             min-width: 140px;
@@ -190,6 +228,14 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+        .rc-prio {
+            display: inline-block;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 4px;
+            padding: 0 0.3rem;
+            font-size: 0.66rem;
         }
 
         .rc-meta {
@@ -437,6 +483,44 @@
         }
         .btn-print-pedido:hover { background: #2e7d32; color: #fff; border-color: #2e7d32; }
 
+        /* Factura FEL (SAT) de la OV con pase de salida: azul, mismo tamaño que los
+           botones de impresión. Sin factura se deja un hueco del mismo ancho para
+           que las columnas del grid no se desalineen. */
+        .btn-fac-sat {
+            position: relative;
+            background: #0b4f9c; color: #fff;
+            border: 1px solid #0b4f9c;
+            width: 30px; height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex: none;
+            transition: all 0.15s;
+        }
+        .btn-fac-sat:hover { background: #083a73; border-color: #083a73; }
+        .btn-fac-sat.vacio { visibility: hidden; pointer-events: none; }
+        .btn-fac-sat .fac-count {
+            position: absolute; top: -6px; right: -6px;
+            min-width: 16px; height: 16px; padding: 0 3px;
+            border-radius: 8px; background: #fff; color: #0b4f9c;
+            border: 1px solid #0b4f9c;
+            font-size: 0.6rem; font-weight: 800; line-height: 14px; text-align: center;
+        }
+        .fac-menu {
+            position: absolute; z-index: 3000; min-width: 220px;
+            background: #fff; border: 1px solid #cfd8e3; border-radius: 8px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15); padding: 0.3rem;
+        }
+        .fac-menu .fm-title { font-size: 0.68rem; font-weight: 700; color: #667; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.5rem; }
+        .fac-menu a {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.45rem 0.55rem; border-radius: 6px;
+            color: #0b4f9c; text-decoration: none; font-size: 0.82rem; font-weight: 600;
+        }
+        .fac-menu a:hover { background: #e8f0fb; }
+        .fac-menu a small { margin-left: auto; color: #889; font-weight: 400; }
+
         /* Control de bultos por OV (para las etiquetas de empaque) */
         .bultos-ctrl { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: none; }
         .bultos-ctrl label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.04em; color: #999; font-weight: 700; }
@@ -512,6 +596,8 @@
         .estado-pill.picking-iniciado { background: rgba(255,152,0,0.12); color: #e65100; }
         .estado-pill.picking-finalizado { background: rgba(46,125,50,0.12); color: var(--success); }
         .estado-pill.pase-generado { background: #e1f3fc; color: #1565c0; }
+        .estado-pill.cerrada-sin-pase { background: #fdecea; color: #c62828; border: 1px solid #ef9a9a; }
+        .doc-card.cerrada-sin-pase { border-left: 4px solid #c62828; background: #fffafa; }
 
         .route-header-actions {
             display: flex;
@@ -685,6 +771,8 @@
             .panel-detail { padding: 0.8rem; }
         }
     </style>
+    <!-- Códigos de barras de la Orden de Carga: se generan aquí (carga diferida, queda en caché) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
 </head>
 <body>
     <div class="header">
@@ -704,6 +792,13 @@
                     <option value="">Todos</option>
                 </select>
             </div>
+            <div class="despacho-buscar" id="despachoBuscar" style="display:none">
+                <form onsubmit="event.preventDefault(); buscarCuadroOV();">
+                    <input id="buscarDespachoInput" type="search" placeholder="Buscar cuadro u OV…" autocomplete="off">
+                    <button type="submit" title="Buscar"><i class="bi bi-search"></i></button>
+                </form>
+                <div class="buscar-res" id="buscarDespachoRes"></div>
+            </div>
             <div class="carriles-scroll" id="carrilesList"></div>
         </div>
 
@@ -718,6 +813,9 @@
 
     <script>
         let despachoData = [];
+        let despachadosHoy = [];          // cuadros despachados hoy (modo pedido)
+        let despachadosAbierto = false;   // la sección arranca colapsada
+        const rutasExtra = new Map();     // cuadros abiertos desde el buscador que no están en el tablero
         let allCarriles = [];
         let selectedRoute = null;
         let selectedRoutePlanId = null;
@@ -738,6 +836,7 @@
                 pickingMode = modo === 'order' ? 'order' : 'product';
             } catch { window.location.href = '/login'; return; }
 
+            if (pickingMode === 'order') document.getElementById('despachoBuscar').style.display = '';
             await loadCentros();
             await loadAllCarriles();
             await loadDespacho();
@@ -770,6 +869,12 @@
                 const url = pickingMode === 'order' ? '/api/order/despacho/rutas' : '/api/despacho/rutas';
                 const res = await fetch(url);
                 despachoData = await res.json();
+                if (pickingMode === 'order') {
+                    try {
+                        const rh = await fetch('/api/order/despacho/despachados-hoy');
+                        if (rh.ok) despachadosHoy = await rh.json();
+                    } catch (e) { console.error(e); }
+                }
                 renderCarriles();
             } catch (err) { console.error(err); }
         }
@@ -795,7 +900,15 @@
             });
 
             const byRoute = (a, b) => (a.RouteNumber || 0) - (b.RouteNumber || 0);
-            [slotPicking, slotCompletado, slotListo].forEach(s => s.sort(byRoute));
+            // Picking terminado: en el orden de la cola de despacho (1 = primero).
+            const byPrioDespacho = (a, b) => {
+                const pa = a.PrioridadDespacho == null ? 999999 : a.PrioridadDespacho;
+                const pb = b.PrioridadDespacho == null ? 999999 : b.PrioridadDespacho;
+                return pa - pb || byRoute(a, b);
+            };
+            slotPicking.sort(byRoute);
+            slotCompletado.sort(byPrioDespacho);
+            slotListo.sort(byPrioDespacho);
 
             const slotHtml = (cls, icon, titulo, list) => `
                 <div class="kanban-slot ${cls}">
@@ -809,10 +922,83 @@
             container.innerHTML =
                 slotHtml('slot-picking', 'bi-hourglass-split', 'En proceso de picking', slotPicking) +
                 slotHtml('slot-completado', 'bi-box-seam', 'Picking completado', slotCompletado) +
-                slotHtml('slot-listo', 'bi-truck', 'Listas para despachar', slotListo);
+                slotHtml('slot-listo', 'bi-truck', 'Listas para despachar', slotListo) +
+                (pickingMode === 'order' ? renderDespachadosHoy(centroFilter) : '');
         }
 
-        function renderRouteChip(r) {
+        function renderDespachadosHoy(centroFilter) {
+            let list = despachadosHoy;
+            if (centroFilter) list = list.filter(r => r.ID_Centro == centroFilter);
+            const hora = d => { const x = new Date(d); return isNaN(x) || (x.getUTCHours() === 0 && x.getUTCMinutes() === 0) ? '' : x.toLocaleTimeString('es-GT', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }); };
+            return `
+                <div class="kanban-slot slot-despachados ${despachadosAbierto ? 'abierto' : ''}">
+                    <div class="kanban-slot-header" onclick="toggleDespachados()" title="Cuadros despachados hoy, para reimprimir documentos">
+                        <i class="bi bi-check2-all"></i> Despachados hoy
+                        <span class="badge-count">${list.length}</span>
+                        <i class="bi bi-chevron-right chev"></i>
+                    </div>
+                    <div class="kanban-routes">${list.map(r => renderRouteChip(r, hora(r.FechaDespachoFin))).join('')}</div>
+                </div>`;
+        }
+        function toggleDespachados() {
+            despachadosAbierto = !despachadosAbierto;
+            const el = document.querySelector('.kanban-slot.slot-despachados');
+            if (el) el.classList.toggle('abierto', despachadosAbierto);
+        }
+
+        // Ruta por ID: tablero, despachados de hoy o abierta desde el buscador.
+        function rutaPorId(idRoutePlan) {
+            return despachoData.find(r => r.ID_RoutePlan === idRoutePlan)
+                || despachadosHoy.find(r => r.ID_RoutePlan === idRoutePlan)
+                || rutasExtra.get(idRoutePlan);
+        }
+
+        function estadoBusqueda(r) {
+            if (r.EstadoDespacho === 'Finalizado') return ['despachado', 'Despachado'];
+            if (r.EstadoDespacho === 'Listo para Carga') return ['listo', 'Lista para despachar'];
+            if (r.Estado === 'Finalizado') return ['completado', 'Picking completado'];
+            if (r.Estado === 'Iniciado') return ['picking', 'En picking'];
+            return ['', r.Estado || 'Pendiente'];
+        }
+
+        // Buscar un cuadro (número) o una OV/TR y abrir su detalle.
+        async function buscarCuadroOV() {
+            const out = document.getElementById('buscarDespachoRes');
+            const q = (document.getElementById('buscarDespachoInput').value || '').trim();
+            if (!q) { out.innerHTML = ''; return; }
+            out.textContent = 'Buscando…';
+            try {
+                const r = await fetch('/api/order/despacho/buscar?q=' + encodeURIComponent(q));
+                if (!r.ok) throw new Error();
+                const res = await r.json();
+                if (!res.length) { out.innerHTML = 'No se encontró <b>' + esc(q) + '</b> en tu centro.'; return; }
+                res.forEach(x => { if (!despachoData.some(d => d.ID_RoutePlan === x.ID_RoutePlan)) rutasExtra.set(x.ID_RoutePlan, x); });
+                out.innerHTML = res.map(x => {
+                    const [cls, txt] = estadoBusqueda(x);
+                    const quien = x.Tipo === 'doc' ? 'Doc ' + esc(x.Doc) + ' → ' : '';
+                    return `<button type="button" class="br-item" onclick="irACuadroDespacho(${x.ID_RoutePlan})">
+                        <b>${quien}#${x.RouteNumber}</b><span class="br-ruta">${esc(x.RouteName || '')}</span>
+                        <span class="br-estado ${cls}">${txt}</span></button>`;
+                }).join('');
+                if (res.length === 1) irACuadroDespacho(res[0].ID_RoutePlan);
+            } catch (e) {
+                out.textContent = 'Error en la búsqueda.';
+            }
+        }
+
+        function irACuadroDespacho(idRoutePlan) {
+            const r = rutaPorId(idRoutePlan);
+            if (!r) return;
+            if (r.EstadoDespacho === 'Finalizado' && despachadosHoy.some(d => d.ID_RoutePlan === idRoutePlan)) despachadosAbierto = true;
+            selectRouteOrder(r.ID_RoutePlan, r.RouteNumber);
+            const chip = document.querySelector('.route-chip[data-rp="' + idRoutePlan + '"]');
+            if (chip) {
+                chip.classList.add('hl');
+                chip.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function renderRouteChip(r, hora) {
             const estadoDespacho = r.EstadoDespacho || 'Pendiente';
             const totalItems = pickingMode === 'order' ? (r.TotalPedidos || 0) : (r.TotalProductos || 0);
             const finItems = pickingMode === 'order' ? (r.PedidosFinalizados || 0) : (r.ProductosFinalizados || 0);
@@ -830,9 +1016,9 @@
                 : `selectRoute(${r.RouteNumber})`;
 
             return `
-                <div class="route-chip ${estadoClass} ${isActive ? 'active' : ''}" onclick="${onClickFn}">
-                    <div class="rc-title">#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
-                    <div class="rc-meta">${formatNum(r.PesoEstimado || 0)} kg</div>
+                <div class="route-chip ${estadoClass} ${isActive ? 'active' : ''}" data-rp="${r.ID_RoutePlan || ''}" onclick="${onClickFn}">
+                    <div class="rc-title">${r.PrioridadDespacho != null && r.Estado === 'Finalizado' ? `<span class="rc-prio" title="Prioridad de despacho">D${r.PrioridadDespacho}</span> ` : ''}#${r.RouteNumber} — ${esc(r.RouteName || '')}</div>
+                    <div class="rc-meta">${formatNum(r.PesoEstimado || 0)} kg${hora ? `<span class="rc-hora">${hora}</span>` : ''}</div>
                     <div class="rc-bar"><div class="fill ${pickingPct === 100 ? 'complete' : ''}" style="width:${pickingPct}%"></div></div>
                     <div class="rc-pct">${pickingPct}%</div>
                 </div>
@@ -1068,7 +1254,7 @@
             const panel = document.getElementById('panelDetail');
             panel.innerHTML = '<div class="loading-detail"><i class="bi bi-hourglass-split"></i> Cargando...</div>';
 
-            const ruta = despachoData.find(r => r.ID_RoutePlan === idRoutePlan);
+            const ruta = rutaPorId(idRoutePlan);
             if (!ruta) return;
 
             try {
@@ -1209,7 +1395,7 @@
             const marcadoRm = editMode && editQuitar.has(docKey(d.OV_Number, d.DocType));
 
             return `
-                <div class="doc-card ${marcadoRm ? 'rm-marked' : ''}">
+                <div class="doc-card ${marcadoRm ? 'rm-marked' : ''} ${d.CerradaSinPase && !d.PaseGenerado ? 'cerrada-sin-pase' : ''}">
                     <div class="doc-card-header" onclick="toggleDocOrder(${d.ID_OrderPicking})">
                         <div class="doc-icon ${isDone ? 'done' : 'pending'}">
                             <i class="bi bi-${isDone ? 'check-circle-fill' : 'circle'}"></i>
@@ -1222,6 +1408,8 @@
                             <div class="doc-weight">${formatNum(d.PesoTotal || 0)} kg</div>
                             <div class="doc-status">${d.PaseGenerado
                                 ? `<span class="estado-pill pase-generado" style="font-size:0.6rem" title="Entrega/pase de salida generado en SAP"><i class="bi bi-check-circle-fill"></i> Pase de Salida</span>`
+                                : d.CerradaSinPase
+                                ? `<span class="estado-pill cerrada-sin-pase" style="font-size:0.6rem" title="La OV se ${d.CanceladaSAP ? 'canceló' : 'cerró manualmente'} en SAP sin entrega ni pase de salida. No despachar."><i class="bi bi-x-octagon-fill"></i> ${d.CanceladaSAP ? 'Cancelada' : 'Cerrada'} sin pase</span>`
                                 : `<span class="estado-pill ${isDone ? 'picking-finalizado' : 'picking-iniciado'}" style="font-size:0.6rem">${d.Estado || 'Pendiente'}</span>`}</div>
                         </div>
                         <div class="bultos-ctrl" onclick="event.stopPropagation()" title="Cantidad de bultos para las etiquetas de empaque (sugerido por cajas, editable)">
@@ -1234,6 +1422,7 @@
                         <button class="btn-print-pedido" title="Imprimir etiqueta 4x8 de esta OV" onclick="event.stopPropagation(); printEtiquetaOrder(${d.ID_OrderPicking}, '${esc(d.OV_Number)}')">
                             <i class="bi bi-tag"></i>
                         </button>
+                        ${renderBtnFactura(d)}
                         ${editMode ? `<button class="btn-doc-rm ${marcadoRm ? 'deshacer' : ''}" title="${marcadoRm ? 'Deshacer la eliminación' : 'Quitar del cuadro'}" onclick="event.stopPropagation(); toggleQuitarDoc('${esc(d.OV_Number)}','${esc(d.DocType)}')">${marcadoRm ? 'Deshacer' : 'Eliminar'}</button>` : ''}
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
@@ -1241,6 +1430,45 @@
                 </div>
             `;
         }
+
+        // Botón azul de factura FEL (SAT). Solo OV con pase de salida y factura en SAP;
+        // si no aplica, un hueco invisible del mismo tamaño para no descuadrar el grid.
+        function renderBtnFactura(d) {
+            const facs = Array.isArray(d.Facturas) ? d.Facturas : [];
+            if (!facs.length) return '<span class="btn-fac-sat vacio" aria-hidden="true"></span>';
+            facturasPorDoc[d.ID_OrderPicking] = facs;
+            const tip = facs.length === 1
+                ? 'Factura ' + facs[0].DocNum + ' (SAT) — abrir para imprimir'
+                : facs.length + ' facturas de esta OV (SAT) — elegir cuál imprimir';
+            return `<button class="btn-fac-sat" title="${esc(tip)}" onclick="event.stopPropagation(); abrirFactura(event, ${d.ID_OrderPicking})">
+                            <i class="bi bi-receipt"></i>${facs.length > 1 ? '<span class="fac-count">' + facs.length + '</span>' : ''}
+                        </button>`;
+        }
+        var facturasPorDoc = {};
+        function cerrarMenuFactura() {
+            const m = document.getElementById('facMenu');
+            if (m) m.remove();
+        }
+        function abrirFactura(ev, idOrderPicking) {
+            const facs = facturasPorDoc[idOrderPicking] || [];
+            cerrarMenuFactura();
+            if (!facs.length) return;
+            if (facs.length === 1) { window.open(facs[0].Url, '_blank', 'noopener'); return; }
+            const fdt = f => { const x = new Date(f); return isNaN(x) ? '' : x.toLocaleDateString('es-GT', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }); };
+            const m = document.createElement('div');
+            m.id = 'facMenu';
+            m.className = 'fac-menu';
+            m.innerHTML = '<div class="fm-title">Facturas de la OV</div>' + facs.map(f =>
+                `<a href="${esc(f.Url)}" target="_blank" rel="noopener"><i class="bi bi-receipt"></i> ${esc(String(f.DocNum))}<small>${fdt(f.Fecha)}</small></a>`).join('');
+            m.addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('a')) setTimeout(cerrarMenuFactura, 0); });
+            document.body.appendChild(m);
+            const r = ev.currentTarget.getBoundingClientRect();
+            const left = Math.max(8, Math.min(window.scrollX + r.right - m.offsetWidth, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8));
+            m.style.left = left + 'px';
+            m.style.top = (window.scrollY + r.bottom + 4) + 'px';
+        }
+        document.addEventListener('click', cerrarMenuFactura);
+        window.addEventListener('scroll', cerrarMenuFactura, true);
 
         async function toggleDocOrder(idOrderPicking) {
             const key = 'order-' + idOrderPicking;
@@ -1552,18 +1780,39 @@
             html += '</tbody></table>';
             body.innerHTML = html;
         }
+        // Code128 con solo el número del documento, generado en esta página (SVG en
+        // texto) para que la ventana de impresión no dependa de internet. Un SVG por
+        // documento, reutilizado en todas sus filas. Sin JsBarcode: se imprime sin código.
+        function barcodeSvgDoc(doc, cache) {
+            if (!doc || typeof JsBarcode !== 'function') return '';
+            if (cache.has(doc)) return cache.get(doc);
+            let out = '';
+            try {
+                const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                JsBarcode(el, doc, { format: 'CODE128', width: 1.6, height: 48, fontSize: 13, margin: 2, textMargin: 2, displayValue: true });
+                out = el.outerHTML;
+            } catch (e) { out = ''; }
+            cache.set(doc, out);
+            return out;
+        }
         function imprimirBultos() {
             const bultos = bultosActuales || [];
             if (!bultos.length) return;
+            // A la derecha de cada fila, el código de barras del documento. Filas más altas.
+            const td = 'padding:8px;border-bottom:1px solid #ccc;vertical-align:middle';
+            const cache = new Map();
             let rows = '';
             bultosOrdenados(bultos).forEach(b => {
-                rows += `<tr><td style="padding:4px 8px;border-bottom:1px solid #ddd;font-weight:700">${esc(b.Ubicacion || '(sin ubicación)')}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd">${esc(b.Licencia)}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd">${esc(b.DocType || '')} ${esc(b.OV_Number)}</td><td style="padding:4px 8px;border-bottom:1px solid #ddd;text-align:right">${Math.round(b.Cantidad || 0)}</td></tr>`;
+                const doc = String(b.OV_Number || '').trim();
+                rows += `<tr><td style="${td};font-weight:700">${esc(b.Ubicacion || '(sin ubicación)')}</td><td style="${td}">${esc(b.Licencia)}</td><td style="${td}">${esc(b.DocType || '')} ${esc(doc)}</td><td style="${td};text-align:right">${Math.round(b.Cantidad || 0)}</td><td style="${td};text-align:right;width:1%;white-space:nowrap">${barcodeSvgDoc(doc, cache)}</td></tr>`;
             });
             const w = window.open('', '_blank');
-            w.document.write(`<html><head><title>Orden de Carga — Cuadro ${esc(bultosRN)}</title></head><body style="font-family:Arial,sans-serif">
+            w.document.write(`<html><head><title>Orden de Carga — Cuadro ${esc(bultosRN)}</title>
+                <style>@media print { tr { page-break-inside: avoid; } } td svg { display: block; margin-left: auto; }</style>
+                </head><body style="font-family:Arial,sans-serif">
                 <h2 style="margin:0 0 .2rem">Orden de Carga — Cuadro ${esc(bultosRN)}</h2>
                 <div style="color:#555;font-size:.8rem;margin-bottom:.6rem">${bultos.length} bulto(s) · ${new Date().toLocaleString('es-GT')}</div>
-                <table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="text-align:left;border-bottom:2px solid #333"><th style="padding:4px 8px">Ubicación</th><th style="padding:4px 8px">Licencia</th><th style="padding:4px 8px">Documento</th><th style="padding:4px 8px;text-align:right">Cant.</th></tr></thead><tbody>${rows}</tbody></table>
+                <table style="width:100%;border-collapse:collapse;font-size:.9rem"><thead><tr style="text-align:left;border-bottom:2px solid #333"><th style="padding:4px 8px">Ubicación</th><th style="padding:4px 8px">Licencia</th><th style="padding:4px 8px">Documento</th><th style="padding:4px 8px;text-align:right">Cant.</th><th style="padding:4px 8px;text-align:right">Código</th></tr></thead><tbody>${rows}</tbody></table>
                 </body></html>`);
             w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
         }
@@ -1690,7 +1939,9 @@
         }
 
         function guardarBultos() {
-            const map = {};
+            // Se combina con lo ya guardado (Gestión de picking también guarda bultos por OV).
+            let map = {};
+            try { map = JSON.parse(localStorage.getItem('etiquetasBultos') || '{}') || {}; } catch (e) {}
             document.querySelectorAll('.bultos-input').forEach(inp => {
                 const ov = inp.getAttribute('data-ov');
                 let n = parseInt(inp.value, 10);

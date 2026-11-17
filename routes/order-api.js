@@ -702,6 +702,7 @@ router.get('/despacho/rutas', async (req, res) => {
                 orp.Estado,
                 orp.EstadoDespacho,
                 orp.FechaDespachoFin,
+                orp.PrioridadDespacho,
                 orp.ID_Carril,
                 orp.ID_Centro,
                 orp.Pais,
@@ -733,6 +734,88 @@ router.get('/despacho/rutas', async (req, res) => {
     } catch (err) {
         console.error('GET /api/order/despacho/rutas error:', err);
         res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// Columnas de un cuadro para el tablero de despacho (mismas que /despacho/rutas),
+// reutilizadas por "despachados hoy" y el buscador.
+const DESPACHO_RUTA_SELECT = `
+    SELECT
+        orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Estado, orp.EstadoDespacho,
+        orp.FechaDespachoFin, orp.PrioridadDespacho, orp.ID_Carril, orp.ID_Centro, orp.Pais,
+        c.Nombre AS CarrilNombre, cd.Nombre AS CentroNombre,
+        ISNULL(orp.PesoEstimado, 0) AS PesoEstimado,
+        ISNULL(opm.TotalPedidos, 0) AS TotalPedidos,
+        ISNULL(opm.PedidosFinalizados, 0) AS PedidosFinalizados
+    FROM OrderRoutePlan orp
+    LEFT JOIN Carril c ON c.ID_Carril = orp.ID_Carril
+    LEFT JOIN CentroDistribucion cd ON cd.ID_Centro = orp.ID_Centro
+    LEFT JOIN (
+        SELECT ID_RoutePlan,
+               COUNT(*) AS TotalPedidos,
+               SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFinalizados
+        FROM OrderPickingManagement
+        GROUP BY ID_RoutePlan
+    ) opm ON opm.ID_RoutePlan = orp.ID_RoutePlan`;
+
+// GET /api/order/despacho/despachados-hoy — cuadros despachados hoy (para reimprimir)
+router.get('/despacho/despachados-hoy', async (req, res) => {
+    try {
+        const pool = getPool();
+        const request = pool.request();
+        const centroFilter = buildCentroFilter(request, getUserCentros(req), 'orp');
+        const result = await request.query(`
+            ${DESPACHO_RUTA_SELECT}
+            WHERE orp.EstadoDespacho = 'Finalizado'
+              AND orp.FechaDespachoFin >= CAST(GETDATE() AS date)
+              ${centroFilter}
+            ORDER BY orp.FechaDespachoFin DESC, orp.RouteNumber DESC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/order/despacho/despachados-hoy error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// GET /api/order/despacho/buscar?q= — ubica un cuadro (por número) o una OV/TR/RMA
+// (en el app o en el detalle del cuadro en SAP, por si aún no se importó el pedido).
+router.get('/despacho/buscar', async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q || q.length > 30) return res.json([]);
+        const qi = /^\d{1,9}$/.test(q) ? parseInt(q) : null;
+        const pool = getPool();
+        const request = pool.request();
+        request.input('q', sql.NVarChar(30), q).input('qi', sql.Int, qi);
+        const centroFilter = buildCentroFilter(request, getUserCentros(req), 'orp');
+        const sapDb = getSapDb(req.session?.user?.selectedPais || 'GT');
+        const result = await request.query(`
+            SELECT m.Tipo, m.Doc, r.*
+            FROM (
+                SELECT orp.ID_RoutePlan, CAST('cuadro' AS varchar(10)) AS Tipo, CAST(NULL AS nvarchar(50)) AS Doc
+                FROM OrderRoutePlan orp WHERE orp.RouteNumber = @qi
+                UNION
+                SELECT opm.ID_RoutePlan, 'doc', LTRIM(RTRIM(opm.OV_Number))
+                FROM OrderPickingManagement opm WHERE LTRIM(RTRIM(opm.OV_Number)) = @q
+                UNION
+                SELECT orp.ID_RoutePlan, 'doc', LTRIM(RTRIM(d.U_No_OV))
+                FROM [server-sql].[${sapDb}].dbo.[@CUADRO_RUTA_D] d WITH (NOLOCK)
+                INNER JOIN [server-sql].[${sapDb}].dbo.[@CUADRO_RUTA_E] e WITH (NOLOCK) ON e.DocEntry = d.DocEntry
+                INNER JOIN OrderRoutePlan orp ON orp.RouteNumber = e.DocNum
+                WHERE d.U_No_OV = @q
+            ) m
+            INNER JOIN (${DESPACHO_RUTA_SELECT}) r ON r.ID_RoutePlan = m.ID_RoutePlan
+            INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = m.ID_RoutePlan
+            WHERE 1 = 1 ${centroFilter}
+            ORDER BY r.RouteNumber DESC
+        `);
+        // Una fila por cuadro (una OV puede aparecer en el app y en SAP a la vez)
+        const vistos = new Set();
+        res.json(result.recordset.filter(r => !vistos.has(r.ID_RoutePlan) && vistos.add(r.ID_RoutePlan)).slice(0, 20));
+    } catch (err) {
+        console.error('GET /api/order/despacho/buscar error:', err);
+        res.status(500).json({ error: 'Error en la búsqueda' });
     }
 });
 
@@ -857,6 +940,80 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                 }
             } catch (e) {
                 console.error('PaseGenerado (InventoryTransactionLog) no disponible:', e.message);
+            }
+
+            // Facturas (FEL) de las OV con pase de salida (solo GT): OV → entrega (DLN1)
+            // → factura (INV1 BaseType 15), o factura directa de la OV (BaseType 17).
+            // El link al documento certificado está en OINV.U_url_infile. Una OV puede
+            // tener varias facturas (entregas parciales); se devuelven todas, la más
+            // reciente primero. Resiliente: si SAP falla, Facturas queda vacío.
+            try {
+                const ovsPase = [...new Set(docs
+                    .filter(d => d.DocType === 'OV' && d.PaseGenerado && (d.Pais || 'GT') === 'GT')
+                    .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                if (ovsPase.length) {
+                    const sapDb = getSapDb('GT');
+                    const fr = await pool.request().query(`
+                        SELECT DISTINCT f.OV, i.DocNum, i.DocDate, i.DocTime,
+                               CAST(i.U_url_infile AS nvarchar(1000)) AS Url
+                        FROM (
+                            SELECT o.DocNum AS OV, l.DocEntry
+                            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+                            JOIN [server-sql].[${sapDb}].dbo.DLN1 d WITH (NOLOCK) ON d.BaseType = 17 AND d.BaseEntry = o.DocEntry
+                            JOIN [server-sql].[${sapDb}].dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 15 AND l.BaseEntry = d.DocEntry
+                            WHERE o.DocNum IN (${ovsPase.join(',')})
+                            UNION
+                            SELECT o.DocNum, l.DocEntry
+                            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+                            JOIN [server-sql].[${sapDb}].dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 17 AND l.BaseEntry = o.DocEntry
+                            WHERE o.DocNum IN (${ovsPase.join(',')})
+                        ) f
+                        JOIN [server-sql].[${sapDb}].dbo.OINV i WITH (NOLOCK) ON i.DocEntry = f.DocEntry
+                        WHERE i.CANCELED = 'N'
+                          AND CAST(i.U_url_infile AS nvarchar(1000)) LIKE 'http%'`);
+                    const porOv = new Map();
+                    fr.recordset
+                        .sort((a, b) => (new Date(b.DocDate) - new Date(a.DocDate)) || ((b.DocTime || 0) - (a.DocTime || 0)) || (b.DocNum - a.DocNum))
+                        .forEach(r => {
+                            if (!porOv.has(r.OV)) porOv.set(r.OV, []);
+                            porOv.get(r.OV).push({ DocNum: r.DocNum, Fecha: r.DocDate, Url: r.Url });
+                        });
+                    docs.forEach(d => {
+                        const f = porOv.get(parseInt(d.OV_Number));
+                        if (d.DocType === 'OV' && d.PaseGenerado && f) d.Facturas = f;
+                    });
+                }
+            } catch (e) {
+                console.error('Facturas FEL (OINV.U_url_infile) no disponibles:', e.message);
+            }
+
+            // OV cerrada/cancelada en SAP sin pase de salida: DocStatus='C' o CANCELED='Y'
+            // y sin ninguna entrega (DLN1 basada en la OV). Típico: pedido cancelado justo
+            // antes de despachar. Resiliente: si SAP falla, CerradaSinPase queda en 0.
+            try {
+                const ovs = [...new Set(docs
+                    .filter(d => d.DocType === 'OV' && !d.PaseGenerado)
+                    .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                if (ovs.length) {
+                    const sapDb = getSapDb(docs[0].Pais || 'GT');
+                    const cr = await pool.request().query(`
+                        SELECT o.DocNum, o.CANCELED
+                        FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
+                        WHERE o.DocNum IN (${ovs.join(',')})
+                          AND (o.DocStatus = 'C' OR o.CANCELED = 'Y')
+                          AND NOT EXISTS (SELECT 1 FROM [server-sql].[${sapDb}].dbo.DLN1 l WITH (NOLOCK)
+                                          WHERE l.BaseType = 17 AND l.BaseEntry = o.DocEntry)`);
+                    const cerradas = new Map(cr.recordset.map(r => [r.DocNum, r.CANCELED === 'Y']));
+                    docs.forEach(d => {
+                        const n = parseInt(d.OV_Number);
+                        if (d.DocType === 'OV' && !d.PaseGenerado && cerradas.has(n)) {
+                            d.CerradaSinPase = 1;
+                            d.CanceladaSAP = cerradas.get(n) ? 1 : 0;
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('CerradaSinPase (ORDR) no disponible:', e.message);
             }
 
             // Nombre del cliente (OV) / destino (TR) desde el valor ya persistido en la
