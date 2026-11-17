@@ -1026,6 +1026,32 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     : nombre;
             });
         }
+        // OC del cliente en PDF, adjuntada en Escalamientos (dbo.EscalamientoAdjuntos), para
+        // imprimirla junto a la factura. Se cruza por número de documento y tipo (OV↔OV,
+        // TR↔TR/RESURTIDO). Solo metadatos; el PDF se baja con /despacho/oc-adjunto/:aid.
+        // Resiliente: si la tabla aún no existe, OCs queda vacío.
+        if (docs.length) {
+            try {
+                const rq = pool.request();
+                const nums = [...new Set(docs.map(d => String(d.OV_Number || '').trim()).filter(Boolean))];
+                const inP = nums.map((v, i) => { rq.input('n' + i, sql.NVarChar(50), v); return '@n' + i; }).join(',');
+                const ar = await rq.query(`
+                    SELECT a.ID_Adjunto, a.Nombre, a.Fecha, LTRIM(RTRIM(e.OV_Number)) AS Doc, e.DocType
+                    FROM dbo.EscalamientoAdjuntos a
+                    JOIN dbo.Escalamientos e ON e.ID_Escalamiento = a.ID_Escalamiento
+                    WHERE LTRIM(RTRIM(e.OV_Number)) IN (${inP})
+                    ORDER BY a.Fecha DESC`);
+                const tipoEsc = t => (t === 'OV' ? 'OV' : (['TR', 'RESURTIDO'].includes(t) ? 'TR' : null));
+                docs.forEach(d => {
+                    const k = String(d.OV_Number || '').trim(), t = tipoEsc(d.DocType);
+                    const ocs = ar.recordset.filter(a => a.Doc === k && a.DocType === t)
+                        .map(a => ({ ID: a.ID_Adjunto, Nombre: a.Nombre, Fecha: a.Fecha }));
+                    if (ocs.length) d.OCs = ocs;
+                });
+            } catch (e) {
+                console.error('OC adjuntas (EscalamientoAdjuntos) no disponibles:', e.message);
+            }
+        }
         res.json(docs);
     } catch (err) {
         console.error('GET /api/order/despacho/rutas/:id/documentos error:', err);
@@ -1037,6 +1063,29 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
 // actual, para el montacarguista. Lee DespachoBulto (local, rápido, enlace OV↔Licencia
 // persistido desde el log de picking) y resuelve la ubicación con un lookup liviano a
 // Lisa Locations (IDLocationParent). Resiliente: si Lisa falla, devuelve Ubicacion null.
+// GET /api/order/despacho/oc-adjunto/:aid — PDF de la OC (adjuntada en Escalamientos),
+// inline para imprimir desde despacho. Requiere sesión.
+router.get('/despacho/oc-adjunto/:aid', async (req, res) => {
+    if (!(req.session && req.session.user)) return res.status(401).send('No autenticado');
+    try {
+        const r = await getPool().request()
+            .input('aid', sql.Int, parseInt(req.params.aid))
+            .query(`SELECT Nombre, Contenido FROM dbo.EscalamientoAdjuntos WHERE ID_Adjunto = @aid`);
+        if (!r.recordset.length) return res.status(404).send('Adjunto no encontrado');
+        const { Nombre, Contenido } = r.recordset[0];
+        const ascii = String(Nombre).replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '');
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(Nombre)}`,
+            'Cache-Control': 'private, max-age=0'
+        });
+        res.send(Contenido);
+    } catch (err) {
+        console.error('GET /despacho/oc-adjunto', err);
+        res.status(500).send('Error al abrir el adjunto');
+    }
+});
+
 router.get('/despacho/rutas/:id/bultos', async (req, res) => {
     try {
         const pool = getPool();

@@ -520,6 +520,13 @@
         }
         .fac-menu a:hover { background: #e8f0fb; }
         .fac-menu a small { margin-left: auto; color: #889; font-weight: 400; }
+        /* OC del cliente en PDF (adjuntada en Escalamientos): rojo PDF, mismo tamaño.
+           La columna solo aparece si algún pedido del cuadro tiene OC. */
+        .btn-fac-sat.btn-oc-pdf { background: #c62828; border-color: #c62828; }
+        .btn-fac-sat.btn-oc-pdf:hover { background: #8e1c1c; border-color: #8e1c1c; }
+        .btn-fac-sat.btn-oc-pdf .fac-count { color: #c62828; border-color: #c62828; }
+        .fac-menu.oc a { color: #a61f1f; }
+        .fac-menu.oc a:hover { background: #fdecec; }
 
         /* Control de bultos por OV (para las etiquetas de empaque) */
         .bultos-ctrl { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: none; }
@@ -1381,7 +1388,7 @@
 
                 <div id="docsList">
                     ${enEdicion ? editAgregar.map((a, i) => renderAddCard(a, i)).join('') : ''}
-                    ${docs.map(d => renderDocCardOrder(d)).join('')}
+                    ${(ocColumna = docs.some(d => d.OCs && d.OCs.length), docs.map(d => renderDocCardOrder(d)).join(''))}
                 </div>
             `;
             actualizarBultosTotal();
@@ -1423,6 +1430,7 @@
                             <i class="bi bi-tag"></i>
                         </button>
                         ${renderBtnFactura(d)}
+                        ${renderBtnOC(d)}
                         ${editMode ? `<button class="btn-doc-rm ${marcadoRm ? 'deshacer' : ''}" title="${marcadoRm ? 'Deshacer la eliminación' : 'Quitar del cuadro'}" onclick="event.stopPropagation(); toggleQuitarDoc('${esc(d.OV_Number)}','${esc(d.DocType)}')">${marcadoRm ? 'Deshacer' : 'Eliminar'}</button>` : ''}
                         <i class="bi bi-chevron-right doc-toggle ${isOpen ? 'open' : ''}"></i>
                     </div>
@@ -1445,6 +1453,36 @@
                         </button>`;
         }
         var facturasPorDoc = {};
+        // Botón rojo de PDF con la OC del cliente (adjuntada en Escalamientos).
+        var ocColumna = false, ocsPorDoc = {};
+        function renderBtnOC(d) {
+            const ocs = Array.isArray(d.OCs) ? d.OCs : [];
+            if (!ocs.length) return ocColumna ? '<span class="btn-fac-sat btn-oc-pdf vacio" aria-hidden="true"></span>' : '';
+            ocsPorDoc[d.ID_OrderPicking] = ocs;
+            const tip = ocs.length === 1 ? 'OC del cliente (PDF) — abrir para imprimir' : ocs.length + ' OC del cliente (PDF) — elegir cuál imprimir';
+            return `<button class="btn-fac-sat btn-oc-pdf" title="${esc(tip)}" onclick="event.stopPropagation(); abrirOC(event, ${d.ID_OrderPicking})">
+                            <i class="bi bi-file-earmark-pdf-fill"></i>${ocs.length > 1 ? '<span class="fac-count">' + ocs.length + '</span>' : ''}
+                        </button>`;
+        }
+        function abrirOC(ev, idOrderPicking) {
+            const ocs = ocsPorDoc[idOrderPicking] || [];
+            cerrarMenuFactura();
+            if (!ocs.length) return;
+            const url = o => '/api/order/despacho/oc-adjunto/' + encodeURIComponent(o.ID);
+            if (ocs.length === 1) { window.open(url(ocs[0]), '_blank', 'noopener'); return; }
+            const fdt = f => { const x = new Date(f); return isNaN(x) ? '' : x.toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit' }); };
+            const m = document.createElement('div');
+            m.id = 'facMenu';
+            m.className = 'fac-menu oc';
+            m.innerHTML = '<div class="fm-title">OC del cliente</div>' + ocs.map(o =>
+                `<a href="${url(o)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf-fill"></i> ${esc(o.Nombre)}<small>${fdt(o.Fecha)}</small></a>`).join('');
+            m.addEventListener('click', e => { e.stopPropagation(); if (e.target.closest('a')) setTimeout(cerrarMenuFactura, 0); });
+            document.body.appendChild(m);
+            const r = ev.currentTarget.getBoundingClientRect();
+            const left = Math.max(8, Math.min(window.scrollX + r.right - m.offsetWidth, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8));
+            m.style.left = left + 'px';
+            m.style.top = (window.scrollY + r.bottom + 4) + 'px';
+        }
         function cerrarMenuFactura() {
             const m = document.getElementById('facMenu');
             if (m) m.remove();
@@ -1673,6 +1711,7 @@
             const list = document.getElementById('docsList');
             if (!list) return;
             const adds = editAgregar.map((a, i) => renderAddCard(a, i)).join('');
+            ocColumna = editDocsActuales.some(d => d.OCs && d.OCs.length);
             const cards = editDocsActuales.map(d => renderDocCardOrder(d)).join('');
             list.innerHTML = adds + cards;
         }
