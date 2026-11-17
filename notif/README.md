@@ -20,11 +20,14 @@ SAP + Picking_Management ──(sync_notif.ps1 cada 10 min)──► Supabase no
 | Archivo | Dónde corre | Qué hace |
 |---|---|---|
 | `sql/Notif_01_Schema_y_SPs.sql` | SSMS, `Picking_Management` | Tabla `NotifPedido` + `SP_NotifDetectarSAP` + `SP_NotifHitos` |
+| `sql/Notif_02_Login.sql` | SSMS | Login `app_sacwhatsapp` con permisos mínimos |
+| `sql/Notif_03_Condiciones_Detalle.sql` | SSMS, `Picking_Management` | Condiciones de entrega + detalle del pedido (reemplaza `SP_NotifDetectarSAP` con `CREATE OR ALTER`) |
 | `supabase/notif_01_schema.sql` | Supabase (ya aplicado) | Esquema `notif`: catálogo, `pedido`, `evento`, funciones |
 | `supabase/notif_04_vendedor_y_vista.sql` | Supabase (ya aplicado) | Vendedor, `fecha_estado`, vista `v_pedidos_activos` |
 | `supabase/notif_02_usuario_n8n.sql` | Supabase (ya aplicado) | Usuario `notif_n8n` de solo lectura + funciones de envío |
 | `supabase/notif_05_silencioso_y_antiguedad.sql` | Supabase (ya aplicado) | Modo silencioso a prueba de olvidos + avisos de máx. 6 h |
 | `supabase/notif_06_almacen_en_vista.sql` | Supabase (ya aplicado) | Columna `almacen` en la vista |
+| `supabase/notif_07_condiciones_y_detalle.sql` | Supabase (ya aplicado) | Detalle del pedido, condiciones de entrega y `mapa_url` |
 | `supabase/notif_03_prueba.sql` | Supabase | Prueba de humo (pedido ficticio `ZZ`, se borra solo) |
 | `notif/sync_notif.ps1` | Servidor del app | El sync |
 | `notif/instalar_tarea.ps1` | Servidor del app | Registra la tarea `\Ferco\SACWhatsappSync` |
@@ -47,6 +50,13 @@ SAP + Picking_Management ──(sync_notif.ps1 cada 10 min)──► Supabase no
 
 `-DryRun` no corre los SPs ni sube nada: solo muestra cuántas filas están pendientes de
 subir y un ejemplo. Sirve para revisar antes de una corrida.
+
+`-Resincronizar` marca todos los pedidos para volver a subirlos. Se usa después de agregar
+campos (como `Notif_03`): no genera avisos, porque las fechas de los pasos no cambian.
+
+**Ojo con `Notif_01`**: usa `DROP PROCEDURE`, así que si se vuelve a correr se pierden los
+permisos de `app_sacwhatsapp` y la versión nueva del SP. Después de correrlo hay que volver
+a correr `Notif_02_Login` y `Notif_03`.
 
 **Después de una caída larga** (servidor o tarea detenidos varias horas): correr una vez a
 mano con `-Silencioso` antes de reactivar la tarea. Las fechas "recibido" y "planificado"

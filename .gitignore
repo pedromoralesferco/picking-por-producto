@@ -7,3 +7,6 @@ robot/SyncEdicionesCuadro.Config.xlsx
 
 # Notificaciones — logs del script de sync
 notif/logs/
+
+# Correos generados (no subir)
+*.eml

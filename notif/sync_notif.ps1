@@ -15,6 +15,7 @@
 #   ... -DryRun       no sube nada: muestra cuantas filas subiria y un ejemplo
 #   ... -Silencioso   primera corrida: lo detectado no genera WhatsApp
 #   ... -Pais GT      solo un pais
+#   ... -Resincronizar   vuelve a subir todos los pedidos (tras agregar campos)
 #
 # Configuracion: .env en esta misma carpeta (ver .env.example).
 # Log: .\logs\notif_AAAAMMDD.log (se guardan 30 dias).
@@ -23,6 +24,7 @@
 param(
     [switch]$DryRun,
     [switch]$Silencioso,
+    [switch]$Resincronizar,
     [string]$Pais
 )
 $ErrorActionPreference = 'Stop'
@@ -178,6 +180,14 @@ try {
     $headers = @{ apikey = $key; 'Content-Profile' = 'notif'; Prefer = 'return=representation' }
     if ($key.StartsWith('eyJ')) { $headers['Authorization'] = "Bearer $key" }   # llave legacy (JWT)
 
+    if ($Resincronizar -and -not $DryRun) {
+        $rs = $cn.CreateCommand()
+        $rs.CommandText = "UPDATE dbo.NotifPedido SET HashSync = NULL WHERE Pais IN ($listaPaises)"
+        Log ("Resincronizar: {0} pedidos marcados para volver a subir" -f $rs.ExecuteNonQuery())
+    }
+    $inv = [Globalization.CultureInfo]::InvariantCulture
+    function SiNo($v) { if ($v -is [DBNull]) { $null } elseif ($v -eq 'S') { $true } elseif ($v -eq 'N') { $false } else { $null } }
+
     # Lotes de 500: se sube un lote, se marca, y se lee el siguiente hasta que
     # no quede nada (501 pendientes = un lote de 500 y otro de 1). Tope de 20
     # lotes (10,000 filas) por corrida; lo que pase de eso sale en la siguiente.
@@ -188,7 +198,8 @@ try {
         $cmd.CommandText = @"
 SELECT TOP 500 Pais, DocType, DocNum, ClienteNombre, Celular, VendedorNombre, VendedorEmail, Direccion, FechaEntrega, Almacen,
        CuadroActual, Placa, FechaRecibido, FechaPlanificado, FechaPickingInicio, FechaPickingFin,
-       FechaDespacho, FechaCancelado, Silencioso, HashActual
+       FechaDespacho, FechaCancelado, Silencioso, HashActual,
+       InstEntrega, Comentarios, TonMax, Montacarga, Cuadrilla, Latitud, Longitud, Detalle
 FROM dbo.NotifPedido
 WHERE Pais IN ($listaPaises) AND (HashSync IS NULL OR HashSync <> HashActual)
 ORDER BY FechaRecibido
@@ -222,6 +233,15 @@ ORDER BY FechaRecibido
                 fecha_despacho       = Iso $r.FechaDespacho
                 fecha_cancelado      = Iso $r.FechaCancelado
                 silencioso           = [bool]$r.Silencioso
+                # condiciones de entrega y detalle (Detalle ya es JSON: va como texto)
+                instrucciones_entrega = Val $r.InstEntrega
+                comentarios           = Val $r.Comentarios
+                ton_max               = if ($r.TonMax -is [DBNull]) { $null } else { ([decimal]$r.TonMax).ToString($inv) }
+                requiere_montacarga   = SiNo $r.Montacarga
+                requiere_cuadrilla    = SiNo $r.Cuadrilla
+                latitud               = Val $r.Latitud
+                longitud              = Val $r.Longitud
+                detalle               = Val $r.Detalle
             }
         })
         $json = ConvertTo-Json -InputObject @{ filas = $filas; silencioso = [bool]$Silencioso } -Depth 5 -Compress
