@@ -762,7 +762,9 @@ router.get('/plan-despachos/confirmaciones/:idRoutePlan', requireReportes, async
             LEFT JOIN dbo.ConfirmacionEntrega ce
                    ON ce.ID_RoutePlan = opm.ID_RoutePlan AND ce.OV_Number = LTRIM(RTRIM(opm.OV_Number))
             WHERE opm.ID_RoutePlan = @id`);
-        res.json({ editable: ruta.EstadoDespacho !== 'Finalizado', docs: r.recordset });
+        const u = req.session.user;
+        const puedeMarcar = u.rol === 'Admin' || (u.permisos && u.permisos.includes('priorizacion'));
+        res.json({ editable: puedeMarcar && ruta.EstadoDespacho !== 'Finalizado', docs: r.recordset });
     } catch (err) {
         console.error('GET confirmaciones', err);
         res.status(500).json({ error: 'Error al cargar confirmaciones' });
@@ -771,7 +773,8 @@ router.get('/plan-despachos/confirmaciones/:idRoutePlan', requireReportes, async
 
 // POST /api/reportes/plan-despachos/confirmacion
 // { id_routePlan, ov, estado: 'Si' | 'No' | null, fecha (YYYY-MM-DD, requerida si 'No'), comentario }
-router.post('/plan-despachos/confirmacion', requireReportes, async (req, res) => {
+// Solo quien puede priorizar marca la confirmación (ver: cualquiera con Plan de Despachos).
+router.post('/plan-despachos/confirmacion', requirePriorizar, async (req, res) => {
     try {
         const id = parseInt(req.body.id_routePlan);
         const ov = String(req.body.ov || '').trim();
