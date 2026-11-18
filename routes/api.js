@@ -1,7 +1,6 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
 const { getSapDb, getLisaDb, esOrderMode } = require('../config/paises');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 /*
@@ -201,7 +200,7 @@ router.get('/rutas/:routeNumber/resumen', async (req, res) => {
 
 // ── Iniciar ruta ──
 
-router.post('/rutas/:routeNumber/iniciar', requireAuth, async (req, res) => {
+router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
     try {
         const pool = getPool();
         const { idCarril } = req.body || {};
@@ -265,7 +264,7 @@ router.get('/rutas/:routeNumber/productos/:product/tareas', async (req, res) => 
 
 // ── Asignar operario a un producto ──
 
-router.post('/productos/asignar', requireAuth, async (req, res) => {
+router.post('/productos/asignar', async (req, res) => {
     try {
         const { routeNumber, product, operarioId, pickerId } = req.body;
         const idOperario = operarioId || pickerId; // backward compat
@@ -288,7 +287,7 @@ router.post('/productos/asignar', requireAuth, async (req, res) => {
 
 // ── Cerrar un producto (forzar finalización) ──
 
-router.post('/productos/cerrar', requireAuth, async (req, res) => {
+router.post('/productos/cerrar', async (req, res) => {
     try {
         const { routeNumber, product } = req.body;
         const pool = getPool();
@@ -322,7 +321,7 @@ router.post('/productos/cerrar', requireAuth, async (req, res) => {
 
 // ── Finalizar ruta completa ──
 
-router.post('/rutas/:routeNumber/finalizar', requireAuth, async (req, res) => {
+router.post('/rutas/:routeNumber/finalizar', async (req, res) => {
     try {
         const pool = getPool();
         const rn = req.params.routeNumber;
@@ -360,7 +359,7 @@ router.post('/rutas/:routeNumber/finalizar', requireAuth, async (req, res) => {
 
 // ── Limpiar tareas huérfanas de rutas finalizadas ──
 
-router.post('/admin/limpiar-rutas-finalizadas', requireAdmin, async (req, res) => {
+router.post('/admin/limpiar-rutas-finalizadas', async (req, res) => {
     try {
         const pool = getPool();
 
@@ -706,7 +705,7 @@ router.get('/priorizacion/rutas', async (req, res) => {
     }
 });
 
-router.post('/priorizacion/guardar', requireAuth, async (req, res) => {
+router.post('/priorizacion/guardar', async (req, res) => {
     try {
         const { orden } = req.body;
         if (!Array.isArray(orden)) {
@@ -781,7 +780,7 @@ router.get('/despacho/rutas', async (req, res) => {
     }
 });
 
-router.post('/despacho/estado', requireAuth, async (req, res) => {
+router.post('/despacho/estado', async (req, res) => {
     try {
         const { routeNumber, estado } = req.body;
         if (!routeNumber || !estado) {
@@ -905,7 +904,7 @@ router.get('/despacho/rutas/:routeNumber/documentos/:ovNumber/productos', async 
 });
 
 // POST /api/despacho/verificar — QC de una línea (producto de una OV en una ruta), modo producto
-router.post('/despacho/verificar', requireAuth, async (req, res) => {
+router.post('/despacho/verificar', async (req, res) => {
     try {
         const { routeNumber, ovNumber, product, verificado } = req.body || {};
         if (!routeNumber || !ovNumber || product === undefined) {

@@ -1,7 +1,7 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
 const { getSapDb, getLisaDb } = require('../config/paises');
-const { requirePermiso, requireAuth, requireAdmin } = require('../middleware/auth');
+const { requirePermiso, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 // ── Linked server: OPENQUERY con listas de enteros ──
@@ -26,19 +26,11 @@ async function openQueryEnLotes(pool, nums, armarSql, porLote = 600) {
     return out;
 }
 
-// Facturas FEL por OV con caché en memoria (una factura emitida no cambia; las OV sin
-// factura se vuelven a consultar, porque pueden facturarse en cualquier momento).
-const cacheFacturas = new Map(); // OV -> { t, facturas }
-const FACTURAS_TTL_MS = 6 * 60 * 60 * 1000;
+// Facturas FEL por OV (sin caché: una OV puede facturarse de nuevo o anularse una factura;
+// con OPENQUERY la consulta ya es rápida).
 async function facturasDeOVs(pool, ovs) {
-    const ahora = Date.now();
     const porOv = new Map();
-    const faltan = [];
-    ovs.forEach(ov => {
-        const c = cacheFacturas.get(ov);
-        if (c && ahora - c.t < FACTURAS_TTL_MS) porOv.set(ov, c.facturas);
-        else faltan.push(ov);
-    });
+    const faltan = ovs;
     if (faltan.length) {
         const sapDb = getSapDb('GT');
         const rows = await openQueryEnLotes(pool, faltan, lista => `
@@ -65,12 +57,7 @@ async function facturasDeOVs(pool, ovs) {
                 if (!nuevas.has(r.OV)) nuevas.set(r.OV, []);
                 nuevas.get(r.OV).push({ DocNum: r.DocNum, Fecha: r.DocDate, Url: r.Url });
             });
-        faltan.forEach(ov => {
-            const f = nuevas.get(ov) || [];
-            porOv.set(ov, f);
-            if (f.length) cacheFacturas.set(ov, { t: ahora, facturas: f });
-        });
-        if (cacheFacturas.size > 20000) cacheFacturas.clear();
+        faltan.forEach(ov => porOv.set(ov, nuevas.get(ov) || []));
     }
     return porOv;
 }
@@ -365,7 +352,7 @@ router.get('/pickers-activos', async (req, res) => {
 });
 
 // POST /api/order/rutas/:id/iniciar — Start a route (with optional carril)
-router.post('/rutas/:id/iniciar', requireAuth, async (req, res) => {
+router.post('/rutas/:id/iniciar', async (req, res) => {
     try {
         const pool = getPool();
         const { idCarril } = req.body || {};
@@ -391,7 +378,7 @@ router.post('/rutas/:id/iniciar', requireAuth, async (req, res) => {
 });
 
 // POST /api/order/rutas/:id/finalizar — Finalize entire route
-router.post('/rutas/:id/finalizar', requireAuth, async (req, res) => {
+router.post('/rutas/:id/finalizar', async (req, res) => {
     try {
         const pool = getPool();
         const id = parseInt(req.params.id);
@@ -433,7 +420,7 @@ router.post('/rutas/:id/finalizar', requireAuth, async (req, res) => {
 });
 
 // POST /api/order/rutas/:id/reimportar — Re-sync líneas/pedidos contra el cuadro actual (SV/HN)
-router.post('/rutas/:id/reimportar', requireAuth, async (req, res) => {
+router.post('/rutas/:id/reimportar', async (req, res) => {
     try {
         const pool = getPool();
         const result = await pool.request()
@@ -455,7 +442,7 @@ router.post('/rutas/:id/reimportar', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════
 
 // POST /api/order/pedidos/asignar — Assign operario to an OV (entire pedido)
-router.post('/pedidos/asignar', requireAuth, async (req, res) => {
+router.post('/pedidos/asignar', async (req, res) => {
     try {
         const { idOrderPicking, operarioId, pickerId } = req.body;
         const idOperario = operarioId || pickerId;
@@ -509,7 +496,7 @@ router.post('/pedidos/asignar', requireAuth, async (req, res) => {
 // POST /api/order/pedidos/asignar-lineas — Asignar líneas (tareas) sueltas a un operario.
 // Permite repartir una OV entre varios pickers. NO toca OPM.ID_Operario (para no
 // disparar el trigger que cascada a todas las líneas); solo marca las tareas dadas.
-router.post('/pedidos/asignar-lineas', requireAuth, async (req, res) => {
+router.post('/pedidos/asignar-lineas', async (req, res) => {
     try {
         const { idOrderPicking, idTasks, operarioId, pickerId } = req.body;
         const idOperario = operarioId || pickerId;
@@ -568,7 +555,7 @@ router.post('/pedidos/asignar-lineas', requireAuth, async (req, res) => {
 });
 
 // POST /api/order/pedidos/cerrar — Force-close a pedido
-router.post('/pedidos/cerrar', requireAuth, async (req, res) => {
+router.post('/pedidos/cerrar', async (req, res) => {
     try {
         const { idOrderPicking } = req.body;
         if (!idOrderPicking) {
@@ -768,7 +755,7 @@ router.post('/priorizacion/set', requirePermiso('priorizacion'), async (req, res
     }
 });
 
-router.post('/priorizacion/guardar', requireAuth, async (req, res) => {
+router.post('/priorizacion/guardar', async (req, res) => {
     try {
         const { orden } = req.body;
         if (!Array.isArray(orden)) {
@@ -929,7 +916,7 @@ router.get('/despacho/buscar', async (req, res) => {
     }
 });
 
-router.post('/despacho/estado', requireAuth, async (req, res) => {
+router.post('/despacho/estado', async (req, res) => {
     try {
         const { idRoutePlan, estado } = req.body;
         if (!idRoutePlan || !estado) {
@@ -1055,8 +1042,7 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
 
             await Promise.all([
                 // Facturas (FEL) de las OV con pase de salida (solo GT). Una OV puede tener
-                // varias (entregas parciales), la más reciente primero. Caché por OV: una
-                // factura emitida no cambia.
+                // varias (entregas parciales), la más reciente primero.
                 (async () => {
                     try {
                         const ovsPase = [...new Set(docs
@@ -1238,7 +1224,7 @@ router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (re
 });
 
 // POST /api/order/despacho/verificar — marcar/desmarcar verificación QC de una línea (producto de un pedido)
-router.post('/despacho/verificar', requireAuth, async (req, res) => {
+router.post('/despacho/verificar', async (req, res) => {
     try {
         const { idOrderPicking, product, verificado } = req.body || {};
         if (!idOrderPicking || product === undefined) {
@@ -1360,6 +1346,7 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
 // ── Limpiar rutas finalizadas (Order)
 // ══════════════════════════════════════════
 
+// Solo Admin: cierra tareas de forma masiva (estaba abierta sin sesión; ninguna pantalla la usa).
 router.post('/admin/limpiar-rutas-finalizadas', requireAdmin, async (req, res) => {
     try {
         const pool = getPool();

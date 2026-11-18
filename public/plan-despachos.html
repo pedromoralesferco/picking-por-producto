@@ -591,7 +591,7 @@
         }
 
         async function toggleDetalle(cuadro, idRoutePlan) {
-            if (openRows.has(cuadro)) { openRows.delete(cuadro); }
+            if (openRows.has(cuadro)) { openRows.delete(cuadro); detCache.delete(cuadro); }
             else { openRows.add(cuadro); }
             render();
         }
