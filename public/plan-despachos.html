@@ -256,6 +256,7 @@
                 document.getElementById('refreshNote').textContent =
                     'Actualizado ' + hora(DATA.generado) + ' · refresco automático cada 45 s';
                 renderPrintHead();
+                detallesVencidos = true; // datos nuevos: refrescar en segundo plano los cuadros abiertos
                 render();
             } catch (err) {
                 document.getElementById('tablero').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
@@ -577,9 +578,15 @@
                 sectionPendientes('3. Pendientes — plan diario por fecha', pendientes) +
                 '<div id="detalleSection"></div>';
 
+            // Cuadros abiertos: se pinta al instante lo que ya se tenía y solo se vuelve a
+            // pedir al servidor si hubo un refresco de datos o si aún no se había cargado.
+            const refrescar = detallesVencidos; detallesVencidos = false;
             openRows.forEach(cn => {
                 const c = DATA.cuadros.find(x => x.Cuadro === cn);
-                if (c) loadDetalle(c.Cuadro, c.ID_RoutePlan);
+                if (!c) return;
+                const box = document.getElementById('detbox-' + c.Cuadro);
+                if (box && detCache.has(c.Cuadro)) box.innerHTML = detCache.get(c.Cuadro);
+                if (refrescar || !detCache.has(c.Cuadro)) loadDetalle(c.Cuadro, c.ID_RoutePlan);
             });
         }
 
@@ -589,10 +596,14 @@
             render();
         }
 
+        // Caché del detalle por cuadro: evita el parpadeo "Cargando…" en cada refresco.
+        const detCache = new Map();
+        let detallesVencidos = false;
         async function loadDetalle(cuadro, idRoutePlan) {
             const box = document.getElementById('detbox-' + cuadro);
             if (!box) return;
-            box.innerHTML = '<div style="color:#999;font-size:0.75rem;padding:0.3rem">Cargando documentos…</div>';
+            if (detCache.has(cuadro)) box.innerHTML = detCache.get(cuadro);
+            else box.innerHTML = '<div style="color:#999;font-size:0.75rem;padding:0.3rem">Cargando documentos…</div>';
             try {
                 const url = DATA.modo === 'order'
                     ? '/api/order/despacho/rutas/' + idRoutePlan + '/documentos'
@@ -604,13 +615,14 @@
                     fetch(url).then(r => r.json()),
                     esOrder ? fetch('/api/reportes/plan-despachos/confirmaciones/' + idRoutePlan).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null)
                 ]);
-                if (!docs.length) { box.innerHTML = '<div style="color:#999;font-size:0.75rem;padding:0.3rem">Sin documentos.</div>'; return; }
+                const pintar = html => { detCache.set(cuadro, html); const b = document.getElementById('detbox-' + cuadro); if (b) b.innerHTML = html; };
+                if (!docs.length) { pintar('<div style="color:#999;font-size:0.75rem;padding:0.3rem">Sin documentos.</div>'); return; }
                 const confMap = new Map();
                 if (conf && Array.isArray(conf.docs)) conf.docs.forEach(x => confMap.set(x.DocType + '|' + x.OV_Number, x));
                 confEditable[idRoutePlan] = !!(conf && conf.editable);
                 const conCols = !!conf;
                 const cf = d => confMap.get((d.DocType || '') + '|' + String(d.OV_Number || '').trim()) || {};
-                box.innerHTML = `
+                pintar(`
                     <table><thead><tr>
                         <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th>${conCols ? '<th>Teléfono</th>' : ''}<th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Estado</th>${conCols ? '<th>Confirmación</th>' : ''}
                     </tr></thead><tbody>
@@ -625,9 +637,11 @@
                         <td>${d.NoDespachada ? 'No despachada' : esc(d.Estado || '')}</td>
                         ${conCols ? `<td class="conf-cell" onclick="event.stopPropagation()">${confCell(cuadro, idRoutePlan, d, cf(d))}</td>` : ''}
                     </tr>`).join('')}
-                    </tbody></table>`;
+                    </tbody></table>`);
             } catch (e) {
-                box.innerHTML = '<div style="color:#c62828;font-size:0.75rem;padding:0.3rem">Error al cargar documentos.</div>';
+                // Si ya había una versión, se deja la anterior en vez de borrar la tabla.
+                const b = document.getElementById('detbox-' + cuadro);
+                if (b && !detCache.has(cuadro)) b.innerHTML = '<div style="color:#c62828;font-size:0.75rem;padding:0.3rem">Error al cargar documentos.</div>';
             }
         }
 

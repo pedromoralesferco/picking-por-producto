@@ -65,10 +65,19 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
 
         const pool = getPool();
         let cuadros = [];
+        let confResumen = null; // resumen de confirmación de entregas (modo pedido)
 
         if (modo === 'order') {
-            // Cabeceras de cuadros: activos + los del día (finalizados/despachados hoy)
-            const cab = await pool.request().input('centro', sql.Int, centro).query(`
+            // Cabeceras de cuadros: activos + los del día (finalizados/despachados hoy).
+            // Las 4 consultas van en paralelo, y avance/pedidos/confirmación se limitan a los
+            // cuadros visibles (antes agregaban todo el histórico del centro).
+            const VISIBLES = `
+                SELECT v.RouteNumber, v.ID_RoutePlan FROM OrderRoutePlan v
+                WHERE v.ID_Centro = @centro
+                  AND ( v.Estado IN ('Pendiente', 'Iniciado')
+                        OR (v.Estado = 'Finalizado' AND v.EstadoDespacho <> 'Finalizado')
+                        OR (v.EstadoDespacho = 'Finalizado' AND CAST(v.FechaDespachoFin AS DATE) >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)) )`;
+            const pCab = pool.request().input('centro', sql.Int, centro).query(`
                 SELECT orp.ID_RoutePlan, orp.RouteNumber, orp.RouteName, orp.Prioridad, orp.PrioridadDespacho,
                        orp.Estado, orp.EstadoDespacho, orp.FechaFin, orp.FechaDespachoFin,
                        orp.FechaPlanDespacho, orp.Comprometida,
@@ -83,7 +92,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             `);
 
             // Avance por cuadro (desde tareas; Cantidad se repite por fila → MAX por producto)
-            const av = await pool.request().input('centro', sql.Int, centro).query(`
+            const pAv = pool.request().input('centro', sql.Int, centro).query(`
                 ;WITH prod AS (
                     SELECT t.RouteNumber, t.ID_OrderPicking, t.InternIdProduct,
                            MAX(ISNULL(t.Cantidad, 0)) AS Cant,
@@ -92,6 +101,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     FROM OrderPickingTask t
                     INNER JOIN OrderPickingManagement opm ON opm.ID_OrderPicking = t.ID_OrderPicking
                     WHERE t.ID_Centro = @centro AND opm.NoDespachada = 0
+                      AND t.RouteNumber IN (SELECT RouteNumber FROM (${VISIBLES}) vis)
                     GROUP BY t.RouteNumber, t.ID_OrderPicking, t.InternIdProduct
                 )
                 SELECT RouteNumber,
@@ -100,13 +110,28 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                        COUNT(*) AS LineasTot, SUM(CASE WHEN Pend = 0 THEN 1 ELSE 0 END) AS LineasFin
                 FROM prod GROUP BY RouteNumber
             `);
-            const avMap = {}; av.recordset.forEach(r => { avMap[r.RouteNumber] = r; });
-
-            const ped = await pool.request().input('centro', sql.Int, centro).query(`
+            const pPed = pool.request().input('centro', sql.Int, centro).query(`
                 SELECT RouteNumber, COUNT(*) AS PedidosTot,
                        SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFin
-                FROM OrderPickingManagement WHERE ID_Centro = @centro AND NoDespachada = 0 GROUP BY RouteNumber
+                FROM OrderPickingManagement WHERE ID_Centro = @centro AND NoDespachada = 0
+                  AND RouteNumber IN (SELECT RouteNumber FROM (${VISIBLES}) vis)
+                GROUP BY RouteNumber
             `);
+            const pConf = pool.request().input('centro', sql.Int, centro).query(`
+                SELECT opm.ID_RoutePlan, COUNT(*) AS Tot,
+                       SUM(CASE WHEN ce.Estado = 'Si' THEN 1 ELSE 0 END) AS Si,
+                       SUM(CASE WHEN ce.Estado = 'No' THEN 1 ELSE 0 END) AS No
+                FROM OrderPickingManagement opm
+                LEFT JOIN dbo.ConfirmacionEntrega ce
+                       ON ce.ID_RoutePlan = opm.ID_RoutePlan AND ce.OV_Number = LTRIM(RTRIM(opm.OV_Number))
+                WHERE opm.ID_Centro = @centro AND opm.DocType = 'OV' AND opm.NoDespachada = 0
+                  AND opm.ID_RoutePlan IN (SELECT ID_RoutePlan FROM (${VISIBLES}) vis)
+                GROUP BY opm.ID_RoutePlan`)
+                .catch(e => { console.error('Resumen confirmación de entregas no disponible:', e.message); return null; });
+            const [cab, av, ped, confRes] = await Promise.all([pCab, pAv, pPed, pConf]);
+            confResumen = confRes;
+            const avMap = {}; av.recordset.forEach(r => { avMap[r.RouteNumber] = r; });
+
             const pedMap = {}; ped.recordset.forEach(r => { pedMap[r.RouteNumber] = r; });
 
             cuadros = cab.recordset.map(r => {
@@ -138,7 +163,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             });
         } else {
             // Modo producto (Zona 5): RoutePlan / RoutePickingManagement / RoutePickingTask
-            const cab = await pool.request().query(`
+            const pCab = pool.request().query(`
                 SELECT rp.RouteNumber, rp.RouteName, rp.Prioridad,
                        rp.Estado, rp.EstadoDespacho, rp.FechaFin, rp.FechaDespachoFin,
                        ISNULL(rp.PesoEstimado, 0) AS PesoEstimado, c.Nombre AS CarrilNombre
@@ -149,7 +174,7 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                         OR (rp.EstadoDespacho = 'Finalizado' AND CAST(rp.FechaDespachoFin AS DATE) >= CAST(DATEADD(DAY, -1, GETDATE()) AS DATE)) )
                 ORDER BY CASE WHEN rp.FechaFin IS NULL THEN 1 ELSE 0 END, rp.FechaFin, rp.RouteNumber
             `);
-            const av = await pool.request().query(`
+            const pAv = pool.request().query(`
                 ;WITH prod AS (
                     SELECT t.Route_Number AS RouteNumber, t.OV_Number, t.InternIdProduct,
                            MAX(ISNULL(t.Cantidad, 0)) AS Cant,
@@ -164,12 +189,13 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                        COUNT(*) AS LineasTot, SUM(CASE WHEN Pend = 0 THEN 1 ELSE 0 END) AS LineasFin
                 FROM prod GROUP BY RouteNumber
             `);
-            const avMap = {}; av.recordset.forEach(r => { avMap[r.RouteNumber] = r; });
-            const ped = await pool.request().query(`
+            const pPed = pool.request().query(`
                 SELECT RouteNumber, COUNT(*) AS PedidosTot,
                        SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFin
                 FROM RoutePickingManagement GROUP BY RouteNumber
             `);
+            const [cab, av, ped] = await Promise.all([pCab, pAv, pPed]); // independientes: en paralelo
+            const avMap = {}; av.recordset.forEach(r => { avMap[r.RouteNumber] = r; });
             const pedMap = {}; ped.recordset.forEach(r => { pedMap[r.RouteNumber] = r; });
 
             cuadros = cab.recordset.map(r => {
@@ -195,22 +221,11 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             });
         }
 
-        // Resumen de confirmación de entregas por cuadro (solo OV, modo pedido).
-        // Consulta aparte: si la tabla aún no existe, el tablero sigue igual.
-        if (modo === 'order' && cuadros.length > 0) {
-            try {
-                const cr = await pool.request().input('centro', sql.Int, centro).query(`
-                    SELECT opm.ID_RoutePlan, COUNT(*) AS Tot,
-                           SUM(CASE WHEN ce.Estado = 'Si' THEN 1 ELSE 0 END) AS Si,
-                           SUM(CASE WHEN ce.Estado = 'No' THEN 1 ELSE 0 END) AS No
-                    FROM OrderPickingManagement opm
-                    LEFT JOIN dbo.ConfirmacionEntrega ce
-                           ON ce.ID_RoutePlan = opm.ID_RoutePlan AND ce.OV_Number = LTRIM(RTRIM(opm.OV_Number))
-                    WHERE opm.ID_Centro = @centro AND opm.DocType = 'OV' AND opm.NoDespachada = 0
-                    GROUP BY opm.ID_RoutePlan`);
-                const cm = {}; cr.recordset.forEach(r => { cm[r.ID_RoutePlan] = r; });
-                cuadros.forEach(c => { const x = cm[c.ID_RoutePlan]; if (x) c.Confirmacion = { tot: x.Tot, si: x.Si, no: x.No }; });
-            } catch (e) { console.error('Resumen confirmación de entregas no disponible:', e.message); }
+        // Resumen de confirmación de entregas por cuadro (solo OV, modo pedido). Se consultó
+        // en paralelo arriba; si la tabla no existe, confResumen es null y no se agrega.
+        if (confResumen) {
+            const cm = {}; confResumen.recordset.forEach(r => { cm[r.ID_RoutePlan] = r; });
+            cuadros.forEach(c => { const x = cm[c.ID_RoutePlan]; if (x) c.Confirmacion = { tot: x.Tot, si: x.Si, no: x.No }; });
         }
 
         // Transporte (solo si el usuario puede ver la vista operativa)

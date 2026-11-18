@@ -140,41 +140,55 @@ async function estadosDeOVs(pool, ovs) {
         if (cuadroFin && !m.cuadroFin) m.cuadroFin = cuadroFin;
         if (cuadroAny && (!m.cuadroAny || cuadroAny > m.cuadroAny)) m.cuadroAny = cuadroAny;
     };
-    // App: OPM de Escuintla
-    try {
-        const req = pool.request();
-        const inP = list.map((v, i) => { req.input('a' + i, sql.VarChar(50), v); return '@a' + i; }).join(',');
-        const a = await req.query(`
-            SELECT LTRIM(RTRIM(opm.OV_Number)) ov,
-                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN 2 ELSE 1 END) rk,
-                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.FechaDespachoFin END) desp,
-                   MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.RouteNumber END) cuadroFin,
-                   MAX(orp.RouteNumber) cuadroAny
-            FROM OrderPickingManagement opm
-            JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
-            WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) IN (${inP})
-              AND ISNULL(opm.NoDespachada, 0) = 0
-            GROUP BY LTRIM(RTRIM(opm.OV_Number))`);
-        a.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
-    } catch (e) { console.error('estadosDeOVs app:', e.message); }
-    // SAP: presencia en cuadros (@cuadro_ruta_d) + u_estado '03' (despachado) o '04' (liquidado,
-    // posterior al despacho) = finalizado
-    try {
-        const db = getSapDb('GT');
-        const req = pool.request();
-        const inP = list.map((v, i) => { req.input('s' + i, sql.VarChar(50), v); return '@s' + i; }).join(',');
-        const s = await req.query(`
-            SELECT LTRIM(RTRIM(d.U_No_OV)) ov,
-                   MAX(CASE WHEN e.u_estado IN ('03','04') THEN 2 ELSE 1 END) rk,
-                   MAX(CASE WHEN e.u_estado IN ('03','04') THEN e.UpdateDate END) desp,
-                   MAX(CASE WHEN e.u_estado IN ('03','04') THEN e.DocNum END) cuadroFin,
-                   MAX(e.DocNum) cuadroAny
-            FROM [server-sql].[${db}].dbo.[@cuadro_ruta_e] e WITH (NOLOCK)
-            JOIN [server-sql].[${db}].dbo.[@cuadro_ruta_d] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
-            WHERE LTRIM(RTRIM(d.U_No_OV)) COLLATE DATABASE_DEFAULT IN (${inP})
-            GROUP BY LTRIM(RTRIM(d.U_No_OV))`);
-        s.recordset.forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
-    } catch (e) { console.error('estadosDeOVs sap:', e.message); }
+    // Por lotes de 500 (SQL Server admite máx. 2100 parámetros por consulta) y en paralelo.
+    const lotes = [];
+    for (let i = 0; i < list.length; i += 500) lotes.push(list.slice(i, i + 500));
+    const db = getSapDb('GT');
+    // Se consultan en paralelo pero se fusionan en orden (primero app, luego SAP), igual
+    // que antes: el cuadro despachado que se muestra es el primero que se encuentra.
+    const filasApp = [], filasSap = [];
+    await Promise.all(lotes.flatMap(lote => [
+        // App: OPM de Escuintla
+        (async () => {
+            try {
+                const req = pool.request();
+                const inP = lote.map((v, i) => { req.input('a' + i, sql.VarChar(50), v); return '@a' + i; }).join(',');
+                const a = await req.query(`
+                    SELECT LTRIM(RTRIM(opm.OV_Number)) ov,
+                           MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN 2 ELSE 1 END) rk,
+                           MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.FechaDespachoFin END) desp,
+                           MAX(CASE WHEN orp.EstadoDespacho='Finalizado' THEN orp.RouteNumber END) cuadroFin,
+                           MAX(orp.RouteNumber) cuadroAny
+                    FROM OrderPickingManagement opm
+                    JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
+                    WHERE orp.ID_Centro = ${CENTRO} AND LTRIM(RTRIM(opm.OV_Number)) IN (${inP})
+                      AND ISNULL(opm.NoDespachada, 0) = 0
+                    GROUP BY LTRIM(RTRIM(opm.OV_Number))`);
+                filasApp.push(...a.recordset);
+            } catch (e) { console.error('estadosDeOVs app:', e.message); }
+        })(),
+        // SAP: presencia en cuadros (@cuadro_ruta_d) + u_estado '03' (despachado) o '04'
+        // (liquidado, posterior al despacho) = finalizado. Sin funciones ni COLLATE sobre la
+        // columna remota (U_No_OV): así el filtro corre en SAP con su índice (9 s → 0,6 s).
+        (async () => {
+            try {
+                const req = pool.request();
+                const inP = lote.map((v, i) => { req.input('s' + i, sql.NVarChar(30), v); return '@s' + i; }).join(',');
+                const s = await req.query(`
+                    SELECT d.U_No_OV ov,
+                           MAX(CASE WHEN e.u_estado IN ('03','04') THEN 2 ELSE 1 END) rk,
+                           MAX(CASE WHEN e.u_estado IN ('03','04') THEN e.UpdateDate END) desp,
+                           MAX(CASE WHEN e.u_estado IN ('03','04') THEN e.DocNum END) cuadroFin,
+                           MAX(e.DocNum) cuadroAny
+                    FROM [server-sql].[${db}].dbo.[@cuadro_ruta_e] e WITH (NOLOCK)
+                    JOIN [server-sql].[${db}].dbo.[@cuadro_ruta_d] d WITH (NOLOCK) ON d.DocEntry = e.DocEntry
+                    WHERE d.U_No_OV IN (${inP})
+                    GROUP BY d.U_No_OV`);
+                filasSap.push(...s.recordset);
+            } catch (e) { console.error('estadosDeOVs sap:', e.message); }
+        })()
+    ]));
+    [...filasApp, ...filasSap].forEach(r => merge(String(r.ov).trim(), r.rk, r.desp, r.cuadroFin, r.cuadroAny));
     // Cuadro a mostrar: el despachado si está finalizado, si no cualquiera donde esté
     Object.keys(map).forEach(k => { const m = map[k]; m.cuadro = m.rank === 2 ? (m.cuadroFin || m.cuadroAny) : m.cuadroAny; });
     return map;
@@ -268,8 +282,10 @@ router.get('/', requireEsc, async (req, res) => {
             FROM dbo.Escalamientos e
             WHERE e.Archivado = 0
             ORDER BY e.FechaCreacion ASC`);
-        const estados = await estadosDeOVs(pool, r.recordset.map(x => x.OV_Number));
-        const adj = await contarAdjuntos(pool);
+        const [estados, adj] = await Promise.all([
+            estadosDeOVs(pool, r.recordset.map(x => x.OV_Number)),
+            contarAdjuntos(pool)
+        ]);
         const cut = Date.now() - 24 * 3600 * 1000; // Finalizados: visibles solo 24h tras el despacho
         const data = r.recordset.map(x => {
             const st = estados[String(x.OV_Number).trim()] || { rank: 0, desp: null, cuadro: null };

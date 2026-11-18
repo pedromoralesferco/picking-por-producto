@@ -1,8 +1,79 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
 const { getSapDb, getLisaDb } = require('../config/paises');
-const { requirePermiso } = require('../middleware/auth');
+const { requirePermiso, requireAuth, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
+
+// ── Linked server: OPENQUERY con listas de enteros ──
+// Una consulta de 4 partes ([server-sql].db.dbo.T) con IN (...) hace que SQL Server
+// arme un plan distribuido que a menudo trae la tabla remota completa. Con OPENQUERY
+// la consulta entera corre en el servidor remoto y usa sus índices. Seguro porque la
+// lista solo lleva enteros validados aquí. OPENQUERY admite hasta 8000 caracteres:
+// se parte en lotes.
+const LINKED = '[server-sql]';
+function listaEnteros(nums) {
+    return [...new Set(nums.map(n => parseInt(n)).filter(n => Number.isInteger(n) && n > 0))];
+}
+async function openQueryEnLotes(pool, nums, armarSql, porLote = 600) {
+    const ints = listaEnteros(nums);
+    const out = [];
+    for (let i = 0; i < ints.length; i += porLote) {
+        const inner = armarSql(ints.slice(i, i + porLote).join(',')).replace(/\s+/g, ' ').trim();
+        if (inner.length > 7900) throw new Error('OPENQUERY: consulta demasiado larga');
+        const r = await pool.request().query(`SELECT * FROM OPENQUERY(${LINKED}, '${inner.replace(/'/g, "''")}')`);
+        out.push(...r.recordset);
+    }
+    return out;
+}
+
+// Facturas FEL por OV con caché en memoria (una factura emitida no cambia; las OV sin
+// factura se vuelven a consultar, porque pueden facturarse en cualquier momento).
+const cacheFacturas = new Map(); // OV -> { t, facturas }
+const FACTURAS_TTL_MS = 6 * 60 * 60 * 1000;
+async function facturasDeOVs(pool, ovs) {
+    const ahora = Date.now();
+    const porOv = new Map();
+    const faltan = [];
+    ovs.forEach(ov => {
+        const c = cacheFacturas.get(ov);
+        if (c && ahora - c.t < FACTURAS_TTL_MS) porOv.set(ov, c.facturas);
+        else faltan.push(ov);
+    });
+    if (faltan.length) {
+        const sapDb = getSapDb('GT');
+        const rows = await openQueryEnLotes(pool, faltan, lista => `
+            SELECT DISTINCT f.OV, i.DocNum, i.DocDate, i.DocTime,
+                   CAST(i.U_url_infile AS nvarchar(1000)) AS Url
+            FROM (
+                SELECT o.DocNum AS OV, l.DocEntry
+                FROM ${sapDb}.dbo.ORDR o WITH (NOLOCK)
+                JOIN ${sapDb}.dbo.DLN1 d WITH (NOLOCK) ON d.BaseType = 17 AND d.BaseEntry = o.DocEntry
+                JOIN ${sapDb}.dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 15 AND l.BaseEntry = d.DocEntry
+                WHERE o.DocNum IN (${lista})
+                UNION
+                SELECT o.DocNum, l.DocEntry
+                FROM ${sapDb}.dbo.ORDR o WITH (NOLOCK)
+                JOIN ${sapDb}.dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 17 AND l.BaseEntry = o.DocEntry
+                WHERE o.DocNum IN (${lista})
+            ) f
+            JOIN ${sapDb}.dbo.OINV i WITH (NOLOCK) ON i.DocEntry = f.DocEntry
+            WHERE i.CANCELED = 'N'
+              AND CAST(i.U_url_infile AS nvarchar(1000)) LIKE 'http%'`, 300);
+        const nuevas = new Map();
+        rows.sort((a, b) => (new Date(b.DocDate) - new Date(a.DocDate)) || ((b.DocTime || 0) - (a.DocTime || 0)) || (b.DocNum - a.DocNum))
+            .forEach(r => {
+                if (!nuevas.has(r.OV)) nuevas.set(r.OV, []);
+                nuevas.get(r.OV).push({ DocNum: r.DocNum, Fecha: r.DocDate, Url: r.Url });
+            });
+        faltan.forEach(ov => {
+            const f = nuevas.get(ov) || [];
+            porOv.set(ov, f);
+            if (f.length) cacheFacturas.set(ov, { t: ahora, facturas: f });
+        });
+        if (cacheFacturas.size > 20000) cacheFacturas.clear();
+    }
+    return porOv;
+}
 
 // HUB Escuintla — único centro GT en modo pedido; la priorización inline solo aplica aquí
 const CENTRO_ESCUINTLA = 3;
@@ -294,7 +365,7 @@ router.get('/pickers-activos', async (req, res) => {
 });
 
 // POST /api/order/rutas/:id/iniciar — Start a route (with optional carril)
-router.post('/rutas/:id/iniciar', async (req, res) => {
+router.post('/rutas/:id/iniciar', requireAuth, async (req, res) => {
     try {
         const pool = getPool();
         const { idCarril } = req.body || {};
@@ -320,7 +391,7 @@ router.post('/rutas/:id/iniciar', async (req, res) => {
 });
 
 // POST /api/order/rutas/:id/finalizar — Finalize entire route
-router.post('/rutas/:id/finalizar', async (req, res) => {
+router.post('/rutas/:id/finalizar', requireAuth, async (req, res) => {
     try {
         const pool = getPool();
         const id = parseInt(req.params.id);
@@ -362,7 +433,7 @@ router.post('/rutas/:id/finalizar', async (req, res) => {
 });
 
 // POST /api/order/rutas/:id/reimportar — Re-sync líneas/pedidos contra el cuadro actual (SV/HN)
-router.post('/rutas/:id/reimportar', async (req, res) => {
+router.post('/rutas/:id/reimportar', requireAuth, async (req, res) => {
     try {
         const pool = getPool();
         const result = await pool.request()
@@ -384,7 +455,7 @@ router.post('/rutas/:id/reimportar', async (req, res) => {
 // ══════════════════════════════════════════
 
 // POST /api/order/pedidos/asignar — Assign operario to an OV (entire pedido)
-router.post('/pedidos/asignar', async (req, res) => {
+router.post('/pedidos/asignar', requireAuth, async (req, res) => {
     try {
         const { idOrderPicking, operarioId, pickerId } = req.body;
         const idOperario = operarioId || pickerId;
@@ -438,7 +509,7 @@ router.post('/pedidos/asignar', async (req, res) => {
 // POST /api/order/pedidos/asignar-lineas — Asignar líneas (tareas) sueltas a un operario.
 // Permite repartir una OV entre varios pickers. NO toca OPM.ID_Operario (para no
 // disparar el trigger que cascada a todas las líneas); solo marca las tareas dadas.
-router.post('/pedidos/asignar-lineas', async (req, res) => {
+router.post('/pedidos/asignar-lineas', requireAuth, async (req, res) => {
     try {
         const { idOrderPicking, idTasks, operarioId, pickerId } = req.body;
         const idOperario = operarioId || pickerId;
@@ -497,7 +568,7 @@ router.post('/pedidos/asignar-lineas', async (req, res) => {
 });
 
 // POST /api/order/pedidos/cerrar — Force-close a pedido
-router.post('/pedidos/cerrar', async (req, res) => {
+router.post('/pedidos/cerrar', requireAuth, async (req, res) => {
     try {
         const { idOrderPicking } = req.body;
         if (!idOrderPicking) {
@@ -531,6 +602,45 @@ router.post('/pedidos/cerrar', async (req, res) => {
 });
 
 // GET /api/order/pedidos/:id/tareas — Get tasks (lines) for a pedido
+// GET /api/order/pickers/:id/tareas?ids=1,2,3 — las líneas del picker de varios pedidos en
+// una sola consulta (antes la tablet pedía /pedidos/:id/tareas una vez por pedido en cada
+// refresco). Mismo contenido y orden por pedido que /pedidos/:id/tareas?operarioId=.
+router.get('/pickers/:id/tareas', async (req, res) => {
+    try {
+        const operarioId = parseInt(req.params.id);
+        const ids = [...new Set(String(req.query.ids || '').split(',').map(x => parseInt(x)).filter(n => Number.isInteger(n) && n > 0))];
+        if (!operarioId) return res.status(400).json({ error: 'Operario inválido' });
+        if (!ids.length) return res.json([]);
+        if (ids.length > 500) return res.status(400).json({ error: 'Demasiados pedidos' });
+        const result = await getPool().request().input('operarioId', sql.Int, operarioId).query(`
+                SELECT
+                    t.ID_OrderPicking,
+                    t.ID_Task,
+                    t.InternIdProduct,
+                    t.Descripcion,
+                    t.Cantidad,
+                    t.CantidadPendiente,
+                    t.UnitWeight,
+                    t.Estado,
+                    t.ID_Operario,
+                    o.Nombre AS OperarioNombre,
+                    t.UltimaActualizacion
+                FROM OrderPickingTask t
+                LEFT JOIN Operario o ON o.ID_Operario = t.ID_Operario
+                WHERE t.ID_OrderPicking IN (${ids.join(',')})
+                  AND t.ID_Operario = @operarioId
+                ORDER BY
+                    t.ID_OrderPicking,
+                    CASE t.Estado WHEN 'Finalizado' THEN 1 ELSE 0 END,
+                    t.InternIdProduct
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/order/pickers/:id/tareas error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 router.get('/pedidos/:id/tareas', async (req, res) => {
     try {
         const pool = getPool();
@@ -658,7 +768,7 @@ router.post('/priorizacion/set', requirePermiso('priorizacion'), async (req, res
     }
 });
 
-router.post('/priorizacion/guardar', async (req, res) => {
+router.post('/priorizacion/guardar', requireAuth, async (req, res) => {
     try {
         const { orden } = req.body;
         if (!Array.isArray(orden)) {
@@ -819,7 +929,7 @@ router.get('/despacho/buscar', async (req, res) => {
     }
 });
 
-router.post('/despacho/estado', async (req, res) => {
+router.post('/despacho/estado', requireAuth, async (req, res) => {
     try {
         const { idRoutePlan, estado } = req.body;
         if (!idRoutePlan || !estado) {
@@ -912,23 +1022,24 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
             `);
 
         const docs = result.recordset;
-        // Pase de salida generado: entrega (DL) para OV, o despacho (REQDEL) para TR,
-        // detectado en InventoryTransactionLog (DW). Resiliente: si el linked server
-        // falla, los documentos igual se devuelven (PaseGenerado = 0).
+        // Enriquecimiento (todo resiliente: si una fuente falla, los documentos igual salen).
+        //  1) Pase de salida (Lisa ITL) — de él dependen facturas y "cerrada sin pase".
+        //  2) En paralelo: facturas FEL, OV cerradas sin pase y OC adjuntas.
+        // Las consultas al linked server van por OPENQUERY con la lista de enteros armada
+        // aquí: así filtra el servidor remoto con sus índices (4 partes traía ~1 s; OPENQUERY ~10 ms).
         if (docs.length) {
+            const pais = docs[0].Pais || 'GT';
             try {
-                const pais = docs[0].Pais || 'GT';
-                const lisaDb = getLisaDb(pais);
                 const nums = [...new Set(docs.map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
                 if (nums.length) {
-                    const pr = await pool.request().query(`
+                    const rows = await openQueryEnLotes(pool, nums, lista => `
                         SELECT DISTINCT itl.DocNumSAP, itl.TransactionType
-                        FROM [server-sql].[${lisaDb}].dbo.InventoryTransactionLog itl WITH (NOLOCK)
-                        WHERE itl.DocNumSAP IN (${nums.join(',')})
+                        FROM ${getLisaDb(pais)}.dbo.InventoryTransactionLog itl WITH (NOLOCK)
+                        WHERE itl.DocNumSAP IN (${lista})
                           AND ( itl.TransactionType = 'DL'
                              OR (itl.TransactionType = 'REQDEL' AND itl.OldQty > itl.NewQty) )`);
                     const dl = new Set(), reqdel = new Set();
-                    pr.recordset.forEach(r => {
+                    rows.forEach(r => {
                         if (r.TransactionType === 'DL') dl.add(r.DocNumSAP);
                         else reqdel.add(r.DocNumSAP);
                     });
@@ -942,79 +1053,78 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                 console.error('PaseGenerado (InventoryTransactionLog) no disponible:', e.message);
             }
 
-            // Facturas (FEL) de las OV con pase de salida (solo GT): OV → entrega (DLN1)
-            // → factura (INV1 BaseType 15), o factura directa de la OV (BaseType 17).
-            // El link al documento certificado está en OINV.U_url_infile. Una OV puede
-            // tener varias facturas (entregas parciales); se devuelven todas, la más
-            // reciente primero. Resiliente: si SAP falla, Facturas queda vacío.
-            try {
-                const ovsPase = [...new Set(docs
-                    .filter(d => d.DocType === 'OV' && d.PaseGenerado && (d.Pais || 'GT') === 'GT')
-                    .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
-                if (ovsPase.length) {
-                    const sapDb = getSapDb('GT');
-                    const fr = await pool.request().query(`
-                        SELECT DISTINCT f.OV, i.DocNum, i.DocDate, i.DocTime,
-                               CAST(i.U_url_infile AS nvarchar(1000)) AS Url
-                        FROM (
-                            SELECT o.DocNum AS OV, l.DocEntry
-                            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
-                            JOIN [server-sql].[${sapDb}].dbo.DLN1 d WITH (NOLOCK) ON d.BaseType = 17 AND d.BaseEntry = o.DocEntry
-                            JOIN [server-sql].[${sapDb}].dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 15 AND l.BaseEntry = d.DocEntry
-                            WHERE o.DocNum IN (${ovsPase.join(',')})
-                            UNION
-                            SELECT o.DocNum, l.DocEntry
-                            FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
-                            JOIN [server-sql].[${sapDb}].dbo.INV1 l WITH (NOLOCK) ON l.BaseType = 17 AND l.BaseEntry = o.DocEntry
-                            WHERE o.DocNum IN (${ovsPase.join(',')})
-                        ) f
-                        JOIN [server-sql].[${sapDb}].dbo.OINV i WITH (NOLOCK) ON i.DocEntry = f.DocEntry
-                        WHERE i.CANCELED = 'N'
-                          AND CAST(i.U_url_infile AS nvarchar(1000)) LIKE 'http%'`);
-                    const porOv = new Map();
-                    fr.recordset
-                        .sort((a, b) => (new Date(b.DocDate) - new Date(a.DocDate)) || ((b.DocTime || 0) - (a.DocTime || 0)) || (b.DocNum - a.DocNum))
-                        .forEach(r => {
-                            if (!porOv.has(r.OV)) porOv.set(r.OV, []);
-                            porOv.get(r.OV).push({ DocNum: r.DocNum, Fecha: r.DocDate, Url: r.Url });
+            await Promise.all([
+                // Facturas (FEL) de las OV con pase de salida (solo GT). Una OV puede tener
+                // varias (entregas parciales), la más reciente primero. Caché por OV: una
+                // factura emitida no cambia.
+                (async () => {
+                    try {
+                        const ovsPase = [...new Set(docs
+                            .filter(d => d.DocType === 'OV' && d.PaseGenerado && (d.Pais || 'GT') === 'GT')
+                            .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                        if (!ovsPase.length) return;
+                        const porOv = await facturasDeOVs(pool, ovsPase);
+                        docs.forEach(d => {
+                            const f = porOv.get(parseInt(d.OV_Number));
+                            if (d.DocType === 'OV' && d.PaseGenerado && f && f.length) d.Facturas = f;
                         });
-                    docs.forEach(d => {
-                        const f = porOv.get(parseInt(d.OV_Number));
-                        if (d.DocType === 'OV' && d.PaseGenerado && f) d.Facturas = f;
-                    });
-                }
-            } catch (e) {
-                console.error('Facturas FEL (OINV.U_url_infile) no disponibles:', e.message);
-            }
-
-            // OV cerrada/cancelada en SAP sin pase de salida: DocStatus='C' o CANCELED='Y'
-            // y sin ninguna entrega (DLN1 basada en la OV). Típico: pedido cancelado justo
-            // antes de despachar. Resiliente: si SAP falla, CerradaSinPase queda en 0.
-            try {
-                const ovs = [...new Set(docs
-                    .filter(d => d.DocType === 'OV' && !d.PaseGenerado)
-                    .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
-                if (ovs.length) {
-                    const sapDb = getSapDb(docs[0].Pais || 'GT');
-                    const cr = await pool.request().query(`
-                        SELECT o.DocNum, o.CANCELED
-                        FROM [server-sql].[${sapDb}].dbo.ORDR o WITH (NOLOCK)
-                        WHERE o.DocNum IN (${ovs.join(',')})
-                          AND (o.DocStatus = 'C' OR o.CANCELED = 'Y')
-                          AND NOT EXISTS (SELECT 1 FROM [server-sql].[${sapDb}].dbo.DLN1 l WITH (NOLOCK)
-                                          WHERE l.BaseType = 17 AND l.BaseEntry = o.DocEntry)`);
-                    const cerradas = new Map(cr.recordset.map(r => [r.DocNum, r.CANCELED === 'Y']));
-                    docs.forEach(d => {
-                        const n = parseInt(d.OV_Number);
-                        if (d.DocType === 'OV' && !d.PaseGenerado && cerradas.has(n)) {
-                            d.CerradaSinPase = 1;
-                            d.CanceladaSAP = cerradas.get(n) ? 1 : 0;
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error('CerradaSinPase (ORDR) no disponible:', e.message);
-            }
+                    } catch (e) {
+                        console.error('Facturas FEL (OINV.U_url_infile) no disponibles:', e.message);
+                    }
+                })(),
+                // OV cerrada/cancelada en SAP sin pase de salida: DocStatus='C' o CANCELED='Y'
+                // y sin ninguna entrega (DLN1 basada en la OV).
+                (async () => {
+                    try {
+                        const ovs = [...new Set(docs
+                            .filter(d => d.DocType === 'OV' && !d.PaseGenerado)
+                            .map(d => parseInt(d.OV_Number)).filter(n => !isNaN(n)))];
+                        if (!ovs.length) return;
+                        const sapDb = getSapDb(pais);
+                        const rows = await openQueryEnLotes(pool, ovs, lista => `
+                            SELECT o.DocNum, o.CANCELED
+                            FROM ${sapDb}.dbo.ORDR o WITH (NOLOCK)
+                            WHERE o.DocNum IN (${lista})
+                              AND (o.DocStatus = 'C' OR o.CANCELED = 'Y')
+                              AND NOT EXISTS (SELECT 1 FROM ${sapDb}.dbo.DLN1 l WITH (NOLOCK)
+                                              WHERE l.BaseType = 17 AND l.BaseEntry = o.DocEntry)`);
+                        const cerradas = new Map(rows.map(r => [r.DocNum, r.CANCELED === 'Y']));
+                        docs.forEach(d => {
+                            const n = parseInt(d.OV_Number);
+                            if (d.DocType === 'OV' && !d.PaseGenerado && cerradas.has(n)) {
+                                d.CerradaSinPase = 1;
+                                d.CanceladaSAP = cerradas.get(n) ? 1 : 0;
+                            }
+                        });
+                    } catch (e) {
+                        console.error('CerradaSinPase (ORDR) no disponible:', e.message);
+                    }
+                })(),
+                // OC del cliente en PDF, adjuntada en Escalamientos. Se cruza por número de
+                // documento y tipo (OV↔OV, TR↔TR/RESURTIDO). Solo metadatos.
+                (async () => {
+                    try {
+                        const rq = pool.request();
+                        const nums = [...new Set(docs.map(d => String(d.OV_Number || '').trim()).filter(Boolean))];
+                        const inP = nums.map((v, i) => { rq.input('n' + i, sql.NVarChar(50), v); return '@n' + i; }).join(',');
+                        const ar = await rq.query(`
+                            SELECT a.ID_Adjunto, a.Nombre, a.Fecha, LTRIM(RTRIM(e.OV_Number)) AS Doc, e.DocType
+                            FROM dbo.EscalamientoAdjuntos a
+                            JOIN dbo.Escalamientos e ON e.ID_Escalamiento = a.ID_Escalamiento
+                            WHERE LTRIM(RTRIM(e.OV_Number)) IN (${inP})
+                            ORDER BY a.Fecha DESC`);
+                        const tipoEsc = t => (t === 'OV' ? 'OV' : (['TR', 'RESURTIDO'].includes(t) ? 'TR' : null));
+                        docs.forEach(d => {
+                            const k = String(d.OV_Number || '').trim(), t = tipoEsc(d.DocType);
+                            const ocs = ar.recordset.filter(a => a.Doc === k && a.DocType === t)
+                                .map(a => ({ ID: a.ID_Adjunto, Nombre: a.Nombre, Fecha: a.Fecha }));
+                            if (ocs.length) d.OCs = ocs;
+                        });
+                    } catch (e) {
+                        console.error('OC adjuntas (EscalamientoAdjuntos) no disponibles:', e.message);
+                    }
+                })()
+            ]);
 
             // Nombre del cliente (OV) / destino (TR) desde el valor ya persistido en la
             // ingesta (OPM.ClienteNombre). No consulta SAP en runtime. Para TR se antepone
@@ -1025,32 +1135,6 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     ? ('Traslado → ' + nombre)
                     : nombre;
             });
-        }
-        // OC del cliente en PDF, adjuntada en Escalamientos (dbo.EscalamientoAdjuntos), para
-        // imprimirla junto a la factura. Se cruza por número de documento y tipo (OV↔OV,
-        // TR↔TR/RESURTIDO). Solo metadatos; el PDF se baja con /despacho/oc-adjunto/:aid.
-        // Resiliente: si la tabla aún no existe, OCs queda vacío.
-        if (docs.length) {
-            try {
-                const rq = pool.request();
-                const nums = [...new Set(docs.map(d => String(d.OV_Number || '').trim()).filter(Boolean))];
-                const inP = nums.map((v, i) => { rq.input('n' + i, sql.NVarChar(50), v); return '@n' + i; }).join(',');
-                const ar = await rq.query(`
-                    SELECT a.ID_Adjunto, a.Nombre, a.Fecha, LTRIM(RTRIM(e.OV_Number)) AS Doc, e.DocType
-                    FROM dbo.EscalamientoAdjuntos a
-                    JOIN dbo.Escalamientos e ON e.ID_Escalamiento = a.ID_Escalamiento
-                    WHERE LTRIM(RTRIM(e.OV_Number)) IN (${inP})
-                    ORDER BY a.Fecha DESC`);
-                const tipoEsc = t => (t === 'OV' ? 'OV' : (['TR', 'RESURTIDO'].includes(t) ? 'TR' : null));
-                docs.forEach(d => {
-                    const k = String(d.OV_Number || '').trim(), t = tipoEsc(d.DocType);
-                    const ocs = ar.recordset.filter(a => a.Doc === k && a.DocType === t)
-                        .map(a => ({ ID: a.ID_Adjunto, Nombre: a.Nombre, Fecha: a.Fecha }));
-                    if (ocs.length) d.OCs = ocs;
-                });
-            } catch (e) {
-                console.error('OC adjuntas (EscalamientoAdjuntos) no disponibles:', e.message);
-            }
         }
         res.json(docs);
     } catch (err) {
@@ -1154,7 +1238,7 @@ router.get('/despacho/rutas/:id/documentos/:idOrderPicking/productos', async (re
 });
 
 // POST /api/order/despacho/verificar — marcar/desmarcar verificación QC de una línea (producto de un pedido)
-router.post('/despacho/verificar', async (req, res) => {
+router.post('/despacho/verificar', requireAuth, async (req, res) => {
     try {
         const { idOrderPicking, product, verificado } = req.body || {};
         if (!idOrderPicking || product === undefined) {
@@ -1276,7 +1360,7 @@ router.get('/despacho/packing/:idRoutePlan', async (req, res) => {
 // ── Limpiar rutas finalizadas (Order)
 // ══════════════════════════════════════════
 
-router.post('/admin/limpiar-rutas-finalizadas', async (req, res) => {
+router.post('/admin/limpiar-rutas-finalizadas', requireAdmin, async (req, res) => {
     try {
         const pool = getPool();
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const { getPool, sql } = require('../db');
 const { getSapDb, getLisaDb, esOrderMode } = require('../config/paises');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 /*
@@ -200,7 +201,7 @@ router.get('/rutas/:routeNumber/resumen', async (req, res) => {
 
 // ── Iniciar ruta ──
 
-router.post('/rutas/:routeNumber/iniciar', async (req, res) => {
+router.post('/rutas/:routeNumber/iniciar', requireAuth, async (req, res) => {
     try {
         const pool = getPool();
         const { idCarril } = req.body || {};
@@ -264,7 +265,7 @@ router.get('/rutas/:routeNumber/productos/:product/tareas', async (req, res) => 
 
 // ── Asignar operario a un producto ──
 
-router.post('/productos/asignar', async (req, res) => {
+router.post('/productos/asignar', requireAuth, async (req, res) => {
     try {
         const { routeNumber, product, operarioId, pickerId } = req.body;
         const idOperario = operarioId || pickerId; // backward compat
@@ -287,7 +288,7 @@ router.post('/productos/asignar', async (req, res) => {
 
 // ── Cerrar un producto (forzar finalización) ──
 
-router.post('/productos/cerrar', async (req, res) => {
+router.post('/productos/cerrar', requireAuth, async (req, res) => {
     try {
         const { routeNumber, product } = req.body;
         const pool = getPool();
@@ -321,7 +322,7 @@ router.post('/productos/cerrar', async (req, res) => {
 
 // ── Finalizar ruta completa ──
 
-router.post('/rutas/:routeNumber/finalizar', async (req, res) => {
+router.post('/rutas/:routeNumber/finalizar', requireAuth, async (req, res) => {
     try {
         const pool = getPool();
         const rn = req.params.routeNumber;
@@ -359,7 +360,7 @@ router.post('/rutas/:routeNumber/finalizar', async (req, res) => {
 
 // ── Limpiar tareas huérfanas de rutas finalizadas ──
 
-router.post('/admin/limpiar-rutas-finalizadas', async (req, res) => {
+router.post('/admin/limpiar-rutas-finalizadas', requireAdmin, async (req, res) => {
     try {
         const pool = getPool();
 
@@ -581,6 +582,53 @@ router.get('/pickers/:id/resumen', async (req, res) => {
     }
 });
 
+// GET /api/pickers/:id/tareas-productos — las tareas de TODOS los productos del picker en
+// una sola consulta (antes la tablet pedía /producto-tareas una vez por producto en cada
+// refresco). Mismo resultado por producto que /producto-tareas: todas las OV de esa ruta y
+// producto, pendientes primero.
+router.get('/pickers/:id/tareas-productos', async (req, res) => {
+    try {
+        const pool = getPool();
+        const result = await pool.request()
+            .input('pickerId', sql.Int, req.params.id)
+            .query(`
+                ;WITH UniqueTasks AS (
+                    SELECT Route_Number, OV_Number, DocType, InternIdProduct,
+                           MAX(CantidadPendiente) AS CantidadPendiente,
+                           MAX(UltimaActualizacion) AS UltimaActualizacion
+                    FROM RoutePickingTask
+                    WHERE ID_Operario = @pickerId
+                    GROUP BY Route_Number, OV_Number, DocType, InternIdProduct
+                ),
+                -- Mismos productos que lista /pickers/:id/productos (pendientes o terminados hoy)
+                Mios AS (
+                    SELECT Route_Number, InternIdProduct
+                    FROM UniqueTasks
+                    GROUP BY Route_Number, InternIdProduct
+                    HAVING SUM(CantidadPendiente) > 0
+                       OR (SUM(CantidadPendiente) = 0 AND CAST(MAX(UltimaActualizacion) AS DATE) = CAST(GETDATE() AS DATE))
+                )
+                SELECT t.Route_Number AS RouteNumber, t.InternIdProduct AS Product,
+                       MIN(t.ID_Task) AS ID_Task, t.OV_Number, t.DocType,
+                       MAX(t.Descripcion) AS Descripcion,
+                       MAX(t.Cantidad) AS Cantidad,
+                       MAX(t.CantidadPendiente) AS CantidadPendiente,
+                       MAX(t.UnitWeight) AS UnitWeight,
+                       CASE WHEN MAX(t.CantidadPendiente) = 0 THEN 'Finalizado' ELSE MAX(t.Estado) END AS Estado
+                FROM RoutePickingTask t
+                JOIN Mios m ON m.Route_Number = t.Route_Number AND m.InternIdProduct = t.InternIdProduct
+                GROUP BY t.Route_Number, t.InternIdProduct, t.OV_Number, t.DocType
+                ORDER BY t.Route_Number, t.InternIdProduct,
+                    CASE WHEN MAX(t.CantidadPendiente) = 0 THEN 1 ELSE 0 END,
+                    t.OV_Number
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('GET /api/pickers/:id/tareas-productos error:', err);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
 router.get('/pickers/:id/producto-tareas', async (req, res) => {
     try {
         const { routeNumber, product } = req.query;
@@ -658,7 +706,7 @@ router.get('/priorizacion/rutas', async (req, res) => {
     }
 });
 
-router.post('/priorizacion/guardar', async (req, res) => {
+router.post('/priorizacion/guardar', requireAuth, async (req, res) => {
     try {
         const { orden } = req.body;
         if (!Array.isArray(orden)) {
@@ -733,7 +781,7 @@ router.get('/despacho/rutas', async (req, res) => {
     }
 });
 
-router.post('/despacho/estado', async (req, res) => {
+router.post('/despacho/estado', requireAuth, async (req, res) => {
     try {
         const { routeNumber, estado } = req.body;
         if (!routeNumber || !estado) {
@@ -857,7 +905,7 @@ router.get('/despacho/rutas/:routeNumber/documentos/:ovNumber/productos', async 
 });
 
 // POST /api/despacho/verificar — QC de una línea (producto de una OV en una ruta), modo producto
-router.post('/despacho/verificar', async (req, res) => {
+router.post('/despacho/verificar', requireAuth, async (req, res) => {
     try {
         const { routeNumber, ovNumber, product, verificado } = req.body || {};
         if (!routeNumber || !ovNumber || product === undefined) {

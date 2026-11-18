@@ -304,11 +304,26 @@
                     return;
                 }
 
-                const tareasPromises = productos.map(p =>
-                    fetch(`/api/pickers/${selectedPicker.id}/producto-tareas?routeNumber=${p.RouteNumber}&product=${encodeURIComponent(p.Product)}`)
-                        .then(r => r.json())
-                );
-                const allTareas = await Promise.all(tareasPromises);
+                // Una sola consulta con las tareas de todos los productos; si el servidor aún
+                // no la tiene, se usa la forma anterior (una por producto).
+                let allTareas;
+                try {
+                    const r = await fetch(`/api/pickers/${selectedPicker.id}/tareas-productos`);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const filas = await r.json();
+                    const porProducto = new Map();
+                    filas.forEach(t => {
+                        const k = t.RouteNumber + '|' + t.Product;
+                        if (!porProducto.has(k)) porProducto.set(k, []);
+                        porProducto.get(k).push(t);
+                    });
+                    allTareas = productos.map(p => porProducto.get(p.RouteNumber + '|' + p.Product) || []);
+                } catch (e) {
+                    allTareas = await Promise.all(productos.map(p =>
+                        fetch(`/api/pickers/${selectedPicker.id}/producto-tareas?routeNumber=${p.RouteNumber}&product=${encodeURIComponent(p.Product)}`)
+                            .then(r => r.json())
+                    ));
+                }
 
                 document.getElementById('productosMobileList').innerHTML = productos.map((p, idx) => {
                     const tareas = allTareas[idx];
@@ -400,11 +415,25 @@
                     return;
                 }
 
-                // Load tareas for each pedido
-                const tareasPromises = pedidos.map(p =>
-                    fetch(`/api/order/pedidos/${p.ID_OrderPicking}/tareas?operarioId=${selectedPicker.id}`).then(r => r.json())
-                );
-                const allTareas = await Promise.all(tareasPromises);
+                // Líneas de todos los pedidos en una sola consulta; si el servidor aún no la
+                // tiene, se usa la forma anterior (una por pedido).
+                let allTareas;
+                try {
+                    const ids = pedidos.map(p => p.ID_OrderPicking).join(',');
+                    const r = await fetch(`/api/order/pickers/${selectedPicker.id}/tareas?ids=${ids}`);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const filas = await r.json();
+                    const porPedido = new Map();
+                    filas.forEach(t => {
+                        if (!porPedido.has(t.ID_OrderPicking)) porPedido.set(t.ID_OrderPicking, []);
+                        porPedido.get(t.ID_OrderPicking).push(t);
+                    });
+                    allTareas = pedidos.map(p => porPedido.get(p.ID_OrderPicking) || []);
+                } catch (e) {
+                    allTareas = await Promise.all(pedidos.map(p =>
+                        fetch(`/api/order/pedidos/${p.ID_OrderPicking}/tareas?operarioId=${selectedPicker.id}`).then(r => r.json())
+                    ));
+                }
 
                 document.getElementById('productosMobileList').innerHTML = pedidos.map((p, idx) => {
                     const tareas = allTareas[idx];

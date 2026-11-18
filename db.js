@@ -11,6 +11,10 @@ const config = {
         trustServerCertificate: true,
         useUTC: false
     },
+    // Tiempo máximo por consulta (antes, el de por defecto del driver: 15 s). Las consultas
+    // por linked server a SAP/Lisa pueden pasar de 15 s en horas pico; los jobs largos usan
+    // getJobPool (10 min).
+    requestTimeout: 30000,
     pool: {
         max: 20,
         min: 2,

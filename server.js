@@ -238,14 +238,30 @@ app.get('/wms/integracion', requireAuthPage, requireCentro, requirePermisoPage('
     res.sendFile(path.join(__dirname, 'public', 'wms', 'integracion.html'));
 });
 
+// Envuelve un tick periódico para que no se encime con la corrida anterior si esta
+// tarda más que el intervalo (p. ej. el linked server lento): se salta ese ciclo.
+function sinSolapar(fn) {
+    let corriendo = false;
+    return async () => {
+        if (corriendo) return;
+        corriendo = true;
+        try { await fn(); } finally { corriendo = false; }
+    };
+}
+
+// Promesas rechazadas sin manejar: se registran (antes podían pasar sin rastro).
+process.on('unhandledRejection', (reason) => {
+    console.error('AVISO: promesa rechazada sin manejar:', reason && reason.stack ? reason.stack : reason);
+});
+
 // Reconciliador de ediciones de cuadro (Fase 3): cuando el robot/PA marcan una
 // edición como 'confirmado' en SAP, limpia los flags *Pendiente* y cierra la fila.
 // Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a SAP.
 function startCuadroSyncReconciler() {
-    const tick = async () => {
+    const tick = sinSolapar(async () => {
         try { await db.getPool().request().execute('SP_ReconcileCuadroEdiciones'); }
         catch (err) { console.error('AVISO: reconciliador de ediciones de cuadro falló este ciclo:', err.message); }
-    };
+    });
     setInterval(tick, 60 * 1000);
     tick();
 }
@@ -254,10 +270,10 @@ function startCuadroSyncReconciler() {
 // Lee el log de picking de Lisa y persiste el enlace OV↔Licencia en DespachoBulto.
 // Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a Lisa/SAP.
 function startBultoCapture() {
-    const tick = async () => {
+    const tick = sinSolapar(async () => {
         try { await db.getPool().request().execute('SP_CaptureBultosEscuintla'); }
         catch (err) { console.error('AVISO: captura de bultos falló este ciclo:', err.message); }
-    };
+    });
     setInterval(tick, 120 * 1000);
     tick();
 }
@@ -289,10 +305,10 @@ function startBacklogSnapshot() {
 // entra al final (FIFO) y la cola se mantiene 1..N. Ver SP_NormalizePrioridadDespacho.
 // Blindado: cualquier fallo se loguea y no afecta al resto. NO escribe a SAP/Lisa.
 function startPrioridadDespacho() {
-    const tick = async () => {
+    const tick = sinSolapar(async () => {
         try { await db.getPool().request().input('ID_Centro', db.sql.Int, 3).execute('SP_NormalizePrioridadDespacho'); }
         catch (err) { console.error('AVISO: cola de prioridad de despacho falló este ciclo:', err.message); }
-    };
+    });
     setInterval(tick, 30 * 1000);
     tick();
 }
