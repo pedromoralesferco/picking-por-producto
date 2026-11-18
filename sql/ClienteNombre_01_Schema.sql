@@ -24,12 +24,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.OrderP
     ALTER TABLE dbo.OrderPickingManagement ADD Telefono NVARCHAR(30) NULL;
 GO
 
--- 2) SP centralizado: llena ClienteNombre de los pedidos de un cuadro (solo los NULL).
+-- 2) Lectura DIRECTA (versión anterior, sin cambios): UPDATE ... JOIN de 4 partes.
+--    Queda como respaldo de SP_FillClienteNombre si la lectura OPENQUERY falla.
 --    Best-effort: si el linked server a SAP falla, no rompe la ingesta.
-IF OBJECT_ID('dbo.SP_FillClienteNombre') IS NOT NULL
-    DROP PROCEDURE dbo.SP_FillClienteNombre;
+IF OBJECT_ID('dbo.SP_FillClienteNombre_Directo') IS NOT NULL
+    DROP PROCEDURE dbo.SP_FillClienteNombre_Directo;
 GO
-CREATE PROCEDURE [dbo].[SP_FillClienteNombre]
+CREATE PROCEDURE [dbo].[SP_FillClienteNombre_Directo]
     @ID_RoutePlan INT
 AS
 BEGIN
@@ -115,4 +116,91 @@ BEGIN
     END CATCH
 END;
 GO
-PRINT 'ClienteNombre: columnas (ClienteNombre, Telefono) + IX_OPM_Cliente + SP_FillClienteNombre OK';
+
+-- 3) SP centralizado (lo llaman SP_AddOrderRouteTasks, SP_AddDocToCuadroApp y
+--    SP_ReimportOrderRouteLines al ingresar un cuadro): nombre del cliente (OV),
+--    destino (TR/RESURTIDO) y teléfono (ORDR.U_Celular) de los pedidos del cuadro,
+--    solo los que están en NULL.
+--    UNA lectura a SAP por tipo de documento, filtrada en SAP por OPENQUERY
+--    (DocNum IN (...)), en vez de tres UPDATE ... JOIN que traían ORDR completa.
+--    Si algo falla, usa la lectura directa anterior (SP_FillClienteNombre_Directo).
+IF OBJECT_ID('dbo.SP_FillClienteNombre') IS NOT NULL
+    DROP PROCEDURE dbo.SP_FillClienteNombre;
+GO
+CREATE PROCEDURE [dbo].[SP_FillClienteNombre]
+    @ID_RoutePlan INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @Pais NVARCHAR(10);
+    SELECT @Pais = Pais FROM dbo.OrderRoutePlan WHERE ID_RoutePlan = @ID_RoutePlan;
+    IF @Pais IS NULL RETURN;
+    DECLARE @db SYSNAME = CASE @Pais WHEN 'GT' THEN 'sboferco' WHEN 'SV' THEN 'sbointergres' WHEN 'HN' THEN 'sbopym' END;
+    IF @db IS NULL RETURN;
+
+    BEGIN TRY
+        CREATE TABLE #ov (DocNum INT, Cliente NVARCHAR(150) COLLATE DATABASE_DEFAULT, Celular NVARCHAR(30) COLLATE DATABASE_DEFAULT);
+        CREATE TABLE #tr (DocNum INT, Destino NVARCHAR(150) COLLATE DATABASE_DEFAULT);
+        DECLARE @lista NVARCHAR(MAX), @sql NVARCHAR(MAX);
+
+        -- OV a las que les falta nombre o teléfono
+        SELECT @lista = STUFF((
+            SELECT DISTINCT ',' + CAST(TRY_CAST(OV_Number AS INT) AS VARCHAR(12))
+            FROM dbo.OrderPickingManagement
+            WHERE ID_RoutePlan = @ID_RoutePlan AND DocType = 'OV' AND TRY_CAST(OV_Number AS INT) IS NOT NULL
+              AND (ClienteNombre IS NULL OR Telefono IS NULL)
+            FOR XML PATH('')), 1, 1, '');
+        IF @lista IS NOT NULL
+        BEGIN
+            IF LEN(@lista) > 7000 RAISERROR('Demasiados documentos para una sola consulta', 16, 1);
+            SET @sql = N'INSERT INTO #ov (DocNum, Cliente, Celular) SELECT * FROM OPENQUERY([server-sql], '''
+                     + N'SELECT o.DocNum, LEFT(c.CardName, 150) AS Cliente, LTRIM(RTRIM(o.U_Celular)) AS Celular '
+                     + N'FROM ' + @db + N'.dbo.ORDR o WITH (NOLOCK) '
+                     + N'LEFT JOIN ' + @db + N'.dbo.OCRD c WITH (NOLOCK) ON c.CardCode = o.CardCode '
+                     + N'WHERE o.DocNum IN (' + @lista + N')'')';
+            EXEC (@sql);
+        END
+
+        -- TR/RESURTIDO a los que les falta el destino
+        SELECT @lista = NULL;
+        SELECT @lista = STUFF((
+            SELECT DISTINCT ',' + CAST(TRY_CAST(OV_Number AS INT) AS VARCHAR(12))
+            FROM dbo.OrderPickingManagement
+            WHERE ID_RoutePlan = @ID_RoutePlan AND DocType IN ('TR', 'RESURTIDO') AND TRY_CAST(OV_Number AS INT) IS NOT NULL
+              AND ClienteNombre IS NULL
+            FOR XML PATH('')), 1, 1, '');
+        IF @lista IS NOT NULL
+        BEGIN
+            IF LEN(@lista) > 7000 RAISERROR('Demasiados documentos para una sola consulta', 16, 1);
+            SET @sql = N'INSERT INTO #tr (DocNum, Destino) SELECT * FROM OPENQUERY([server-sql], '''
+                     + N'SELECT q.DocNum, LEFT(ISNULL(w.WhsName, q.ToWhsCode), 150) AS Destino '
+                     + N'FROM ' + @db + N'.dbo.OWTQ q WITH (NOLOCK) '
+                     + N'LEFT JOIN ' + @db + N'.dbo.OWHS w WITH (NOLOCK) ON w.WhsCode = q.ToWhsCode '
+                     + N'WHERE q.DocNum IN (' + @lista + N')'')';
+            EXEC (@sql);
+        END
+
+        UPDATE opm SET opm.ClienteNombre = o.Cliente
+        FROM dbo.OrderPickingManagement opm
+        JOIN #ov o ON o.DocNum = TRY_CAST(opm.OV_Number AS INT)
+        WHERE opm.ID_RoutePlan = @ID_RoutePlan AND opm.DocType = 'OV' AND opm.ClienteNombre IS NULL;
+
+        -- Teléfono: SIEMPRE el campo "Celular" de la OV; se ignoran valores de menos de 8 caracteres.
+        UPDATE opm SET opm.Telefono = o.Celular
+        FROM dbo.OrderPickingManagement opm
+        JOIN #ov o ON o.DocNum = TRY_CAST(opm.OV_Number AS INT)
+        WHERE opm.ID_RoutePlan = @ID_RoutePlan AND opm.DocType = 'OV' AND opm.Telefono IS NULL
+          AND LEN(ISNULL(o.Celular, '')) >= 8;
+
+        UPDATE opm SET opm.ClienteNombre = t.Destino
+        FROM dbo.OrderPickingManagement opm
+        JOIN #tr t ON t.DocNum = TRY_CAST(opm.OV_Number AS INT)
+        WHERE opm.ID_RoutePlan = @ID_RoutePlan AND opm.DocType IN ('TR', 'RESURTIDO') AND opm.ClienteNombre IS NULL;
+    END TRY
+    BEGIN CATCH
+        PRINT 'SP_FillClienteNombre: lectura OPENQUERY fallida, se usa la directa: ' + ERROR_MESSAGE();
+        EXEC dbo.SP_FillClienteNombre_Directo @ID_RoutePlan;
+    END CATCH
+END;
+GO
+PRINT 'ClienteNombre: columnas (ClienteNombre, Telefono) + IX_OPM_Cliente + SP_FillClienteNombre (+ _Directo) OK';
