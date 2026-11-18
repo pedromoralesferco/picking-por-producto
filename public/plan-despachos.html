@@ -104,6 +104,32 @@
         .detalle-box thead th { background: #555; }
         .loading, .empty { text-align: center; color: #999; padding: 2.5rem; }
 
+        /* Confirmación de entregas con el cliente */
+        .detalle-box tr.conf-si td { background: #e3f3e4; }
+        .detalle-box tr.conf-no td { background: #fbe3e3; }
+        .tel { white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .conf-cell { white-space: nowrap; }
+        .conf-btn { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 0.15rem 0.5rem;
+            font-size: 0.72rem; font-weight: 700; cursor: pointer; color: #555; }
+        .conf-btn.si:hover { border-color: var(--success); color: var(--success); }
+        .conf-btn.no:hover { border-color: var(--red); color: var(--red); }
+        .conf-btn + .conf-btn { margin-left: 0.25rem; }
+        .conf-tag { font-weight: 700; font-size: 0.72rem; }
+        .conf-tag.si { color: var(--success); } .conf-tag.no { color: var(--red); }
+        .conf-x { border: none; background: none; color: #999; cursor: pointer; font-size: 0.8rem; margin-left: 0.3rem; }
+        .conf-x:hover { color: var(--dark); }
+        .conf-pop { position: absolute; z-index: 3000; background: #fff; border: 1px solid #ddd; border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 0.7rem; width: 250px; font-size: 0.78rem; }
+        .conf-pop label { display: block; font-size: 0.66rem; font-weight: 700; color: #888; text-transform: uppercase; margin: 0.35rem 0 0.15rem; }
+        .conf-pop input { width: 100%; border: 1px solid #ccc; border-radius: 6px; padding: 0.3rem 0.4rem; font-size: 0.8rem; font-family: inherit; }
+        .conf-pop .acc { display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.6rem; }
+        .conf-pop .acc button { border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; border: 1px solid #ccc; background: #fff; }
+        .conf-pop .acc button.ok { background: var(--red); border-color: var(--red); color: #fff; }
+        .conf-chip { display: inline-block; margin-left: 0.35rem; font-size: 0.62rem; font-weight: 700; border-radius: 10px;
+            padding: 0.05rem 0.4rem; background: #eee; color: #666; vertical-align: middle; white-space: nowrap; }
+        .conf-chip .s { color: var(--success); } .conf-chip .n { color: var(--red); }
+        .conf-chip.ok { background: #e3f3e4; } .conf-chip.alerta { background: #fbe3e3; }
+
         .print-only { display: none; }
 
         /* Buscador */
@@ -327,6 +353,12 @@
                 ? `<input type="date" class="fp-input" value="${fISO}" onclick="event.stopPropagation()" onchange="setFechaPlan(${c.ID_RoutePlan}, this.value)">`
                 : (fISO ? esc(new Date(fISO + 'T00:00:00').toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' })) : '—');
         }
+        // Resumen de confirmación de entregas en la fila del cuadro: ✓ confirmadas / total OV · ✗ no pueden
+        function confChip(c) {
+            const k = c.Confirmacion; if (!k || !k.tot) return '';
+            const cls = k.no > 0 ? 'alerta' : (k.si === k.tot ? 'ok' : '');
+            return `<span class="conf-chip ${cls}" title="Confirmación con clientes: ${k.si} de ${k.tot} OV confirmadas${k.no ? ', ' + k.no + ' no pueden recibir' : ''}"><span class="s">✓${k.si}/${k.tot}</span>${k.no ? ' · <span class="n">✗' + k.no + '</span>' : ''}</span>`;
+        }
         function filaCuadro(c, acum, tonHtml, oculto, fechaEditable, prioDesp) {
             const done = c.EstadoPicking === 'Finalizado';
             const isOpen = openRows.has(c.Cuadro);
@@ -339,7 +371,7 @@
                 <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     ${fechaTd}
                     ${prioDesp ? `<td class="c" onclick="event.stopPropagation()">${prioDespachoCell(c, !!DATA.puedePriorizar)}</td>` : `<td class="c"><span class="prio-badge ${c.Prioridad == null ? 'none' : ''}">${c.Prioridad ?? '–'}</span></td>`}
-                    <td class="cuadro-num">${esc(c.Cuadro)}</td>
+                    <td class="cuadro-num">${esc(c.Cuadro)}${confChip(c)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
                     <td class="r">${tonCell}</td>
                     <td class="r acum">${fmtTon(acum)}</td>
@@ -484,7 +516,7 @@
                 <tr class="cuadro-row ${comp ? 'comprometida' : ''}"${hideStyle} id="row-cuadro-${c.Cuadro}" onclick="toggleDetalle(${c.Cuadro}, ${c.ID_RoutePlan})">
                     <td onclick="event.stopPropagation()">${fechaCell}</td>
                     <td class="c">${prioCell}</td>
-                    <td class="cuadro-num">${esc(c.Cuadro)}</td>
+                    <td class="cuadro-num">${esc(c.Cuadro)}${confChip(c)}</td>
                     <td class="ruta-name">${esc(c.Ruta || '')}</td>
                     <td class="c comp-col" onclick="event.stopPropagation()">${compTagHtml(c, puede)}</td>
                     <td class="r"><b>${fmtTon(pendKg / 1000)}</b> <span style="color:#999">/ ${fmtTon(totKg / 1000)}</span></td>
@@ -565,26 +597,92 @@
                 const url = DATA.modo === 'order'
                     ? '/api/order/despacho/rutas/' + idRoutePlan + '/documentos'
                     : '/api/despacho/rutas/' + cuadro + '/documentos';
-                const docs = await (await fetch(url)).json();
+                // Modo pedido: teléfono + confirmación de entrega en paralelo. Si falla,
+                // el detalle se muestra igual sin esas dos columnas.
+                const esOrder = DATA.modo === 'order' && idRoutePlan;
+                const [docs, conf] = await Promise.all([
+                    fetch(url).then(r => r.json()),
+                    esOrder ? fetch('/api/reportes/plan-despachos/confirmaciones/' + idRoutePlan).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null)
+                ]);
                 if (!docs.length) { box.innerHTML = '<div style="color:#999;font-size:0.75rem;padding:0.3rem">Sin documentos.</div>'; return; }
+                const confMap = new Map();
+                if (conf && Array.isArray(conf.docs)) conf.docs.forEach(x => confMap.set(x.DocType + '|' + x.OV_Number, x));
+                confEditable[idRoutePlan] = !!(conf && conf.editable);
+                const conCols = !!conf;
+                const cf = d => confMap.get((d.DocType || '') + '|' + String(d.OV_Number || '').trim()) || {};
                 box.innerHTML = `
                     <table><thead><tr>
-                        <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th><th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Operario</th><th>Estado</th>
+                        <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th>${conCols ? '<th>Teléfono</th>' : ''}<th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Operario</th><th>Estado</th>${conCols ? '<th>Confirmación</th>' : ''}
                     </tr></thead><tbody>
-                    ${docs.map(d => `<tr${d.NoDespachada ? ' style="color:#8a6d3b"' : ''}>
+                    ${docs.map(d => `<tr${d.NoDespachada ? ' style="color:#8a6d3b"' : ''}${conCols && !d.NoDespachada && cf(d).Estado ? ` class="conf-${cf(d).Estado === 'Si' ? 'si' : 'no'}"` : ''}>
                         <td><b>${esc(d.OV_Number)}</b></td>
                         <td>${esc(d.DocType || '')}</td>
                         <td>${esc(d.Cliente || '—')}</td>
+                        ${conCols ? `<td class="tel">${d.DocType === 'OV' ? esc(cf(d).Telefono || '—') : ''}</td>` : ''}
                         <td class="r">${num(d.TotalLineas ?? d.TotalProductos ?? '')}</td>
                         <td class="r">${num(d.TotalUnidades ?? '')}</td>
                         <td class="r">${d.NoDespachada ? '—' : num(Math.round(d.PesoTotal || 0))}</td>
                         <td>${esc(d.OperarioNombre || '—')}</td>
                         <td>${d.NoDespachada ? 'No despachada' : esc(d.Estado || '')}</td>
+                        ${conCols ? `<td class="conf-cell" onclick="event.stopPropagation()">${confCell(cuadro, idRoutePlan, d, cf(d))}</td>` : ''}
                     </tr>`).join('')}
                     </tbody></table>`;
             } catch (e) {
                 box.innerHTML = '<div style="color:#c62828;font-size:0.75rem;padding:0.3rem">Error al cargar documentos.</div>';
             }
+        }
+
+        // ── Confirmación de entregas ──
+        const confEditable = {};
+        let confPop = null; // popover abierto (pausa el auto-refresh para no borrarlo)
+        function fdm(iso) { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return d + '/' + m + '/' + y; }
+        function confCell(cuadro, idRoutePlan, d, x) {
+            if (d.DocType !== 'OV' || d.NoDespachada) return '';
+            const ed = !!confEditable[idRoutePlan];
+            const ov = esc(String(d.OV_Number).trim());
+            const quien = x.Usuario ? `${x.Usuario} · ${new Date(x.Fecha).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '';
+            const quitar = ed ? `<button class="conf-x" title="Quitar la marca" onclick="setConfirmacion(${cuadro}, ${idRoutePlan}, '${ov}', null)"><i class="bi bi-x-circle"></i></button>` : '';
+            if (x.Estado === 'Si') return `<span class="conf-tag si" title="${esc(quien)}"><i class="bi bi-check-circle-fill"></i> Recibe</span>${quitar}`;
+            if (x.Estado === 'No') return `<span class="conf-tag no" title="${esc((x.Comentario ? x.Comentario + ' — ' : '') + quien)}"><i class="bi bi-x-circle-fill"></i> Recibe el ${fdm(x.FechaRecepcion)}${x.Comentario ? ' <i class="bi bi-chat-left-text"></i>' : ''}</span>${quitar}`;
+            if (!ed) return '<span style="color:#aaa">—</span>';
+            return `<button class="conf-btn si" title="El cliente sí puede recibir" onclick="setConfirmacion(${cuadro}, ${idRoutePlan}, '${ov}', 'Si')"><i class="bi bi-check-lg"></i> Sí</button><button class="conf-btn no" title="El cliente no puede recibir: indicar fecha" onclick="abrirConfNo(event, ${cuadro}, ${idRoutePlan}, '${ov}')"><i class="bi bi-x-lg"></i> No</button>`;
+        }
+        function cerrarConfPop() { if (confPop) { confPop.remove(); confPop = null; } }
+        function abrirConfNo(ev, cuadro, idRoutePlan, ov) {
+            cerrarConfPop();
+            const p = document.createElement('div');
+            p.className = 'conf-pop';
+            p.innerHTML = `<div style="font-weight:800">OV ${esc(ov)} — no puede recibir</div>
+                <label>¿Qué fecha sí puede recibir?</label><input type="date" id="confFecha" min="${hoyISO()}">
+                <label>Comentario (opcional)</label><input type="text" id="confCom" maxlength="500" placeholder="Ej: solo por la tarde">
+                <div class="acc"><button onclick="cerrarConfPop()">Cancelar</button><button class="ok" id="confOk">Guardar</button></div>`;
+            p.addEventListener('click', e => e.stopPropagation());
+            document.body.appendChild(p);
+            confPop = p;
+            const r = ev.currentTarget.getBoundingClientRect();
+            p.style.left = Math.max(8, Math.min(window.scrollX + r.right - p.offsetWidth, window.scrollX + document.documentElement.clientWidth - p.offsetWidth - 8)) + 'px';
+            p.style.top = (window.scrollY + r.bottom + 4) + 'px';
+            document.getElementById('confFecha').focus();
+            document.getElementById('confOk').onclick = () => {
+                const f = document.getElementById('confFecha').value;
+                if (!f) { alert('Indicá la fecha en que el cliente sí puede recibir.'); return; }
+                if (f < hoyISO()) { alert('La fecha no puede ser anterior a hoy.'); return; }
+                setConfirmacion(cuadro, idRoutePlan, ov, 'No', f, document.getElementById('confCom').value);
+            };
+        }
+        document.addEventListener('click', cerrarConfPop);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarConfPop(); });
+        async function setConfirmacion(cuadro, idRoutePlan, ov, estado, fecha, comentario) {
+            try {
+                const r = await fetch('/api/reportes/plan-despachos/confirmacion', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_routePlan: idRoutePlan, ov, estado, fecha: fecha || null, comentario: comentario || null })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { alert(d.error || 'No se pudo guardar'); return; }
+                cerrarConfPop();
+                load(); // refresca el resumen del cuadro y el detalle abierto
+            } catch (e) { alert('Error de conexión'); }
         }
 
         // Imprimir: carga la sección 3 (detalle de documentos por cuadro) y luego imprime
@@ -799,7 +897,7 @@
         }
 
         // Auto-refresh (no pisa la vista/orden ni los detalles abiertos)
-        setInterval(load, 45000);
+        setInterval(() => { if (!confPop) load(); }, 45000);
         load();
     </script>
 </body>

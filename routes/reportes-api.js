@@ -195,6 +195,24 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
             });
         }
 
+        // Resumen de confirmación de entregas por cuadro (solo OV, modo pedido).
+        // Consulta aparte: si la tabla aún no existe, el tablero sigue igual.
+        if (modo === 'order' && cuadros.length > 0) {
+            try {
+                const cr = await pool.request().input('centro', sql.Int, centro).query(`
+                    SELECT opm.ID_RoutePlan, COUNT(*) AS Tot,
+                           SUM(CASE WHEN ce.Estado = 'Si' THEN 1 ELSE 0 END) AS Si,
+                           SUM(CASE WHEN ce.Estado = 'No' THEN 1 ELSE 0 END) AS No
+                    FROM OrderPickingManagement opm
+                    LEFT JOIN dbo.ConfirmacionEntrega ce
+                           ON ce.ID_RoutePlan = opm.ID_RoutePlan AND ce.OV_Number = LTRIM(RTRIM(opm.OV_Number))
+                    WHERE opm.ID_Centro = @centro AND opm.DocType = 'OV' AND opm.NoDespachada = 0
+                    GROUP BY opm.ID_RoutePlan`);
+                const cm = {}; cr.recordset.forEach(r => { cm[r.ID_RoutePlan] = r; });
+                cuadros.forEach(c => { const x = cm[c.ID_RoutePlan]; if (x) c.Confirmacion = { tot: x.Tot, si: x.Si, no: x.No }; });
+            } catch (e) { console.error('Resumen confirmación de entregas no disponible:', e.message); }
+        }
+
         // Transporte (solo si el usuario puede ver la vista operativa)
         if (verOperativo && cuadros.length > 0) {
             const transp = await getTransporteSAP(pool, pais, cuadros.map(c => c.Cuadro));
@@ -699,6 +717,92 @@ router.post('/plan-despachos/prioridad-despacho', requirePriorizar, async (req, 
         try { await tx.rollback(); } catch { /* ya revertida */ }
         console.error('POST /api/reportes/plan-despachos/prioridad-despacho error:', err);
         res.status(500).json({ error: 'Error al guardar la prioridad de despacho' });
+    }
+});
+
+// ── Confirmación de entregas con el cliente (modo pedido) ──
+// Teléfono = OPM.Telefono (ORDR.U_Celular, persistido en la ingesta). Estado por OV
+// dentro del cuadro: 'Si' (recibe) / 'No' (+ fecha en que sí puede recibir) / sin fila.
+
+// Cuadro del centro seleccionado (o null)
+async function rutaDelCentro(pool, idRoutePlan, centro) {
+    const r = await pool.request().input('id', sql.Int, idRoutePlan).input('centro', sql.Int, centro)
+        .query(`SELECT ID_RoutePlan, EstadoDespacho FROM OrderRoutePlan WHERE ID_RoutePlan = @id AND ID_Centro = @centro`);
+    return r.recordset[0] || null;
+}
+
+// GET /api/reportes/plan-despachos/confirmaciones/:idRoutePlan
+router.get('/plan-despachos/confirmaciones/:idRoutePlan', requireReportes, async (req, res) => {
+    try {
+        const id = parseInt(req.params.idRoutePlan);
+        if (!id) return res.status(400).json({ error: 'Cuadro inválido' });
+        const pool = getPool();
+        const ruta = await rutaDelCentro(pool, id, req.session.user.selectedCentro);
+        if (!ruta) return res.status(404).json({ error: 'Cuadro no encontrado en este centro' });
+        const r = await pool.request().input('id', sql.Int, id).query(`
+            SELECT LTRIM(RTRIM(opm.OV_Number)) AS OV_Number, opm.DocType, opm.Telefono,
+                   ce.Estado, CONVERT(varchar(10), ce.FechaRecepcion, 23) AS FechaRecepcion,
+                   ce.Comentario, ce.Usuario, ce.Fecha
+            FROM OrderPickingManagement opm
+            LEFT JOIN dbo.ConfirmacionEntrega ce
+                   ON ce.ID_RoutePlan = opm.ID_RoutePlan AND ce.OV_Number = LTRIM(RTRIM(opm.OV_Number))
+            WHERE opm.ID_RoutePlan = @id`);
+        res.json({ editable: ruta.EstadoDespacho !== 'Finalizado', docs: r.recordset });
+    } catch (err) {
+        console.error('GET confirmaciones', err);
+        res.status(500).json({ error: 'Error al cargar confirmaciones' });
+    }
+});
+
+// POST /api/reportes/plan-despachos/confirmacion
+// { id_routePlan, ov, estado: 'Si' | 'No' | null, fecha (YYYY-MM-DD, requerida si 'No'), comentario }
+router.post('/plan-despachos/confirmacion', requireReportes, async (req, res) => {
+    try {
+        const id = parseInt(req.body.id_routePlan);
+        const ov = String(req.body.ov || '').trim();
+        const estado = req.body.estado == null || req.body.estado === '' ? null : String(req.body.estado);
+        if (!id || !ov) return res.status(400).json({ error: 'Cuadro y OV requeridos' });
+        if (estado !== null && estado !== 'Si' && estado !== 'No') return res.status(400).json({ error: 'Estado inválido' });
+        let fecha = null;
+        if (estado === 'No') {
+            fecha = String(req.body.fecha || '').trim().slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'Indicá la fecha en que el cliente sí puede recibir' });
+        }
+        const comentario = estado === 'No' ? (String(req.body.comentario || '').trim().slice(0, 500) || null) : null;
+        const pool = getPool();
+        const ruta = await rutaDelCentro(pool, id, req.session.user.selectedCentro);
+        if (!ruta) return res.status(404).json({ error: 'Cuadro no encontrado en este centro' });
+        if (ruta.EstadoDespacho === 'Finalizado') return res.status(409).json({ error: 'El cuadro ya fue despachado' });
+        const doc = await pool.request().input('id', sql.Int, id).input('ov', sql.NVarChar(50), ov).query(`
+            SELECT 1 AS ok FROM OrderPickingManagement
+            WHERE ID_RoutePlan = @id AND LTRIM(RTRIM(OV_Number)) = @ov AND DocType = 'OV' AND NoDespachada = 0`);
+        if (!doc.recordset.length) return res.status(404).json({ error: 'La OV no está en este cuadro' });
+        if (estado === 'No') {
+            const hoy = await pool.request().input('f', sql.VarChar(10), fecha)
+                .query(`SELECT CASE WHEN CONVERT(date, @f, 23) >= CAST(GETDATE() AS date) THEN 1 ELSE 0 END AS ok`);
+            if (!hoy.recordset[0].ok) return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy' });
+        }
+        const u = req.session.user;
+        const usuario = (u && (u.nombre || u.usuario)) || 'Sistema';
+        const rq = pool.request().input('id', sql.Int, id).input('ov', sql.NVarChar(50), ov);
+        if (estado === null) {
+            await rq.query(`DELETE FROM dbo.ConfirmacionEntrega WHERE ID_RoutePlan = @id AND OV_Number = @ov`);
+        } else {
+            // Fecha como texto + CONVERT estilo 23 (con sql.Date el driver resta un día)
+            await rq.input('e', sql.NVarChar(10), estado).input('f', sql.VarChar(10), fecha)
+                .input('c', sql.NVarChar(500), comentario).input('u', sql.NVarChar(100), usuario)
+                .query(`
+                    UPDATE dbo.ConfirmacionEntrega
+                       SET Estado = @e, FechaRecepcion = CONVERT(date, @f, 23), Comentario = @c, Usuario = @u, Fecha = GETDATE()
+                     WHERE ID_RoutePlan = @id AND OV_Number = @ov;
+                    IF @@ROWCOUNT = 0
+                        INSERT INTO dbo.ConfirmacionEntrega (ID_RoutePlan, OV_Number, Estado, FechaRecepcion, Comentario, Usuario)
+                        VALUES (@id, @ov, @e, CONVERT(date, @f, 23), @c, @u);`);
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('POST confirmacion', err);
+        res.status(500).json({ error: 'Error al guardar la confirmación' });
     }
 });
 
