@@ -111,9 +111,12 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                 FROM prod GROUP BY RouteNumber
             `);
             const pPed = pool.request().input('centro', sql.Int, centro).query(`
-                SELECT RouteNumber, COUNT(*) AS PedidosTot,
-                       SUM(CASE WHEN Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFin
-                FROM OrderPickingManagement WHERE ID_Centro = @centro AND NoDespachada = 0
+                SELECT RouteNumber,
+                       SUM(CASE WHEN NoDespachada = 0 THEN 1 ELSE 0 END) AS PedidosTot,
+                       SUM(CASE WHEN NoDespachada = 0 AND Estado = 'Finalizado' THEN 1 ELSE 0 END) AS PedidosFin,
+                       COUNT(*) AS DocsTot,
+                       SUM(CASE WHEN NoDespachada = 0 THEN ISNULL(PesoTotal, 0) ELSE 0 END) AS PesoDocs
+                FROM OrderPickingManagement WHERE ID_Centro = @centro
                   AND RouteNumber IN (SELECT RouteNumber FROM (${VISIBLES}) vis)
                 GROUP BY RouteNumber
             `);
@@ -145,9 +148,12 @@ router.get('/plan-despachos', requireReportes, async (req, res) => {
                     FechaDespacho: r.FechaDespachoFin,
                     FechaPlanDespacho: r.FechaPlanDespacho,
                     Comprometida: !!r.Comprometida,
-                    // Si no hay estimado (p.ej. complementos, que nacen sin PesoEstimado),
-                    // usar el peso real de las tareas movidas para no mostrar 0 TN.
-                    PesoEstimadoKg: (r.PesoEstimado > 0 ? r.PesoEstimado : (a.PesoTot || 0)),
+                    // Peso = suma de los documentos que siguen en el cuadro (sin los "No
+                    // despachada"), igual que el detalle. PesoEstimado se fija al crear el
+                    // cuadro y no se ajusta al agregar/quitar documentos: solo se usa si el
+                    // cuadro aún no tiene documentos (o las tareas, p.ej. complementos).
+                    PesoEstimadoKg: (p.DocsTot || 0) > 0 ? (p.PesoDocs || 0)
+                        : (r.PesoEstimado > 0 ? r.PesoEstimado : (a.PesoTot || 0)),
                     // Tonelaje pendiente: remanente por pickear si ya inició; si no tiene
                     // tareas aún (cuadro Pendiente), es el estimado completo.
                     PesoPendienteKg: (a.PesoTot || 0) > 0 ? Math.max(0, (a.PesoTot || 0) - (a.PesoPick || 0)) : (r.PesoEstimado || 0),
@@ -519,13 +525,19 @@ router.get('/plan-despachos/export', requireReportes, async (req, res) => {
                     WHERE t.ID_Centro = @centro AND opm.NoDespachada = 0
                     GROUP BY t.RouteNumber, t.ID_OrderPicking, t.InternIdProduct
                 ) p GROUP BY RouteNumber
+            ),
+            docs AS (
+                SELECT RouteNumber, SUM(CASE WHEN NoDespachada = 0 THEN ISNULL(PesoTotal, 0) ELSE 0 END) AS PesoDocs
+                FROM OrderPickingManagement WHERE ID_Centro = @centro GROUP BY RouteNumber
             )
             SELECT orp.RouteNumber, orp.RouteName, orp.Prioridad, orp.FechaPlanDespacho,
                    ISNULL(orp.Comprometida,0) AS Comprometida, orp.Estado AS EstadoPicking,
                    ISNULL(orp.EstadoDespacho,'Pendiente') AS EstadoDespacho,
-                   CASE WHEN ISNULL(orp.PesoEstimado,0) > 0 THEN orp.PesoEstimado ELSE ISNULL(av.PesoTot,0) END AS PesoKg
+                   CASE WHEN docs.RouteNumber IS NOT NULL THEN docs.PesoDocs
+                        WHEN ISNULL(orp.PesoEstimado,0) > 0 THEN orp.PesoEstimado ELSE ISNULL(av.PesoTot,0) END AS PesoKg
             FROM OrderRoutePlan orp
             LEFT JOIN av ON av.RouteNumber = orp.RouteNumber
+            LEFT JOIN docs ON docs.RouteNumber = orp.RouteNumber
             WHERE orp.ID_Centro = @centro AND orp.Pais = @pais
               AND ISNULL(orp.EstadoDespacho,'') <> 'Finalizado'
             ORDER BY CASE WHEN orp.FechaPlanDespacho IS NULL THEN 1 ELSE 0 END,
