@@ -996,6 +996,7 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
                     opm.Pais,
                     opm.ID_Operario,
                     opm.ClienteNombre,
+                    opm.ClienteTR,
                     o.Nombre AS OperarioNombre,
                     (SELECT COUNT(*) FROM OrderPickingTask
                      WHERE ID_OrderPicking = opm.ID_OrderPicking AND CantidadPendiente = 0) AS LineasFinalizadas
@@ -1114,12 +1115,14 @@ router.get('/despacho/rutas/:id/documentos', async (req, res) => {
 
             // Nombre del cliente (OV) / destino (TR) desde el valor ya persistido en la
             // ingesta (OPM.ClienteNombre). No consulta SAP en runtime. Para TR se antepone
-            // "Traslado → " al nombre del destino guardado.
+            // "Traslado → " al nombre del destino guardado y, si el TR viene de una OV,
+            // el nombre del cliente final (OPM.ClienteTR) adelante.
             docs.forEach(d => {
                 const nombre = d.ClienteNombre || '';
-                d.Cliente = (['TR', 'RESURTIDO'].includes(d.DocType) && nombre)
-                    ? ('Traslado → ' + nombre)
-                    : nombre;
+                if (['TR', 'RESURTIDO'].includes(d.DocType)) {
+                    const dest = nombre ? 'Traslado → ' + nombre : '';
+                    d.Cliente = d.ClienteTR ? d.ClienteTR + (dest ? ' · ' + dest : '') : dest;
+                } else d.Cliente = nombre;
             });
         }
         res.json(docs);

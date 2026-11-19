@@ -331,7 +331,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
             const r = await pool.request().input('centro', sql.Int, centro).query(`
                 SELECT orp.RouteNumber AS Cuadro, orp.RouteName AS Ruta, orp.Prioridad,
                        opm.OV_Number, opm.DocType, ISNULL(opm.PesoTotal, 0) AS PesoKg,
-                       opm.NoDespachada
+                       opm.NoDespachada, opm.ClienteTR
                 FROM OrderPickingManagement opm
                 INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
                 WHERE orp.ID_Centro = @centro
@@ -382,7 +382,7 @@ router.get('/plan-despachos/detalle', requireReportes, async (req, res) => {
             const g = map.get(d.Cuadro);
             const i = d.DocType === 'OV' ? (info[String(d.OV_Number)] || {}) : {};
             const cliente = d.DocType === 'TR'
-                ? ('Traslado → ' + (dest[String(d.OV_Number)] || 'destino s/d'))
+                ? ((d.ClienteTR ? d.ClienteTR + ' · ' : '') + 'Traslado → ' + (dest[String(d.OV_Number)] || 'destino s/d'))
                 : (i.cliente || '');
             const monto = d.DocType === 'OV' ? (i.monto != null ? Number(i.monto) : null) : null;
             const peso = Number(d.PesoKg) || 0;
@@ -485,12 +485,14 @@ router.get('/plan-despachos/buscar-cliente', requireReportes, async (req, res) =
         const rows = (await pool.request().input('centro', sql.Int, centro).input('q', sql.NVarChar(150), '%' + q + '%').query(`
             SELECT orp.RouteNumber AS Cuadro, orp.RouteName AS Ruta, orp.Estado AS EstadoPicking,
                    orp.EstadoDespacho, orp.FechaDespachoFin AS FechaDespacho,
-                   opm.OV_Number AS OV, opm.DocType, opm.ClienteNombre AS Cliente
+                   opm.OV_Number AS OV, opm.DocType,
+                   ISNULL(NULLIF(opm.ClienteTR, ''), opm.ClienteNombre) AS Cliente
             FROM OrderPickingManagement opm
             INNER JOIN OrderRoutePlan orp ON orp.ID_RoutePlan = opm.ID_RoutePlan
             WHERE orp.ID_Centro = @centro AND opm.NoDespachada = 0
-              AND opm.ClienteNombre COLLATE DATABASE_DEFAULT LIKE @q COLLATE DATABASE_DEFAULT
-            ORDER BY opm.ClienteNombre, orp.RouteNumber, opm.OV_Number
+              AND ( opm.ClienteNombre COLLATE DATABASE_DEFAULT LIKE @q COLLATE DATABASE_DEFAULT
+                    OR opm.ClienteTR COLLATE DATABASE_DEFAULT LIKE @q COLLATE DATABASE_DEFAULT )
+            ORDER BY Cliente, orp.RouteNumber, opm.OV_Number
         `)).recordset;
         res.json({ q, resultados: rows });
     } catch (err) {
