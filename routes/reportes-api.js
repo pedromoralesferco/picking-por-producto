@@ -771,7 +771,7 @@ router.get('/plan-despachos/confirmaciones/:idRoutePlan', requireReportes, async
         const r = await pool.request().input('id', sql.Int, id).query(`
             SELECT LTRIM(RTRIM(opm.OV_Number)) AS OV_Number, opm.DocType, opm.Telefono,
                    ce.Estado, CONVERT(varchar(10), ce.FechaRecepcion, 23) AS FechaRecepcion,
-                   ce.Comentario, ce.Usuario, ce.Fecha
+                   ce.Comentario, ce.Usuario, ce.Fecha, ce.ComentarioUsuario, ce.ComentarioFecha
             FROM OrderPickingManagement opm
             LEFT JOIN dbo.ConfirmacionEntrega ce
                    ON ce.ID_RoutePlan = opm.ID_RoutePlan AND ce.OV_Number = LTRIM(RTRIM(opm.OV_Number))
@@ -785,56 +785,114 @@ router.get('/plan-despachos/confirmaciones/:idRoutePlan', requireReportes, async
     }
 });
 
+// Valida que la OV esté en el cuadro del centro y que el cuadro no esté despachado.
+// Devuelve { status, error } o null si todo está bien.
+async function validarOvConfirmable(pool, req, id, ov) {
+    if (!id || !ov) return { status: 400, error: 'Cuadro y OV requeridos' };
+    const ruta = await rutaDelCentro(pool, id, req.session.user.selectedCentro);
+    if (!ruta) return { status: 404, error: 'Cuadro no encontrado en este centro' };
+    if (ruta.EstadoDespacho === 'Finalizado') return { status: 409, error: 'El cuadro ya fue despachado' };
+    const doc = await pool.request().input('id', sql.Int, id).input('ov', sql.NVarChar(50), ov).query(`
+        SELECT 1 AS ok FROM OrderPickingManagement
+        WHERE ID_RoutePlan = @id AND LTRIM(RTRIM(OV_Number)) = @ov AND DocType = 'OV' AND NoDespachada = 0`);
+    if (!doc.recordset.length) return { status: 404, error: 'La OV no está en este cuadro' };
+    return null;
+}
+function usuarioSesion(req) {
+    const u = req.session.user;
+    return (u && (u.nombre || u.usuario)) || 'Sistema';
+}
+
 // POST /api/reportes/plan-despachos/confirmacion
-// { id_routePlan, ov, estado: 'Si' | 'No' | null, fecha (YYYY-MM-DD, requerida si 'No'), comentario }
+// { id_routePlan, ov, estado: 'Si' | 'No' | null, fecha (YYYY-MM-DD, requerida si 'No'), comentario? }
 // Solo quien puede priorizar marca la confirmación (ver: cualquiera con Plan de Despachos).
+// El comentario es independiente de la marca: solo se toca si viene 'comentario' con estado 'No'
+// (el popover del No lo trae precargado). Quitar la marca conserva el comentario.
 router.post('/plan-despachos/confirmacion', requirePriorizar, async (req, res) => {
     try {
         const id = parseInt(req.body.id_routePlan);
         const ov = String(req.body.ov || '').trim();
         const estado = req.body.estado == null || req.body.estado === '' ? null : String(req.body.estado);
-        if (!id || !ov) return res.status(400).json({ error: 'Cuadro y OV requeridos' });
         if (estado !== null && estado !== 'Si' && estado !== 'No') return res.status(400).json({ error: 'Estado inválido' });
         let fecha = null;
         if (estado === 'No') {
             fecha = String(req.body.fecha || '').trim().slice(0, 10);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'Indicá la fecha en que el cliente sí puede recibir' });
         }
-        const comentario = estado === 'No' ? (String(req.body.comentario || '').trim().slice(0, 500) || null) : null;
+        const conComentario = estado === 'No' && Object.prototype.hasOwnProperty.call(req.body, 'comentario');
+        const comentario = conComentario ? (String(req.body.comentario || '').trim().slice(0, 500) || null) : null;
         const pool = getPool();
-        const ruta = await rutaDelCentro(pool, id, req.session.user.selectedCentro);
-        if (!ruta) return res.status(404).json({ error: 'Cuadro no encontrado en este centro' });
-        if (ruta.EstadoDespacho === 'Finalizado') return res.status(409).json({ error: 'El cuadro ya fue despachado' });
-        const doc = await pool.request().input('id', sql.Int, id).input('ov', sql.NVarChar(50), ov).query(`
-            SELECT 1 AS ok FROM OrderPickingManagement
-            WHERE ID_RoutePlan = @id AND LTRIM(RTRIM(OV_Number)) = @ov AND DocType = 'OV' AND NoDespachada = 0`);
-        if (!doc.recordset.length) return res.status(404).json({ error: 'La OV no está en este cuadro' });
+        const inval = await validarOvConfirmable(pool, req, id, ov);
+        if (inval) return res.status(inval.status).json({ error: inval.error });
         if (estado === 'No') {
             const hoy = await pool.request().input('f', sql.VarChar(10), fecha)
                 .query(`SELECT CASE WHEN CONVERT(date, @f, 23) >= CAST(GETDATE() AS date) THEN 1 ELSE 0 END AS ok`);
             if (!hoy.recordset[0].ok) return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy' });
         }
-        const u = req.session.user;
-        const usuario = (u && (u.nombre || u.usuario)) || 'Sistema';
+        const usuario = usuarioSesion(req);
         const rq = pool.request().input('id', sql.Int, id).input('ov', sql.NVarChar(50), ov);
         if (estado === null) {
-            await rq.query(`DELETE FROM dbo.ConfirmacionEntrega WHERE ID_RoutePlan = @id AND OV_Number = @ov`);
+            // Quitar la marca: si hay comentario la fila se queda (solo comentario).
+            await rq.query(`
+                UPDATE dbo.ConfirmacionEntrega SET Estado = NULL, FechaRecepcion = NULL, Usuario = NULL
+                 WHERE ID_RoutePlan = @id AND OV_Number = @ov;
+                DELETE FROM dbo.ConfirmacionEntrega
+                 WHERE ID_RoutePlan = @id AND OV_Number = @ov AND ISNULL(Comentario, '') = '';`);
         } else {
             // Fecha como texto + CONVERT estilo 23 (con sql.Date el driver resta un día)
             await rq.input('e', sql.NVarChar(10), estado).input('f', sql.VarChar(10), fecha)
+                .input('cs', sql.Bit, conComentario ? 1 : 0)
                 .input('c', sql.NVarChar(500), comentario).input('u', sql.NVarChar(100), usuario)
                 .query(`
                     UPDATE dbo.ConfirmacionEntrega
-                       SET Estado = @e, FechaRecepcion = CONVERT(date, @f, 23), Comentario = @c, Usuario = @u, Fecha = GETDATE()
+                       SET Estado = @e, FechaRecepcion = CONVERT(date, @f, 23), Usuario = @u, Fecha = GETDATE(),
+                           ComentarioUsuario = CASE WHEN @cs = 1 AND ISNULL(Comentario, N'') <> ISNULL(@c, N'') THEN @u ELSE ComentarioUsuario END,
+                           ComentarioFecha   = CASE WHEN @cs = 1 AND ISNULL(Comentario, N'') <> ISNULL(@c, N'') THEN GETDATE() ELSE ComentarioFecha END,
+                           Comentario        = CASE WHEN @cs = 1 THEN @c ELSE Comentario END
                      WHERE ID_RoutePlan = @id AND OV_Number = @ov;
                     IF @@ROWCOUNT = 0
-                        INSERT INTO dbo.ConfirmacionEntrega (ID_RoutePlan, OV_Number, Estado, FechaRecepcion, Comentario, Usuario)
-                        VALUES (@id, @ov, @e, CONVERT(date, @f, 23), @c, @u);`);
+                        INSERT INTO dbo.ConfirmacionEntrega (ID_RoutePlan, OV_Number, Estado, FechaRecepcion, Comentario, Usuario, ComentarioUsuario, ComentarioFecha)
+                        VALUES (@id, @ov, @e, CONVERT(date, @f, 23), @c, @u,
+                                CASE WHEN @c IS NULL THEN NULL ELSE @u END, CASE WHEN @c IS NULL THEN NULL ELSE GETDATE() END);`);
         }
         res.json({ ok: true });
     } catch (err) {
         console.error('POST confirmacion', err);
         res.status(500).json({ error: 'Error al guardar la confirmación' });
+    }
+});
+
+// POST /api/reportes/plan-despachos/confirmacion/comentario
+// { id_routePlan, ov, comentario } — comentario de la OV, con o sin marca Sí/No.
+// Vacío = borrar el comentario (y la fila si no tiene marca).
+router.post('/plan-despachos/confirmacion/comentario', requirePriorizar, async (req, res) => {
+    try {
+        const id = parseInt(req.body.id_routePlan);
+        const ov = String(req.body.ov || '').trim();
+        const comentario = String(req.body.comentario || '').trim().slice(0, 500) || null;
+        const pool = getPool();
+        const inval = await validarOvConfirmable(pool, req, id, ov);
+        if (inval) return res.status(inval.status).json({ error: inval.error });
+        const rq = pool.request().input('id', sql.Int, id).input('ov', sql.NVarChar(50), ov)
+            .input('c', sql.NVarChar(500), comentario).input('u', sql.NVarChar(100), usuarioSesion(req));
+        if (comentario === null) {
+            await rq.query(`
+                UPDATE dbo.ConfirmacionEntrega SET Comentario = NULL, ComentarioUsuario = NULL, ComentarioFecha = NULL
+                 WHERE ID_RoutePlan = @id AND OV_Number = @ov;
+                DELETE FROM dbo.ConfirmacionEntrega
+                 WHERE ID_RoutePlan = @id AND OV_Number = @ov AND Estado IS NULL;`);
+        } else {
+            await rq.query(`
+                UPDATE dbo.ConfirmacionEntrega SET Comentario = @c, ComentarioUsuario = @u, ComentarioFecha = GETDATE()
+                 WHERE ID_RoutePlan = @id AND OV_Number = @ov;
+                IF @@ROWCOUNT = 0
+                    INSERT INTO dbo.ConfirmacionEntrega (ID_RoutePlan, OV_Number, Estado, Comentario, ComentarioUsuario, ComentarioFecha)
+                    VALUES (@id, @ov, NULL, @c, @u, GETDATE());`);
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('POST confirmacion/comentario', err);
+        res.status(500).json({ error: 'Error al guardar el comentario' });
     }
 });
 

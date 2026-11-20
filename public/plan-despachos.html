@@ -121,6 +121,15 @@
         .conf-tag.si { color: var(--success); } .conf-tag.no { color: var(--red); }
         .conf-x { border: none; background: none; color: #999; cursor: pointer; font-size: 0.8rem; margin-left: 0.3rem; }
         .conf-x:hover { color: var(--dark); }
+        .conf-com { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 0.15rem 0.4rem; margin-left: 0.3rem;
+            font-size: 0.75rem; color: #888; cursor: pointer; position: relative; }
+        .conf-com:hover { border-color: var(--dark); color: var(--dark); }
+        .conf-com.tiene { border-color: #1565c0; color: #1565c0; background: #e8f0fb; }
+        .conf-com:disabled { cursor: default; }
+        .conf-pop textarea { width: 100%; border: 1px solid #ccc; border-radius: 6px; padding: 0.3rem 0.4rem; font-size: 0.8rem;
+            font-family: inherit; resize: vertical; min-height: 4.5rem; }
+        .conf-pop .meta { font-size: 0.66rem; color: #999; margin-top: 0.25rem; }
+        .conf-pop .solo-lectura { font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; max-width: 280px; }
         .conf-pop { position: absolute; z-index: 3000; background: #fff; border: 1px solid #ddd; border-radius: 10px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 0.7rem; width: 250px; font-size: 0.78rem; }
         .conf-pop label { display: block; font-size: 0.66rem; font-weight: 700; color: #888; text-transform: uppercase; margin: 0.35rem 0 0.15rem; }
@@ -625,9 +634,10 @@
                 confEditable[idRoutePlan] = !!(conf && conf.editable);
                 const conCols = !!conf;
                 const cf = d => confMap.get((d.DocType || '') + '|' + String(d.OV_Number || '').trim()) || {};
+                docs.forEach(d => { if (d.DocType === 'OV') confDatos[idRoutePlan + '|' + String(d.OV_Number || '').trim()] = cf(d); });
                 pintar(`
                     <table class="det-docs">${conCols
-                        ? '<colgroup><col style="width:120px"><col style="width:60px"><col style="width:420px"><col style="width:120px"><col style="width:80px"><col style="width:90px"><col style="width:95px"><col style="width:120px"><col style="width:190px"></colgroup>'
+                        ? '<colgroup><col style="width:120px"><col style="width:60px"><col style="width:420px"><col style="width:120px"><col style="width:80px"><col style="width:90px"><col style="width:95px"><col style="width:120px"><col style="width:240px"></colgroup>'
                         : '<colgroup><col style="width:120px"><col style="width:60px"><col style="width:420px"><col style="width:80px"><col style="width:90px"><col style="width:95px"><col style="width:120px"></colgroup>'}<thead><tr>
                         <th>Documento</th><th>Tipo</th><th>Cliente / Destino</th>${conCols ? '<th>Teléfono</th>' : ''}<th class="r">Líneas</th><th class="r">Unidades</th><th class="r">Peso (kg)</th><th>Estado</th>${conCols ? '<th>Confirmación</th>' : ''}
                     </tr></thead><tbody>
@@ -660,10 +670,61 @@
             const ov = esc(String(d.OV_Number).trim());
             const quien = x.Usuario ? `${x.Usuario} · ${new Date(x.Fecha).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '';
             const quitar = ed ? `<button class="conf-x" title="Quitar la marca" onclick="setConfirmacion(${cuadro}, ${idRoutePlan}, '${ov}', null)"><i class="bi bi-x-circle"></i></button>` : '';
-            if (x.Estado === 'Si') return `<span class="conf-tag si" title="${esc(quien)}"><i class="bi bi-check-circle-fill"></i> Recibe</span>${quitar}`;
-            if (x.Estado === 'No') return `<span class="conf-tag no" title="${esc((x.Comentario ? x.Comentario + ' — ' : '') + quien)}"><i class="bi bi-x-circle-fill"></i> Recibe el ${fdm(x.FechaRecepcion)}${x.Comentario ? ' <i class="bi bi-chat-left-text"></i>' : ''}</span>${quitar}`;
-            if (!ed) return '<span style="color:#aaa">—</span>';
-            return `<button class="conf-btn si" title="El cliente sí puede recibir" onclick="setConfirmacion(${cuadro}, ${idRoutePlan}, '${ov}', 'Si')"><i class="bi bi-check-lg"></i> Sí</button><button class="conf-btn no" title="El cliente no puede recibir: indicar fecha" onclick="abrirConfNo(event, ${cuadro}, ${idRoutePlan}, '${ov}')"><i class="bi bi-x-lg"></i> No</button>`;
+            // Comentario de la OV (independiente de Sí/No). Sin permiso: solo se ve si hay uno.
+            const com = x.Comentario
+                ? `<button class="conf-com tiene" title="${esc(x.Comentario)}" onclick="abrirConfCom(event, ${cuadro}, ${idRoutePlan}, '${ov}')"><i class="bi bi-chat-left-text-fill"></i></button>`
+                : (ed ? `<button class="conf-com" title="Agregar comentario" onclick="abrirConfCom(event, ${cuadro}, ${idRoutePlan}, '${ov}')"><i class="bi bi-chat-left-text"></i></button>` : '');
+            if (x.Estado === 'Si') return `<span class="conf-tag si" title="${esc(quien)}"><i class="bi bi-check-circle-fill"></i> Recibe</span>${quitar}${com}`;
+            if (x.Estado === 'No') return `<span class="conf-tag no" title="${esc(quien)}"><i class="bi bi-x-circle-fill"></i> Recibe el ${fdm(x.FechaRecepcion)}</span>${quitar}${com}`;
+            if (!ed) return `<span style="color:#aaa">—</span>${com}`;
+            return `<button class="conf-btn si" title="El cliente sí puede recibir" onclick="setConfirmacion(${cuadro}, ${idRoutePlan}, '${ov}', 'Si')"><i class="bi bi-check-lg"></i> Sí</button><button class="conf-btn no" title="El cliente no puede recibir: indicar fecha" onclick="abrirConfNo(event, ${cuadro}, ${idRoutePlan}, '${ov}')"><i class="bi bi-x-lg"></i> No</button>${com}`;
+        }
+        const confDatos = {}; // idRoutePlan|OV → fila de confirmación (comentario incluido)
+        function ponerConfPop(ev, p) {
+            p.addEventListener('click', e => e.stopPropagation());
+            document.body.appendChild(p);
+            confPop = p;
+            const r = ev.currentTarget.getBoundingClientRect();
+            p.style.left = Math.max(8, Math.min(window.scrollX + r.right - p.offsetWidth, window.scrollX + document.documentElement.clientWidth - p.offsetWidth - 8)) + 'px';
+            p.style.top = (window.scrollY + r.bottom + 4) + 'px';
+        }
+        function abrirConfCom(ev, cuadro, idRoutePlan, ov) {
+            ev.stopPropagation();
+            cerrarConfPop();
+            const x = confDatos[idRoutePlan + '|' + ov] || {};
+            const ed = !!confEditable[idRoutePlan];
+            const meta = x.Comentario && x.ComentarioUsuario
+                ? `<div class="meta">${esc(x.ComentarioUsuario)}${x.ComentarioFecha ? ' · ' + new Date(x.ComentarioFecha).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</div>` : '';
+            const p = document.createElement('div');
+            p.className = 'conf-pop';
+            if (!ed) {
+                p.innerHTML = `<div style="font-weight:800">OV ${esc(ov)} — comentario</div>
+                    <div class="solo-lectura" style="margin-top:0.35rem">${esc(x.Comentario || '')}</div>${meta}`;
+                ponerConfPop(ev, p);
+                return;
+            }
+            p.innerHTML = `<div style="font-weight:800">OV ${esc(ov)} — comentario</div>
+                <label>Comentario</label><textarea id="confComTxt" maxlength="500" placeholder="Ej: llamar antes de salir; recibe solo por la tarde"></textarea>${meta}
+                <div class="acc">${x.Comentario ? '<button id="confComDel" style="margin-right:auto">Borrar</button>' : ''}<button onclick="cerrarConfPop()">Cancelar</button><button class="ok" id="confComOk">Guardar</button></div>`;
+            ponerConfPop(ev, p);
+            const ta = document.getElementById('confComTxt');
+            ta.value = x.Comentario || '';
+            ta.focus();
+            document.getElementById('confComOk').onclick = () => guardarComentario(idRoutePlan, ov, ta.value);
+            const del = document.getElementById('confComDel');
+            if (del) del.onclick = () => { if (confirm('¿Borrar el comentario de la OV ' + ov + '?')) guardarComentario(idRoutePlan, ov, ''); };
+        }
+        async function guardarComentario(idRoutePlan, ov, texto) {
+            try {
+                const r = await fetch('/api/reportes/plan-despachos/confirmacion/comentario', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_routePlan: idRoutePlan, ov, comentario: texto })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { alert(d.error || 'No se pudo guardar'); return; }
+                cerrarConfPop();
+                load();
+            } catch (e) { alert('Error de conexión'); }
         }
         function cerrarConfPop() { if (confPop) { confPop.remove(); confPop = null; } }
         function abrirConfNo(ev, cuadro, idRoutePlan, ov) {
@@ -674,12 +735,8 @@
                 <label>¿Qué fecha sí puede recibir?</label><input type="date" id="confFecha" min="${hoyISO()}">
                 <label>Comentario (opcional)</label><input type="text" id="confCom" maxlength="500" placeholder="Ej: solo por la tarde">
                 <div class="acc"><button onclick="cerrarConfPop()">Cancelar</button><button class="ok" id="confOk">Guardar</button></div>`;
-            p.addEventListener('click', e => e.stopPropagation());
-            document.body.appendChild(p);
-            confPop = p;
-            const r = ev.currentTarget.getBoundingClientRect();
-            p.style.left = Math.max(8, Math.min(window.scrollX + r.right - p.offsetWidth, window.scrollX + document.documentElement.clientWidth - p.offsetWidth - 8)) + 'px';
-            p.style.top = (window.scrollY + r.bottom + 4) + 'px';
+            ponerConfPop(ev, p);
+            document.getElementById('confCom').value = (confDatos[idRoutePlan + '|' + ov] || {}).Comentario || '';
             document.getElementById('confFecha').focus();
             document.getElementById('confOk').onclick = () => {
                 const f = document.getElementById('confFecha').value;
@@ -694,7 +751,9 @@
             try {
                 const r = await fetch('/api/reportes/plan-despachos/confirmacion', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id_routePlan: idRoutePlan, ov, estado, fecha: fecha || null, comentario: comentario || null })
+                    body: JSON.stringify(estado === 'No'
+                        ? { id_routePlan: idRoutePlan, ov, estado, fecha: fecha || null, comentario: comentario || '' }
+                        : { id_routePlan: idRoutePlan, ov, estado })
                 });
                 const d = await r.json().catch(() => ({}));
                 if (!r.ok) { alert(d.error || 'No se pudo guardar'); return; }
